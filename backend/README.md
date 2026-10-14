@@ -31,6 +31,66 @@
 $ pnpm install
 ```
 
+## Database
+
+PostgreSQL in the `libreria` schema, accessed with Drizzle ORM over a plain `pg` connection. The same code runs against a local Docker database and against Supabase; only environment variables change.
+
+Requirements: Docker and the [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started).
+
+```bash
+cp .env.example .env
+pnpm db:start        # local Postgres + pooler in Docker
+pnpm db:migrate      # applies drizzle/*.sql
+pnpm db:seed-admin   # needs SEED_ADMIN_* in .env
+pnpm db:smoke        # read-only sanity check, safe against any target
+```
+
+### Connection profiles
+
+| Profile                   | `DATABASE_URL`                                                                                    | `DATABASE_SSL_MODE`               |
+| ------------------------- | ------------------------------------------------------------------------------------------------- | --------------------------------- |
+| Local, direct (default)   | `postgresql://libreria_app:libreria_app@127.0.0.1:54322/postgres`                                 | `disable`                         |
+| Local, through the pooler | `postgresql://libreria_app.pooler-dev:libreria_app@127.0.0.1:54329/postgres`                      | `disable`                         |
+| Supabase                  | `postgresql://libreria_app.<project-ref>:<password>@<pooler-host>:5432/postgres` (session pooler) | `verify-full` + `DATABASE_SSL_CA` |
+
+Do not put `sslmode` in the URLs; use `DATABASE_SSL_MODE`. To use another target keep its variables in a separate ignored file and select it with `ENV_FILE`:
+
+```bash
+ENV_FILE=.env.supabase pnpm db:migrate
+ENV_FILE=.env.supabase pnpm db:smoke
+ENV_FILE=.env.supabase pnpm start:dev
+```
+
+`pnpm db:smoke` prints the same output on every target except the SSL line.
+
+### Roles
+
+- `postgres` (`DATABASE_MIGRATION_URL`): owns the schema and runs migrations. Never used by the API.
+- `libreria_app` (`DATABASE_URL`): runtime role with DML only on `libreria`. Migration `0003` creates it without login; locally `supabase/roles.sql` creates it with a development password. On a new Supabase project, enable it once from the SQL editor with a long random password:
+
+```sql
+ALTER ROLE libreria_app WITH LOGIN PASSWORD '<generated-secret>';
+```
+
+### Changing the schema
+
+1. Edit `src/shared/infrastructure/database/schema/*`.
+2. `pnpm db:generate` and review the generated SQL.
+3. `pnpm db:migrate`.
+
+Functions, triggers and deferrable constraints are not modeled by Drizzle: create them with `pnpm db:custom <name>`.
+
+Rules:
+
+- Never run `drizzle-kit push`.
+- Never edit a migration that has already been applied anywhere; add a new one.
+- `supabase/migrations` is not used; `drizzle/` is the source of truth.
+- Do not create objects by hand in the Supabase dashboard (except the `libreria_app` password).
+
+### Tests
+
+`pnpm test:e2e` needs the local database (`pnpm db:start`). It runs the migrations first and refuses to run if `DATABASE_MIGRATION_URL` does not point to `127.0.0.1` or `localhost`.
+
 ## Compile and run the project
 
 ```bash
