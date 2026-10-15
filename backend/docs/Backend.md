@@ -164,8 +164,8 @@ classDiagram
     class ConflictError { <<domain>> }
     class BusinessRuleViolationError { <<domain>> }
     class InvalidValueError { <<domain>> }
-    class AuthenticationError { <<application>> }
-    class ForbiddenActionError { <<application>> }
+    class AuthenticationError { <<domain>> }
+    class ForbiddenActionError { <<domain>> }
 
     class Money {
         <<value object domain>>
@@ -297,9 +297,10 @@ classDiagram
     class ErrorResponseFilter {
         <<filter presentation>>
         +catch(exception: unknown, host: ArgumentsHost) void
-        -fromDomainError(error: DomainError) HttpException
-        -fromApplicationError(error: Error) HttpException
-        -fromDatabaseError(error: DatabaseError) HttpException
+        -fromDomainError(error: DomainError) ErrorBody
+        -fromDatabaseError(sqlState: string) ErrorBody
+        -fromHttpException(error: HttpException) ErrorBody
+        -fromUnknown() ErrorBody
     }
 
     DomainError <|-- EntityNotFoundError
@@ -332,8 +333,10 @@ classDiagram
   - `ConflictError`: la operación entra en conflicto con datos existentes (por ejemplo, un email ya registrado).
   - `BusinessRuleViolationError`: la operación viola una regla de negocio (por ejemplo, eliminar la última imagen de un producto).
   - `InvalidValueError`: un dato no cumple el formato o rango esperado.
+  - `AuthenticationError`: credenciales inválidas.
+  - `ForbiddenActionError`: acción no permitida para el usuario.
 
-  Existen además dos errores propios de la capa de aplicación que heredan de esta misma clase: `AuthenticationError` (credenciales inválidas) y `ForbiddenActionError` (acción no permitida para el usuario).
+  Las seis especializaciones son abstractas y se ubican junto a `DomainError`, de modo que los casos de uso puedan lanzarlas sin depender de la capa de presentación; cada error concreto define su propio código.
 
 - **`Money`**: value object que representa montos en pesos. Internamente trabaja con centavos enteros para evitar los errores de redondeo propios de los números decimales, y ofrece operaciones de comparación, como verificar que el precio de oferta sea menor al precio regular.
 
@@ -389,7 +392,22 @@ Los archivos almacenados en Supabase Storage no forman parte de la transacción 
 
 #### Mapeo de errores
 
-`ErrorResponseFilter` intercepta todos los errores del sistema y los convierte en respuestas HTTP con el código correspondiente. Además de los errores propios de la aplicación, traduce las violaciones de restricciones detectadas por PostgreSQL, de modo que las reglas aplicadas en la base de datos también lleguen al cliente con un mensaje adecuado.
+`ErrorResponseFilter` intercepta todos los errores del sistema y los convierte en respuestas HTTP con el código correspondiente. Además de los errores propios de la aplicación, traduce las violaciones de restricciones detectadas por PostgreSQL, de modo que las reglas aplicadas en la base de datos también lleguen al cliente con un mensaje genérico, sin revelar tablas, restricciones ni consultas. También normaliza las excepciones HTTP propias del framework (por ejemplo, una ruta inexistente), conservando su estado.
+
+Todas las respuestas de error comparten el mismo formato:
+
+```json
+{
+  "statusCode": 409,
+  "code": "EMAIL_ALREADY_IN_USE",
+  "message": "…",
+  "details": [{ "field": "email", "messages": ["…"] }],
+  "path": "/api/v1/users",
+  "timestamp": "2026-10-15T12:00:00.000Z"
+}
+```
+
+El campo `code` es estable y permite al frontend distinguir los errores: es el código del error de dominio o, para las violaciones de PostgreSQL y las excepciones HTTP, un código genérico (`UNIQUE_VIOLATION`, `FOREIGN_KEY_VIOLATION`, `CHECK_VIOLATION`, `NOT_FOUND`, etc.). El campo `details` solo aparece en los errores de validación de datos de entrada, con un elemento por campo inválido (`code` `VALIDATION_FAILED`).
 
 | Error                                                                                                    | Código HTTP                        |
 | :------------------------------------------------------------------------------------------------------- | :--------------------------------- |
@@ -399,6 +417,7 @@ Los archivos almacenados en Supabase Storage no forman parte de la transacción 
 | `EntityNotFoundError`                                                                                    | 404                                |
 | `ConflictError` y errores de PostgreSQL `23505` (valor duplicado) y `23503` (referencia inválida)        | 409                                |
 | `BusinessRuleViolationError` y error de PostgreSQL `23514` (restricción `CHECK` o trigger de validación) | 422                                |
+| Excepción HTTP del framework (por ejemplo, ruta inexistente o límite de solicitudes)                     | El estado de la excepción          |
 | Cualquier otro error                                                                                     | 500, sin exponer detalles internos |
 
 #### Orden de ejecución de los guards
