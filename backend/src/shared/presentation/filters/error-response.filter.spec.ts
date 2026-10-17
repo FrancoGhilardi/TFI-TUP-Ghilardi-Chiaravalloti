@@ -15,11 +15,13 @@ import {
   AuthenticationError,
   BusinessRuleViolationError,
   ConflictError,
+  DomainError,
   EntityNotFoundError,
   ForbiddenActionError,
   InvalidValueError,
 } from "../../domain/errors/index.js";
 import type { ErrorResponse } from "../http/error-response.js";
+import { NotImplementedYetError } from "../http/not-implemented-yet-error.js";
 import { RequestValidationError } from "../http/request-validation-error.js";
 import { ErrorResponseFilter } from "./error-response.filter.js";
 
@@ -51,6 +53,11 @@ class TestConflictError extends ConflictError {
 class TestBusinessRuleViolationError extends BusinessRuleViolationError {
   constructor() {
     super("RULE_BROKEN", "Rule broken");
+  }
+}
+class TestUnmappedDomainError extends DomainError {
+  constructor() {
+    super("UNMAPPED", "secret unmapped failure");
   }
 }
 class TestUnrelatedDetailsError extends ConflictError {
@@ -137,6 +144,25 @@ describe("ErrorResponseFilter", () => {
       const { body } = setup().run(new TestUnrelatedDetailsError());
 
       expect(body.details).toBeUndefined();
+    });
+  });
+
+  describe("routes not built yet", () => {
+    it("answers a 501 with its code and message", () => {
+      const { body, status } = setup().run(new NotImplementedYetError());
+
+      expect(status).toBe(501);
+      expect(body).toMatchObject({
+        statusCode: 501,
+        code: "NOT_IMPLEMENTED",
+        message: "Esta función todavía no está disponible.",
+      });
+    });
+
+    it("does not log it as a server error", () => {
+      setup().run(new NotImplementedYetError());
+
+      expect(logError).not.toHaveBeenCalled();
     });
   });
 
@@ -245,6 +271,15 @@ describe("ErrorResponseFilter", () => {
       setup().run(error);
 
       expect(logError).toHaveBeenCalledWith("secret failure", error.stack);
+    });
+
+    it("answers and logs a domain error without a status as an unexpected 500", () => {
+      const error = new TestUnmappedDomainError();
+      const { body, status } = setup().run(error);
+
+      expect(status).toBe(500);
+      expect(body).toMatchObject({ code: "INTERNAL_ERROR", message: "Internal server error" });
+      expect(logError).toHaveBeenCalledWith("secret unmapped failure", error.stack);
     });
   });
 

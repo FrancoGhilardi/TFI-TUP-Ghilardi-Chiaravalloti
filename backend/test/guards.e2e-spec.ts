@@ -116,10 +116,10 @@ describe("Global guards (e2e)", () => {
   beforeEach(async () => {
     await truncateAll(pool);
     ids = {
-      admin: await insertUser(pool, { role: "ADMIN" }),
+      admin: await insertUser(pool, { role: "ADMIN", mustChangePassword: false }),
       // A second admin lets the tests demote or remove the first one.
-      otherAdmin: await insertUser(pool, { role: "ADMIN" }),
-      seller: await insertUser(pool, { role: "SELLER" }),
+      otherAdmin: await insertUser(pool, { role: "ADMIN", mustChangePassword: false }),
+      seller: await insertUser(pool, { role: "SELLER", mustChangePassword: false }),
     };
     tokens = { admin: await issueFor(ids.admin), seller: await issueFor(ids.seller) };
   });
@@ -187,7 +187,7 @@ describe("Global guards (e2e)", () => {
       email: expect.stringMatching(/@example\.com$/) as string,
       name: "Test user",
       role: "SELLER",
-      mustChangePassword: true,
+      mustChangePassword: false,
     });
   });
 

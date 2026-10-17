@@ -5,6 +5,7 @@ import { validateEnv } from "./config/env.js";
 import { HealthController } from "./health/health.controller.js";
 import { IdentityModule } from "./modules/identity/identity.module.js";
 import { JwtAuthGuard } from "./modules/identity/presentation/guards/jwt-auth.guard.js";
+import { MustChangePasswordGuard } from "./modules/identity/presentation/guards/must-change-password.guard.js";
 import { RolesGuard } from "./modules/identity/presentation/guards/roles.guard.js";
 import { ErrorResponseFilter } from "./shared/presentation/filters/error-response.filter.js";
 import { DatabaseModule } from "./shared/infrastructure/database/database.module.js";
@@ -24,6 +25,7 @@ import { DatabaseModule } from "./shared/infrastructure/database/database.module
     { provide: APP_FILTER, useClass: ErrorResponseFilter },
     // Global guards run in the order they are registered; keep the whole chain here.
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: MustChangePasswordGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })
