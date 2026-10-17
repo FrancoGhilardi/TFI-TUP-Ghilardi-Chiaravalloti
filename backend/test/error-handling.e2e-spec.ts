@@ -7,6 +7,7 @@ import request from "supertest";
 import type { App } from "supertest/types.js";
 import { AppModule } from "./../src/app.module.js";
 import { setupApp } from "./../src/app.setup.js";
+import { Public } from "./../src/modules/identity/presentation/decorators/public.decorator.js";
 import { DatabaseHealthCheck } from "./../src/shared/application/database-health-check.js";
 import {
   AuthenticationError,
@@ -58,6 +59,7 @@ class ProbeDto {
   email!: string;
 }
 
+@Public()
 @Controller("error-probe")
 class ErrorProbeController {
   constructor(private readonly drizzle: DrizzleClient) {}
