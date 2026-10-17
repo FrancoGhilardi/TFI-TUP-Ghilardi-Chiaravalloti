@@ -409,16 +409,18 @@ Todas las respuestas de error comparten el mismo formato:
 
 El campo `code` es estable y permite al frontend distinguir los errores: es el código del error de dominio o, para las violaciones de PostgreSQL y las excepciones HTTP, un código genérico (`UNIQUE_VIOLATION`, `FOREIGN_KEY_VIOLATION`, `CHECK_VIOLATION`, `NOT_FOUND`, etc.). El campo `details` solo aparece en los errores de validación de datos de entrada, con un elemento por campo inválido (`code` `VALIDATION_FAILED`).
 
-| Error                                                                                                    | Código HTTP                        |
-| :------------------------------------------------------------------------------------------------------- | :--------------------------------- |
-| `InvalidValueError` y errores de validación de datos de entrada                                          | 400                                |
-| `AuthenticationError`                                                                                    | 401                                |
-| `ForbiddenActionError`                                                                                   | 403                                |
-| `EntityNotFoundError`                                                                                    | 404                                |
-| `ConflictError` y errores de PostgreSQL `23505` (valor duplicado) y `23503` (referencia inválida)        | 409                                |
-| `BusinessRuleViolationError` y error de PostgreSQL `23514` (restricción `CHECK` o trigger de validación) | 422                                |
-| Excepción HTTP del framework (por ejemplo, ruta inexistente o límite de solicitudes)                     | El estado de la excepción          |
-| Cualquier otro error                                                                                     | 500, sin exponer detalles internos |
+Los mensajes de las violaciones de PostgreSQL son genéricos, están en español y están pensados para mostrarse directamente al usuario, sin términos técnicos.
+
+| Error                                                                                                                                                                    | Código HTTP                        |
+| :----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------- |
+| `InvalidValueError` y errores de validación de datos de entrada                                                                                                          | 400                                |
+| `AuthenticationError`                                                                                                                                                    | 401                                |
+| `ForbiddenActionError`                                                                                                                                                   | 403                                |
+| `EntityNotFoundError`                                                                                                                                                    | 404                                |
+| `ConflictError` y errores de PostgreSQL `23505` (valor duplicado) y `23503` (referencia inválida)                                                                        | 409                                |
+| `BusinessRuleViolationError` y error de PostgreSQL `23514` (restricción `CHECK` o trigger de validación, incluidos los diferidos que fallan al confirmar la transacción) | 422                                |
+| Excepción HTTP del framework (por ejemplo, ruta inexistente o límite de solicitudes)                                                                                     | El estado de la excepción          |
+| Cualquier otro error                                                                                                                                                     | 500, sin exponer detalles internos |
 
 #### Orden de ejecución de los guards
 
