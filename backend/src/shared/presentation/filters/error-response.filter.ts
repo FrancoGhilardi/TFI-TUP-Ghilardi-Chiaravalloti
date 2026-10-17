@@ -18,6 +18,7 @@ import {
   InvalidValueError,
 } from "../../domain/errors/index.js";
 import type { ErrorResponse } from "../http/error-response.js";
+import { NotImplementedYetError } from "../http/not-implemented-yet-error.js";
 import { RequestValidationError } from "../http/request-validation-error.js";
 import { extractSqlState } from "./postgres-error.js";
 
@@ -33,7 +34,14 @@ const DOMAIN_ERROR_STATUS: [typeof DomainError, HttpStatus][] = [
   [EntityNotFoundError, HttpStatus.NOT_FOUND],
   [ConflictError, HttpStatus.CONFLICT],
   [BusinessRuleViolationError, HttpStatus.UNPROCESSABLE_ENTITY],
+  [NotImplementedYetError, HttpStatus.NOT_IMPLEMENTED],
 ];
+
+const statusOf = (error: DomainError) =>
+  DOMAIN_ERROR_STATUS.find(([type]) => error instanceof type)?.[1];
+
+const isMappedDomainError = (exception: unknown) =>
+  exception instanceof DomainError && statusOf(exception) !== undefined;
 
 /** Shown to end users as is, so they are written in Spanish and free of technical terms. */
 export const DATABASE_ERROR_MESSAGES = {
@@ -95,7 +103,9 @@ export class ErrorResponseFilter implements ExceptionFilter {
     }
 
     const body = this.toBody(exception);
-    if (body.statusCode >= FIRST_SERVER_ERROR_STATUS) {
+    // A mapped domain error is an expected outcome, whatever its status; only server
+    // errors nobody anticipated are logged.
+    if (body.statusCode >= FIRST_SERVER_ERROR_STATUS && !isMappedDomainError(exception)) {
       this.logger.error(
         exception instanceof Error ? exception.message : String(exception),
         exception instanceof Error ? exception.stack : undefined,
@@ -126,12 +136,12 @@ export class ErrorResponseFilter implements ExceptionFilter {
   }
 
   private fromDomainError(error: DomainError): ErrorBody {
-    const match = DOMAIN_ERROR_STATUS.find(([type]) => error instanceof type);
-    if (!match) {
+    const statusCode = statusOf(error);
+    if (statusCode === undefined) {
       return this.fromUnknown();
     }
     return {
-      statusCode: match[1],
+      statusCode,
       code: error.code,
       message: error.message,
       ...(error instanceof RequestValidationError && { details: error.details }),

@@ -64,16 +64,19 @@ interface UserOptions {
   email?: string;
   role?: "ADMIN" | "SELLER";
   isActive?: boolean;
+  mustChangePassword?: boolean;
 }
 
 export async function insertUser(db: Queryable, options: UserOptions = {}): Promise<string> {
   const { rows } = await db.query<{ id: string }>(
-    `INSERT INTO libreria.users (email, name, password_hash, role, is_active)
-     VALUES ($1, 'Test user', 'hash', $2, $3) RETURNING id`,
+    `INSERT INTO libreria.users (email, name, password_hash, role, is_active, must_change_password)
+     VALUES ($1, 'Test user', 'hash', $2, $3, $4) RETURNING id`,
     [
       options.email ?? `user-${unique()}@example.com`,
       options.role ?? "SELLER",
       options.isActive ?? true,
+      // Same as the column default: a new user must change the password it was given.
+      options.mustChangePassword ?? true,
     ],
   );
   return rows[0].id;
