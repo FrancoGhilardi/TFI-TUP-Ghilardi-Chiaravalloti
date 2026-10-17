@@ -117,13 +117,13 @@ src/
 │   │   │   └── migrations/                   # drizzle-kit + SQL manual (funciones y triggers)
 │   │   ├── system-clock.ts
 │   │   └── nest-event-publisher.ts
-│   └── presentation/                         # guards, decoradores, filtros, pipes, DTO de paginación
+│   └── presentation/                         # filtros, pipes, DTO de paginación
 └── modules/
     ├── identity/
     │   ├── domain/          entities/ value-objects/ services/ repositories/ errors/
     │   ├── application/     ports/ use-cases/ dto/
     │   ├── infrastructure/  persistence/ security/ notifications/
-    │   ├── presentation/    http/ schedulers/
+    │   ├── presentation/    http/ schedulers/ guards/ decorators/ strategies/
     │   └── identity.module.ts
     └── catalog/
         ├── domain/          category/ product/ product-image/
@@ -432,6 +432,8 @@ Los guards globales se ejecutan en el siguiente orden antes de cada solicitud:
 4. `RolesGuard`: verifica que el rol del usuario (`ADMIN` o `SELLER`) tenga permiso para la operación.
 
 `OriginGuard` no es global: se aplica únicamente en los endpoints que leen la cookie del refresh token, para verificar que la solicitud provenga del dominio del frontend.
+
+Los guards y los decoradores (`@Public`, `@Roles`, `@CurrentUser`) se ubican en la capa de presentación del módulo `identity`, ya que dependen de los roles definidos en su dominio, y se registran todos en `AppModule` para que el orden de ejecución quede declarado en un único lugar. `RolesGuard` niega el acceso por defecto: un endpoint que no es público y no declara `@Roles` responde con un error `403`, de modo que ningún endpoint queda abierto por omisión.
 
 ---
 
@@ -2867,7 +2869,7 @@ Esta sección presenta el listado completo de los endpoints de la API REST, orga
 - **Versionado**: todas las rutas se exponen bajo el prefijo `/api/v1`, que se omite en las tablas por legibilidad. Por ejemplo, la ruta `/auth/login` corresponde a `https://api.libreriamisueno.com.ar/api/v1/auth/login`. El versionado permite incorporar cambios futuros en la API sin afectar a los clientes existentes.
 - **Rutas públicas y del panel**: las rutas que comienzan con `/admin` corresponden al panel de administración y requieren autenticación. Las demás rutas del catálogo y la búsqueda son públicas.
 - **Bajas lógicas**: los endpoints que utilizan el método `DELETE` no eliminan los registros de la base de datos, sino que realizan una baja lógica. Se utiliza este método porque, desde el punto de vista del cliente de la API, el recurso deja de estar disponible. La reactivación se realiza mediante el endpoint `restore` correspondiente.
-- **Acceso**: los niveles indicados son _Público_ (sin autenticación), _Autenticado_ (cualquier usuario con sesión iniciada), _ADMIN_ y _ADMIN, SELLER_ (roles habilitados para la operación).
+- **Acceso**: los niveles indicados son _Público_ (sin autenticación), _Autenticado_ (cualquier usuario con sesión iniciada), _ADMIN_ y _ADMIN, SELLER_ (roles habilitados para la operación). Como `RolesGuard` niega el acceso por defecto, los endpoints de nivel _Autenticado_ se declaran con `@Roles(ADMIN, SELLER)`.
 
 ### Autenticación
 
