@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { databaseSslSchema, postgresUrl, refineDatabaseSsl } from "./database-env.js";
 
+// The example secret shipped in .env.example starts with this prefix; it must never reach production.
+const DEVELOPMENT_SECRET_PREFIX = "dev-only-";
+
 const envSchema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -8,9 +11,23 @@ const envSchema = z
     FRONTEND_URL: z.url().default("http://localhost:3000"),
     DATABASE_URL: postgresUrl,
     DATABASE_POOL_MAX: z.coerce.number().int().positive().max(50).default(10),
+    JWT_ACCESS_SECRET: z.string().min(32),
+    JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().positive().default(900),
   })
   .extend(databaseSslSchema.shape)
-  .superRefine(refineDatabaseSsl);
+  .superRefine(refineDatabaseSsl)
+  .superRefine((env, ctx) => {
+    if (
+      env.NODE_ENV === "production" &&
+      env.JWT_ACCESS_SECRET.startsWith(DEVELOPMENT_SECRET_PREFIX)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["JWT_ACCESS_SECRET"],
+        message: "The development secret cannot be used in production",
+      });
+    }
+  });
 
 export type Env = z.infer<typeof envSchema>;
 
