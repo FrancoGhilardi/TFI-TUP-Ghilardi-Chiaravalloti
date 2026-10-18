@@ -2951,13 +2951,17 @@ Los endpoints de alta y reemplazo de imagen reciben el archivo mediante `multipa
 
 Toda la API aplica un límite general de solicitudes por dirección IP, como protección ante usos abusivos. Los endpoints más expuestos a ataques de fuerza bruta tienen, además, límites específicos más estrictos:
 
-| Endpoint                     | Límite                               |
-| :--------------------------- | :----------------------------------- |
-| `POST /auth/login`           | 5 solicitudes por minuto por IP      |
-| `POST /auth/forgot-password` | 3 solicitudes cada 15 minutos por IP |
-| `POST /auth/refresh`         | Límite general de la API             |
+| Endpoint                        | Límite                                                     |
+| :------------------------------ | :--------------------------------------------------------- |
+| Toda la API                     | 100 solicitudes por minuto por IP, sumando todas las rutas |
+| `POST /auth/login`              | 5 solicitudes por minuto por IP                            |
+| `POST /auth/forgot-password`    | 3 solicitudes cada 15 minutos por IP                       |
+| `POST /auth/refresh`            | Límite general de la API                                   |
+| `GET /health` y `/health/ready` | Sin límite                                                 |
 
-El límite del inicio de sesión dificulta los intentos de adivinar contraseñas, y el de recuperación de contraseña evita el envío masivo de mails, que además consumiría el cupo diario del proveedor de correo.
+El límite del inicio de sesión dificulta los intentos de adivinar contraseñas, y el de recuperación de contraseña evita el envío masivo de mails, que además consumiría el cupo diario del proveedor de correo. Los límites específicos se suman al general: cada solicitud a esos endpoints cuenta también para el límite de toda la API. Los endpoints de salud quedan excluidos para que los controles de la plataforma y del monitoreo nunca se bloqueen.
+
+Como la API se ejecuta detrás del proxy de la plataforma de despliegue, la dirección IP del cliente se obtiene del encabezado `X-Forwarded-For`, confiando únicamente en la cantidad de proxies configurada. De esta forma, un cliente no puede elegir su propia dirección para evadir los límites.
 
 ---
 
