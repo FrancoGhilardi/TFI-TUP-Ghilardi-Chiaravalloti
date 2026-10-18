@@ -95,6 +95,18 @@ describe("validateEnv", () => {
     );
   });
 
+  it("does not trust any proxy by default", () => {
+    expect(validateEnv({ ...BASE }).TRUST_PROXY).toBe(0);
+  });
+
+  it("converts TRUST_PROXY from a string", () => {
+    expect(validateEnv({ ...BASE, TRUST_PROXY: "1" }).TRUST_PROXY).toBe(1);
+  });
+
+  it.each(["-1", "1.5", "yes"])("rejects TRUST_PROXY=%s", (value) => {
+    expect(() => validateEnv({ ...BASE, TRUST_PROXY: value })).toThrow("TRUST_PROXY");
+  });
+
   it("allows the development secret outside production", () => {
     const secret = "dev-only-access-token-secret-change-me";
 
