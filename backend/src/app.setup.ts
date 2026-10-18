@@ -9,7 +9,12 @@ export function setupApp(app: INestApplication): void {
   const config = app.get<ConfigService<Env, true>>(ConfigService);
 
   app.use(helmet());
-  app.enableCors({ origin: config.get("FRONTEND_URL", { infer: true }), credentials: true });
+  // Same origin OriginGuard accepts, so a trailing slash or path in FRONTEND_URL cannot
+  // make CORS and the guard disagree.
+  app.enableCors({
+    origin: new URL(config.get("FRONTEND_URL", { infer: true })).origin,
+    credentials: true,
+  });
   app.setGlobalPrefix("api");
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: "1" });
   app.useGlobalPipes(
