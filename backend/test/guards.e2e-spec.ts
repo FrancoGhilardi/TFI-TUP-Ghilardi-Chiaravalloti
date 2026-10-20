@@ -78,14 +78,15 @@ describe("Global guards (e2e)", () => {
     if (!user) throw new Error(`User ${id} not found`);
     return app.get(AccessTokenService).issue(user).token;
   };
+  // Adds a valid expiry unless the payload sets one, so each test only breaks what it means to.
   const sign = (
     payload: object,
     options: { secret?: string; algorithm?: "HS256" | "HS512" } = {},
   ) =>
-    new JwtService().sign(payload as Record<string, unknown>, {
-      secret: options.secret ?? secret,
-      algorithm: options.algorithm ?? "HS256",
-    });
+    new JwtService().sign(
+      { exp: nowInSeconds() + 300, ...payload },
+      { secret: options.secret ?? secret, algorithm: options.algorithm ?? "HS256" },
+    );
   const get = (path: string, token?: string) => {
     const pending = http.get(`/api/v1/${path}`);
     return token === undefined ? pending : pending.set("Authorization", `Bearer ${token}`);
@@ -192,6 +193,37 @@ describe("Global guards (e2e)", () => {
   });
 
   describe("invalid tokens", () => {
+    it("accepts a token signed by hand like the API does, which the cases below break", async () => {
+      await get("guard-probe/any-role", sign({ sub: ids.admin })).expect(200);
+    });
+
+    it("rejects a token whose signature was altered", async () => {
+      const [header, payload, signature] = tokens.admin.split(".");
+      const altered = `${signature.slice(0, -2)}${signature.endsWith("AA") ? "BB" : "AA"}`;
+
+      await expectError(
+        get("guard-probe/any-role", `${header}.${payload}.${altered}`),
+        UNAUTHENTICATED,
+      );
+    });
+
+    it("rejects a token whose payload was changed without signing it again", async () => {
+      const [header, , signature] = tokens.seller.split(".");
+      const iat = nowInSeconds();
+      const forged = base64url({ sub: ids.admin, iat, exp: iat + 300 });
+
+      await expectError(
+        get("guard-probe/admin", `${header}.${forged}.${signature}`),
+        UNAUTHENTICATED,
+      );
+    });
+
+    it("rejects a token without an expiry", async () => {
+      const unbounded = new JwtService().sign({ sub: ids.admin }, { secret, algorithm: "HS256" });
+
+      await expectError(get("guard-probe/any-role", unbounded), UNAUTHENTICATED);
+    });
+
     it("rejects an expired token", async () => {
       const iat = nowInSeconds() - 120;
       await expectError(
@@ -239,6 +271,29 @@ describe("Global guards (e2e)", () => {
 
     it("rejects a token without a subject", async () => {
       await expectError(get("guard-probe/any-role", sign({ foo: "bar" })), UNAUTHENTICATED);
+    });
+  });
+
+  describe("token expiry", () => {
+    // Only the clock is faked; the HTTP stack and the database driver keep real timers.
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("accepts a token until just before it expires and rejects it when it does", async () => {
+      const ttl = app.get(ConfigService<Env, true>).get("JWT_ACCESS_TTL_SECONDS", { infer: true });
+      vi.setSystemTime(new Date());
+      const token = await issueFor(ids.admin);
+
+      vi.advanceTimersByTime((ttl - 1) * 1000);
+      await get("guard-probe/any-role", token).expect(200);
+
+      vi.advanceTimersByTime(1000);
+      await expectError(get("guard-probe/any-role", token), UNAUTHENTICATED);
     });
   });
 
