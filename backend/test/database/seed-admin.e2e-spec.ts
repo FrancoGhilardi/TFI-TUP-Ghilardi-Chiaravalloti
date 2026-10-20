@@ -1,6 +1,8 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { Pool } from "pg";
+import { z } from "zod";
 import { PasswordHasher } from "../../src/modules/identity/application/ports/password-hasher.js";
+import type { Password } from "../../src/modules/identity/domain/value-objects/password.js";
 import {
   seedAdmin,
   seedAdminInputSchema,
@@ -15,8 +17,8 @@ try {
 }
 
 class FakeHasher extends PasswordHasher {
-  hash(plain: string): Promise<string> {
-    return Promise.resolve(`hashed:${plain}`);
+  hash(password: Password): Promise<string> {
+    return Promise.resolve(`hashed:${password.reveal()}`);
   }
   verify(hash: string, plain: string): Promise<boolean> {
     return Promise.resolve(hash === `hashed:${plain}`);
@@ -99,16 +101,77 @@ describe("seedAdminInputSchema", () => {
     SEED_ADMIN_PASSWORD: "long-enough-password",
   };
 
-  it("rejects a password shorter than 8 characters", () => {
-    const result = seedAdminInputSchema.safeParse({ ...valid, SEED_ADMIN_PASSWORD: "1234567" });
+  const parsePassword = (password: string) =>
+    seedAdminInputSchema.safeParse({ ...valid, SEED_ADMIN_PASSWORD: password });
+
+  it.each([
+    ["shorter than 8 characters", "1234567"],
+    ["longer than 128 characters", "a".repeat(129)],
+    ["of four emojis, eight UTF-16 units", "🔒".repeat(4)],
+  ])("rejects a password %s with the limits of the password policy", (_label, password) => {
+    const result = parsePassword(password);
 
     expect(result.success).toBe(false);
+    expect(result.error?.issues).toEqual([
+      expect.objectContaining({
+        path: ["SEED_ADMIN_PASSWORD"],
+        message: "Must have between 8 and 128 characters",
+      }),
+    ]);
   });
 
-  it("rejects a blank name and an invalid email", () => {
+  it("rejects a password that is not valid Unicode", () => {
+    const result = parsePassword("aaaaaaa\ud800");
+
+    expect(result.error?.issues).toEqual([
+      expect.objectContaining({
+        path: ["SEED_ADMIN_PASSWORD"],
+        message: "Contains characters that are not valid Unicode",
+      }),
+    ]);
+  });
+
+  it("does not print the rejected password in the error", () => {
+    const result = parsePassword("short-1");
+
+    expect(result.error && z.prettifyError(result.error)).not.toContain("short-1");
+  });
+
+  it.each([
+    ["of exactly 8 characters", "a".repeat(8)],
+    ["of exactly 128 characters", "a".repeat(128)],
+    ["of eight emojis", "🔒".repeat(8)],
+    ["with surrounding spaces, kept as typed", "  spaced out  "],
+  ])("accepts a password %s and keeps its text", (_label, password) => {
+    const result = parsePassword(password);
+
+    expect(result.success).toBe(true);
+    expect(result.data?.SEED_ADMIN_PASSWORD.reveal()).toBe(password);
+  });
+
+  it("does not expose the password when the parsed settings are serialized", () => {
+    expect(JSON.stringify(input)).not.toContain("long-enough-password");
+  });
+
+  it("rejects a blank name", () => {
     expect(seedAdminInputSchema.safeParse({ ...valid, SEED_ADMIN_NAME: "  " }).success).toBe(false);
-    expect(seedAdminInputSchema.safeParse({ ...valid, SEED_ADMIN_EMAIL: "nope" }).success).toBe(
-      false,
+  });
+
+  const parseEmail = (email: string) =>
+    seedAdminInputSchema.safeParse({ ...valid, SEED_ADMIN_EMAIL: email });
+
+  it.each(["nope", "admin@", "admin@example", "ad min@example.com"])(
+    "rejects the email %o, as the domain does",
+    (email) => {
+      expect(parseEmail(email).error?.issues).toEqual([
+        expect.objectContaining({ path: ["SEED_ADMIN_EMAIL"], message: "Invalid email address" }),
+      ]);
+    },
+  );
+
+  it("trims and lowercases the email through the domain value object", () => {
+    expect(parseEmail("  Admin@Example.COM ").data?.SEED_ADMIN_EMAIL.toString()).toBe(
+      "admin@example.com",
     );
   });
 });
