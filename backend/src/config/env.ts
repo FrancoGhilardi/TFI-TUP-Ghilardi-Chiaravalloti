@@ -12,7 +12,8 @@ const envSchema = z
     DATABASE_URL: postgresUrl,
     DATABASE_POOL_MAX: z.coerce.number().int().positive().max(50).default(10),
     JWT_ACCESS_SECRET: z.string().min(32),
-    JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().positive().default(900),
+    // Under a minute forces constant renewals; over an hour keeps a stolen token useful too long.
+    JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(900),
     TRUST_PROXY: z.coerce.number().int().min(0).default(0),
   })
   .extend(databaseSslSchema.shape)

@@ -1,30 +1,47 @@
-import { type ExecutionContext, Injectable } from "@nestjs/common";
+import { type CanActivate, type ExecutionContext, Injectable } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-import { AuthGuard } from "@nestjs/passport";
 import { InvalidAccessTokenError } from "../../application/errors/invalid-access-token-error.js";
+import { AccessTokenService } from "../../application/ports/access-token-service.js";
+import { ResolveAuthenticatedUserUseCase } from "../../application/use-cases/resolve-authenticated-user.use-case.js";
 import type { AuthUser } from "../auth-user.js";
 import { isPublic } from "../decorators/public.decorator.js";
 
-/** Requires a valid access token on every endpoint not marked with `@Public()`. */
+type AuthenticatedRequest = { headers: Record<string, string | string[] | undefined> } & {
+  user?: AuthUser;
+};
+
+// The scheme is case insensitive (RFC 9110); the token must not be empty.
+const BEARER_PATTERN = /^Bearer +(\S+)$/i;
+
+/**
+ * Requires a valid access token on every endpoint not marked with `@Public()`, and sets the
+ * current user, read from the database, on the request.
+ */
 @Injectable()
-export class JwtAuthGuard extends AuthGuard("jwt") {
-  constructor(private readonly reflector: Reflector) {
-    super();
-  }
+export class JwtAuthGuard implements CanActivate {
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly accessTokens: AccessTokenService,
+    private readonly resolveUser: ResolveAuthenticatedUserUseCase,
+  ) {}
 
-  canActivate(context: ExecutionContext) {
-    return isPublic(this.reflector, context) ? true : super.canActivate(context);
-  }
-
-  // Passport reports a bad token as a missing user and errors thrown while resolving the
-  // user as `error`; replace the former so passport's own exception never reaches the client.
-  handleRequest<TUser = AuthUser>(error: unknown, user: TUser | false): TUser {
-    if (error instanceof Error) {
-      throw error;
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    if (isPublic(this.reflector, context)) {
+      return true;
     }
-    if (!user) {
+
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    const { userId, issuedAt } = this.accessTokens.verify(this.bearerToken(request));
+    request.user = await this.resolveUser.execute({ userId, tokenIssuedAt: issuedAt });
+    return true;
+  }
+
+  private bearerToken(request: AuthenticatedRequest): string {
+    const { authorization } = request.headers;
+    const match = typeof authorization === "string" ? BEARER_PATTERN.exec(authorization) : null;
+    if (!match) {
       throw new InvalidAccessTokenError();
     }
-    return user;
+    return match[1];
   }
 }

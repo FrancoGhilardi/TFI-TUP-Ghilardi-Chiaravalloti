@@ -5,7 +5,16 @@ export interface AccessToken {
   expiresInSeconds: number;
 }
 
-/** Issues the short-lived access token that authenticates each request. */
+/** What a verified access token proves about its bearer. */
+export interface AccessTokenClaims {
+  userId: string;
+  issuedAt: Date;
+}
+
+/** Issues and verifies the short-lived access token that authenticates each request. */
 export abstract class AccessTokenService {
   abstract issue(user: User): AccessToken;
+
+  /** Throws `InvalidAccessTokenError` when the token is expired or cannot be trusted. */
+  abstract verify(token: string): AccessTokenClaims;
 }
