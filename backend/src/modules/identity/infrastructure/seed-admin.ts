@@ -5,8 +5,11 @@ import { users } from "../../../shared/infrastructure/database/schema/index.js";
 import type { PasswordHasher } from "../application/ports/password-hasher.js";
 import { InvalidEmailError } from "../domain/errors/invalid-email-error.js";
 import { InvalidPasswordError } from "../domain/errors/invalid-password-error.js";
+import { InvalidUserNameError } from "../domain/errors/invalid-user-name-error.js";
 import { Email } from "../domain/value-objects/email.js";
 import { Password } from "../domain/value-objects/password.js";
+import { UserName } from "../domain/value-objects/user-name.js";
+import { USER_NAME_MAX_LENGTH } from "../domain/value-objects/user-name-policy.js";
 import {
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
@@ -34,7 +37,20 @@ export const seedAdminInputSchema = z.object({
         return z.NEVER;
       }
     }),
-  SEED_ADMIN_NAME: z.string().trim().min(1).max(120),
+  SEED_ADMIN_NAME: z.string().transform((value, ctx) => {
+    try {
+      return UserName.create(value);
+    } catch (error) {
+      if (!(error instanceof InvalidUserNameError)) {
+        throw error;
+      }
+      ctx.addIssue({
+        code: "custom",
+        message: `Must not be blank nor longer than ${USER_NAME_MAX_LENGTH} characters`,
+      });
+      return z.NEVER;
+    }
+  }),
   SEED_ADMIN_PASSWORD: z.string().transform((plain, ctx) => {
     try {
       return Password.create(plain);
@@ -72,7 +88,7 @@ export async function seedAdmin(
 
     await tx.insert(users).values({
       email: input.SEED_ADMIN_EMAIL.toString(),
-      name: input.SEED_ADMIN_NAME,
+      name: input.SEED_ADMIN_NAME.toString(),
       passwordHash,
       role: "ADMIN",
       mustChangePassword: true,

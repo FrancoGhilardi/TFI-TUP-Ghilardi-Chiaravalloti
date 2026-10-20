@@ -22,6 +22,10 @@ export class Email {
     return new Email(value.toLowerCase());
   }
 
+  equals(other: Email): boolean {
+    return other.value === this.value;
+  }
+
   toString(): string {
     return this.value;
   }
