@@ -3,8 +3,10 @@ import { User } from "../../domain/entities/user.js";
 import { UserRole } from "../../domain/user-role.js";
 import { Email } from "../../domain/value-objects/email.js";
 import { TemporaryPassword } from "../../domain/value-objects/temporary-password.js";
+import { UserName } from "../../domain/value-objects/user-name.js";
 
 export type UserRow = typeof users.$inferSelect;
+export type NewUserRow = typeof users.$inferInsert;
 
 /** Translates between the `users` table and the `User` entity. */
 export const UserMapper = {
@@ -17,7 +19,7 @@ export const UserMapper = {
     return User.reconstitute({
       id: row.id,
       email: Email.fromPersisted(row.email),
-      name: row.name,
+      name: UserName.fromPersisted(row.name),
       passwordHash: row.passwordHash,
       role: UserRole[row.role],
       active: row.isActive,
@@ -32,5 +34,27 @@ export const UserMapper = {
       updatedAt: row.updatedAt,
       deletedAt: row.deletedAt ?? undefined,
     });
+  },
+
+  toPersistence(user: User): NewUserRow {
+    return {
+      id: user.getId(),
+      email: user.email.toString(),
+      name: user.name.toString(),
+      passwordHash: user.passwordHash,
+      role: user.role,
+      isActive: user.active,
+      mustChangePassword: user.mustChangePassword,
+      temporaryPasswordHash: user.temporaryPassword?.hash ?? null,
+      temporaryPasswordExpiresAt: user.temporaryPassword?.expiresAt ?? null,
+      passwordChangedAt: user.passwordChangedAt ?? null,
+      lastLoginAt: user.lastLoginAt ?? null,
+      createdBy: user.createdBy ?? null,
+      updatedBy: user.updatedBy ?? null,
+      deletedBy: user.deletedBy ?? null,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      deletedAt: user.deletedAt ?? null,
+    };
   },
 };

@@ -5,6 +5,7 @@ import { InvalidAccessTokenError } from "../../application/errors/invalid-access
 import { User } from "../../domain/entities/user.js";
 import { UserRole } from "../../domain/user-role.js";
 import { Email } from "../../domain/value-objects/email.js";
+import { UserName } from "../../domain/value-objects/user-name.js";
 import { JwtAccessTokenService } from "./jwt-access-token.service.js";
 
 const SECRET = "a-secret-that-is-long-enough-for-hs256";
@@ -14,7 +15,7 @@ const USER_ID = "4f9c1f43-6f4b-4d5c-9a3e-5b2d8c7a1e10";
 const user = User.reconstitute({
   id: USER_ID,
   email: Email.create("ana@example.com"),
-  name: "Ana",
+  name: UserName.create("Ana"),
   passwordHash: "hash",
   role: UserRole.ADMIN,
   active: true,

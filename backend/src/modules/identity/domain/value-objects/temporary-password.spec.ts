@@ -15,4 +15,31 @@ describe("TemporaryPassword", () => {
   it("is expired after its expiry", () => {
     expect(temporary.isExpired(new Date("2026-10-17T12:00:00.001Z"))).toBe(true);
   });
+
+  describe("cooldown", () => {
+    // Issued at 11:30 with a 30 minute lifetime and a 5 minute cooldown.
+    const TTL = 30;
+    const COOLDOWN = 5;
+    const inCooldownAt = (iso: string) => temporary.isInCooldown(new Date(iso), TTL, COOLDOWN);
+
+    it("is in cooldown right after it was issued", () => {
+      expect(inCooldownAt("2026-10-17T11:30:00.000Z")).toBe(true);
+    });
+
+    it("is in cooldown until just before the cooldown ends", () => {
+      expect(inCooldownAt("2026-10-17T11:34:59.999Z")).toBe(true);
+    });
+
+    it("is no longer in cooldown when the cooldown ends", () => {
+      expect(inCooldownAt("2026-10-17T11:35:00.000Z")).toBe(false);
+    });
+
+    it("is no longer in cooldown once it expired", () => {
+      expect(inCooldownAt("2026-10-17T12:10:00.000Z")).toBe(false);
+    });
+
+    it("stays in cooldown for its whole life when the cooldown is longer than the lifetime", () => {
+      expect(temporary.isInCooldown(new Date("2026-10-17T11:59:00.000Z"), TTL, 60)).toBe(true);
+    });
+  });
 });

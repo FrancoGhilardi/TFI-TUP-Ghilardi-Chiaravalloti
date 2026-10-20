@@ -153,8 +153,27 @@ describe("seedAdminInputSchema", () => {
     expect(JSON.stringify(input)).not.toContain("long-enough-password");
   });
 
-  it("rejects a blank name", () => {
-    expect(seedAdminInputSchema.safeParse({ ...valid, SEED_ADMIN_NAME: "  " }).success).toBe(false);
+  const parseName = (name: string) =>
+    seedAdminInputSchema.safeParse({ ...valid, SEED_ADMIN_NAME: name });
+
+  it.each([
+    ["blank", "  "],
+    ["longer than 120 characters", "a".repeat(121)],
+  ])("rejects a %s name, as the domain does", (_label, name) => {
+    expect(parseName(name).error?.issues).toEqual([
+      expect.objectContaining({
+        path: ["SEED_ADMIN_NAME"],
+        message: "Must not be blank nor longer than 120 characters",
+      }),
+    ]);
+  });
+
+  it("counts the name in code points, like the domain and the database", () => {
+    expect(parseName("🙂".repeat(120)).success).toBe(true);
+  });
+
+  it("trims the name through the domain value object", () => {
+    expect(parseName("  Admin  ").data?.SEED_ADMIN_NAME.toString()).toBe("Admin");
   });
 
   const parseEmail = (email: string) =>
