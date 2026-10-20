@@ -26,7 +26,7 @@ export class ResolveAuthenticatedUserUseCase implements UseCase<
     return {
       id: user.getId(),
       email: user.email.toString(),
-      name: user.name,
+      name: user.name.toString(),
       role: user.role,
       mustChangePassword: user.mustChangePassword,
     };

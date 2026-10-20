@@ -27,6 +27,11 @@ describe("Email", () => {
     expect(Email.fromPersisted("Ana@Example.com").toString()).toBe("ana@example.com");
   });
 
+  it("compares by value, after lowercasing", () => {
+    expect(Email.create("Ana@Example.com").equals(Email.create("ana@example.com"))).toBe(true);
+    expect(Email.create("ana@example.com").equals(Email.create("ana.p@example.com"))).toBe(false);
+  });
+
   it("rejects with a stable code and a user-facing message", () => {
     expect(() => Email.create("nope")).toThrow(
       expect.objectContaining({

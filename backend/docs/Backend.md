@@ -198,6 +198,10 @@ classDiagram
         <<abstract application>>
         +now() Date
     }
+    class IdGenerator {
+        <<abstract application>>
+        +next() string
+    }
     class EventPublisher {
         <<abstract application>>
         +publish(event: ApplicationEvent) Promise~void~
@@ -350,6 +354,8 @@ classDiagram
 
 - **`Clock`**: contrato para obtener la fecha y hora actual. Permite controlar el tiempo en las pruebas automatizadas, por ejemplo, para verificar el vencimiento de una clave temporal o de una oferta.
 
+- **`IdGenerator`**: contrato para generar el identificador de una entidad nueva antes de guardarla. Las entidades se crean siempre con su identificador, lo que permite compararlas y relacionarlas sin depender de la base de datos, y su implementación genera identificadores UUID con el módulo de criptografía de Node.
+
 - **`EventPublisher`**: contrato para publicar eventos del sistema. Permite desacoplar acciones secundarias de la operación principal; por ejemplo, al subir una imagen se publica un evento y su procesamiento se realiza de forma asincrónica.
 
 - **`UniqueSlugGenerator`**: servicio que genera un slug único; si ya existe uno igual, le agrega un sufijo numérico (`cuaderno-rayado-a4-2`).
@@ -460,6 +466,15 @@ classDiagram
         +toString() string
     }
 
+    class UserName {
+        <<value object>>
+        -value: string
+        +MAX_LENGTH: number$
+        +create(value: string)$ UserName
+        +equals(other: UserName) boolean
+        +toString() string
+    }
+
     class TemporaryPassword {
         <<value object>>
         +hash: string
@@ -480,7 +495,7 @@ classDiagram
     class User {
         <<aggregate root>>
         -email: Email
-        -name: string
+        -name: UserName
         -passwordHash: string
         -role: UserRole
         -active: boolean
@@ -499,20 +514,20 @@ classDiagram
         +isAdmin() boolean
         +isActiveAdmin() boolean
         +canLogin() boolean
-        +rename(name: string, actorId: string) void
-        +changeEmail(email: Email, actorId: string) void
-        +changeRole(role: UserRole, actorId: string) void
-        +activate(actorId: string) void
-        +deactivate(actorId: string) void
+        +rename(name: UserName, actorId: string, now: Date) void
+        +changeEmail(email: Email, actorId: string, now: Date) void
+        +changeRole(role: UserRole, actorId: string, now: Date) void
+        +activate(actorId: string, now: Date) void
+        +deactivate(actorId: string, now: Date) void
         +assignTemporaryPassword(passwordHash: string, actorId: string, now: Date) void
-        +issueTemporaryPassword(temporary: TemporaryPassword) void
+        +issueTemporaryPassword(temporary: TemporaryPassword, now: Date) void
         +hasUsableTemporaryPassword(now: Date) boolean
         +consumeTemporaryPassword(now: Date) void
-        +discardTemporaryPassword() void
+        +discardTemporaryPassword(now: Date) void
         +changePassword(newPasswordHash: string, now: Date) void
         +recordLogin(now: Date) void
         +softDelete(actorId: string, now: Date) void
-        +restore(actorId: string) void
+        +restore(actorId: string, now: Date) void
     }
 
     class Session {
@@ -561,6 +576,7 @@ classDiagram
     Entity <|-- User
     Entity <|-- Session
     User --> Email
+    User --> UserName
     User --> UserRole
     User --> TemporaryPassword
     User ..> Password
@@ -587,6 +603,8 @@ classDiagram
 
 - **`Password`**: representa una contraseña en texto plano que cumple la política del sistema: entre 8 y 128 caracteres. Los caracteres se cuentan como puntos de código Unicode: un emoji simple o una letra con tilde precompuesta valen uno, mientras que una letra escrita como base más tilde o un emoji compuesto (por ejemplo, una familia) valen varios. El texto se conserva tal como se escribió, sin recortar espacios ni normalizarlo, y se rechaza si no es Unicode válido, ya que al generar el hash dos contraseñas distintas podrían producir el mismo resultado. Solo puede crearse a través de su validación, por lo que toda contraseña que llega a generar un hash ya cumple las reglas. El texto únicamente se obtiene de forma explícita al generar el hash; si el objeto se registra o se serializa por error, se muestra un valor fijo en lugar de la contraseña.
 
+- **`UserName`**: representa el nombre del usuario. Se guarda sin espacios al principio ni al final, no puede quedar vacío y admite hasta 120 caracteres, las mismas reglas que aplica la base de datos.
+
 - **`UserRole`**: enumeración con los dos roles del sistema: `ADMIN` y `SELLER`.
 
 #### Servicios de dominio
@@ -599,9 +617,15 @@ classDiagram
 
 #### Errores de dominio
 
-- **`EmailAlreadyInUseError`**: el email ya pertenece a otro usuario (error de conflicto).
-- **`SelfAdministrationError`**: un administrador intenta realizar sobre sí mismo una acción no permitida (violación de regla de negocio).
+- **`EmailAlreadyInUseError`**: el email ya pertenece a otro usuario vigente (error de conflicto).
+- **`SelfAdministrationError`**: un administrador intenta cambiar su propio rol, desactivarse o darse de baja (violación de regla de negocio).
 - **`LastActiveAdminError`**: la operación dejaría al sistema sin administradores activos (violación de regla de negocio).
+- **`DeletedUserError`**: se intenta modificar un usuario dado de baja, que antes debe reactivarse (violación de regla de negocio).
+- **`UserNotDeletedError`**: se intenta reactivar un usuario que no está dado de baja (violación de regla de negocio).
+- **`TemporaryPasswordUnavailableError`**: se intenta usar una clave temporal vencida o inexistente (violación de regla de negocio).
+- **`InvalidUserNameError`**: el nombre está vacío o supera los 120 caracteres (valor inválido).
+
+Cada error tiene un código estable para el frontend y un mensaje en español pensado para mostrarse al usuario.
 
 ### Reglas de negocio protegidas por el dominio
 
@@ -626,6 +650,9 @@ Cuando el usuario define su nueva contraseña (`changePassword`), se elimina la 
 
 - **Baja** (`softDelete`): se registra la fecha y el usuario que realizó la baja, y la cuenta queda desactivada. El sistema no contempla la eliminación definitiva de usuarios.
 - **Reactivación** (`restore`): se eliminan los datos de la baja, se vuelve a activar la cuenta y se registra quién realizó la modificación. La operación se rechaza si el usuario no estaba dado de baja.
+- Mientras está dado de baja, el usuario no puede modificarse: sus datos, su rol, su estado y sus contraseñas quedan como estaban hasta que se lo reactiva.
+
+Las operaciones que no cambian nada, como activar un usuario que ya está activo, renombrarlo con el mismo nombre o revocar una sesión ya revocada, no generan un error ni modifican los datos de auditoría. De esta forma, repetir una acción por un doble clic o un reintento nunca falla.
 
 #### Reglas de administración
 
