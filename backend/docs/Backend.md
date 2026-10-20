@@ -96,7 +96,7 @@ El diagrama representa la organización general del backend en capas. Cada eleme
 
 5. **Separación entre operaciones de escritura y de lectura.** Las operaciones de escritura obtienen las entidades a través de los repositorios y validan las reglas de negocio antes de persistir los cambios. Las operaciones de lectura (listados y búsquedas) utilizan puertos de consulta específicos que devuelven los datos con el formato requerido por la respuesta, sin reconstruir entidades, lo que mejora el rendimiento.
 
-6. **Control automático de dependencias.** Se incorpora una herramienta de análisis estático (`eslint-plugin-boundaries` o `dependency-cruiser`) para que el proceso de integración continua rechace cualquier importación que viole la dirección de dependencias entre capas.
+6. **Control automático de dependencias.** Se incorpora la herramienta de análisis estático `eslint-plugin-boundaries` para que el proceso de integración continua rechace cualquier importación que viole la dirección de dependencias entre capas. Las reglas se verifican junto con el resto del análisis de código y prohíben todo lo que no está permitido explícitamente: además de la dirección entre capas, el núcleo compartido no puede depender de los módulos, un módulo solo accede a la capa de presentación de otro y las capas de dominio y aplicación no pueden importar librerías externas ni módulos de Node. Todo archivo del código fuente debe pertenecer a una capa, de modo que una carpeta nueva no quede fuera del control sin que se advierta.
 
 Estructura de carpetas:
 
