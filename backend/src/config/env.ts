@@ -14,6 +14,8 @@ const envSchema = z
     JWT_ACCESS_SECRET: z.string().min(32),
     // Under a minute forces constant renewals; over an hour keeps a stolen token useful too long.
     JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(900),
+    // How long a session lasts without being renewed, in days.
+    REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(30).default(7),
     TRUST_PROXY: z.coerce.number().int().min(0).default(0),
   })
   .extend(databaseSslSchema.shape)
