@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import type { Env } from "../../../../config/env.js";
+import { Clock } from "../../../../shared/application/clock.js";
 import { InvalidAccessTokenError } from "../../application/errors/invalid-access-token-error.js";
 import {
   type AccessToken,
@@ -23,14 +24,17 @@ export class JwtAccessTokenService extends AccessTokenService {
   constructor(
     private readonly jwt: JwtService,
     private readonly config: ConfigService<Env, true>,
+    private readonly clock: Clock,
   ) {
     super();
   }
 
   issue(user: User): AccessToken {
     const expiresInSeconds = this.config.get("JWT_ACCESS_TTL_SECONDS", { infer: true });
+    // Stamped with the same clock that records password changes, so a token issued right
+    // after one is never older than it.
     const token = this.jwt.sign(
-      { sub: user.getId() },
+      { sub: user.getId(), iat: this.nowInSeconds() },
       { secret: this.secret(), algorithm: ALGORITHM, expiresIn: expiresInSeconds },
     );
     return { token, expiresInSeconds };
@@ -44,6 +48,7 @@ export class JwtAccessTokenService extends AccessTokenService {
       payload = this.jwt.verify<Record<string, unknown>>(token, {
         secret: this.secret(),
         algorithms: [ALGORITHM],
+        clockTimestamp: this.nowInSeconds(),
       });
     } catch {
       throw new InvalidAccessTokenError();
@@ -59,6 +64,10 @@ export class JwtAccessTokenService extends AccessTokenService {
       throw new InvalidAccessTokenError();
     }
     return { userId: sub, issuedAt: new Date(iat * 1000) };
+  }
+
+  private nowInSeconds(): number {
+    return Math.floor(this.clock.now().getTime() / 1000);
   }
 
   private secret(): string {

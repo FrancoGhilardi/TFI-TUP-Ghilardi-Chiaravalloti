@@ -675,7 +675,7 @@ El dominio de `identity` es la base sobre la que se construyen la autenticación
 
 - **Con el módulo `catalog`**: los productos registran qué usuario los creó y quién realizó la última modificación, a partir del identificador del usuario autenticado. De esta forma, `identity` aporta la trazabilidad de las operaciones realizadas sobre el catálogo.
 
-- **Con la base de datos**: las reglas más críticas del dominio se refuerzan mediante triggers, que impiden dejar al sistema sin un administrador activo y revocan automáticamente las sesiones de un usuario cuando cambia su contraseña, su rol o su estado, o cuando es dado de baja.
+- **Con la base de datos**: las reglas más críticas del dominio se refuerzan mediante triggers, que impiden dejar al sistema sin un administrador activo y revocan automáticamente las sesiones de un usuario cuando cambia su contraseña, su rol o su estado, o cuando es dado de baja. La fecha del último cambio de contraseña la registra la aplicación con el mismo reloj con el que emite los access tokens, para que un token emitido inmediatamente después del cambio no resulte anterior a él; un trigger la completa solo cuando la contraseña se modifica por fuera de la aplicación.
 
 ## 4. Identity · Aplicación
 
@@ -696,6 +696,7 @@ classDiagram
         <<abstract port>>
         +hash(password: Password) Promise~string~
         +verify(hash: string, plain: string) Promise~boolean~
+        +verifyAgainstNothing(plain: string) Promise~false~
     }
     class TemporaryPasswordGenerator {
         <<abstract port>>
@@ -964,7 +965,7 @@ classDiagram
 
 #### Puertos (contratos con servicios externos)
 
-- **`PasswordHasher`**: genera el hash de una contraseña y verifica si una contraseña coincide con un hash almacenado.
+- **`PasswordHasher`**: genera el hash de una contraseña y verifica si una contraseña coincide con un hash almacenado. Cuando no hay un hash contra el cual comparar, porque el email no corresponde a ninguna cuenta, realiza una verificación equivalente que nunca resulta exitosa, de modo que el tiempo de respuesta sea el mismo.
 - **`TemporaryPasswordGenerator`**: genera claves temporales aleatorias.
 - **`AccessTokenService`**: emite el access token (JWT) que el usuario utiliza para autenticarse en cada solicitud y lo valida cuando llega, devolviendo el identificador del usuario y el momento de emisión. Toda validación del token pasa por este contrato.
 - **`RefreshTokenService`**: genera los refresh tokens y calcula su hash, ya que en la base de datos nunca se almacena el token real.
@@ -994,16 +995,16 @@ Cada operación del módulo se implementa como un caso de uso independiente:
 
 #### Inicio de sesión
 
-Se ejecuta dentro de una transacción, en los siguientes pasos:
+Se ejecuta en los siguientes pasos:
 
-1. Se busca el usuario por email, excluyendo a los dados de baja.
-2. Si la contraseña ingresada coincide con la contraseña actual y existe una clave temporal pendiente, esta se descarta, ya que el usuario recordó su contraseña.
-3. Si no coincide, se compara con la clave temporal vigente. Si coincide, la clave temporal pasa a ser la contraseña del usuario, con la obligación de cambiarla.
+1. Se busca el usuario por email, excluyendo a los dados de baja, y se compara la contraseña ingresada con la contraseña actual y con la clave temporal vigente. Estas verificaciones, que son lentas por diseño, se realizan fuera de la transacción, para no mantener una conexión ni la fila del usuario bloqueadas mientras se calculan.
+2. Dentro de una transacción, se vuelve a leer el usuario bloqueando su fila y se confirma que sigue siendo el mismo y que conserva la contraseña o la clave temporal que coincidió, por si cambió entre tanto.
+3. Si coincidió la contraseña actual y existe una clave temporal pendiente, esta se descarta, ya que el usuario recordó su contraseña. Si coincidió la clave temporal, pasa a ser la contraseña del usuario, con la obligación de cambiarla.
 4. Se verifica que el usuario esté habilitado para ingresar, se registra la fecha del inicio de sesión, se guardan los cambios y, por último, se crea la sesión.
 
 El orden del último paso es deliberado: la base de datos revoca automáticamente las sesiones de un usuario cuando cambia su contraseña, por lo que la nueva sesión debe crearse después de guardar el usuario para no ser revocada.
 
-Por seguridad, ante un email inexistente, una contraseña incorrecta o un usuario inactivo, el sistema devuelve siempre el mismo error, sin indicar cuál fue la causa. Además, en todos los casos se ejecuta una verificación de hash, de modo que el tiempo de respuesta sea similar y no permita deducir qué cuentas existen.
+Por seguridad, ante un email inexistente o con formato inválido, una contraseña incorrecta, una clave temporal vencida o un usuario inactivo, el sistema devuelve siempre el mismo error, `InvalidCredentialsError`, sin indicar cuál fue la causa. Además, en todos los casos se ejecutan exactamente dos verificaciones de hash —contra `PasswordHasher.verifyAgainstNothing` cuando no hay un hash con el cual comparar, por ejemplo ante un email inexistente o sin clave temporal vigente—, de modo que el tiempo de respuesta sea similar y no permita deducir qué cuentas existen ni cuáles tienen una clave temporal pendiente. Un hash almacenado que no puede interpretarse también se trata como una contraseña incorrecta.
 
 #### Renovación de sesión (rotación del refresh token)
 
@@ -1109,6 +1110,7 @@ classDiagram
         <<adapter>>
         +hash(password: Password) Promise~string~
         +verify(hash: string, plain: string) Promise~boolean~
+        +verifyAgainstNothing(plain: string) Promise~false~
     }
     class CryptoTemporaryPasswordGenerator {
         <<adapter>>
@@ -1235,7 +1237,7 @@ classDiagram
 
 #### Infraestructura: adaptadores de servicios externos
 
-- **`Argon2PasswordHasher`**: implementa `PasswordHasher` con el algoritmo Argon2id, recomendado actualmente para el almacenamiento de contraseñas por su resistencia a ataques de fuerza bruta.
+- **`Argon2PasswordHasher`**: implementa `PasswordHasher` con el algoritmo Argon2id, recomendado actualmente para el almacenamiento de contraseñas por su resistencia a ataques de fuerza bruta. Para la verificación sin hash almacenado utiliza un hash señuelo de un valor aleatorio, calculado una única vez al iniciar la aplicación con los mismos parámetros que los hashes reales.
 - **`CryptoTemporaryPasswordGenerator`**: implementa `TemporaryPasswordGenerator`. Genera claves de 12 caracteres mediante un generador criptográficamente seguro, excluyendo los caracteres que pueden confundirse visualmente (`0` y `O`, `1`, `l` e `I`), para facilitar su lectura y transcripción desde el mail.
 - **`JwtAccessTokenService`**: implementa `AccessTokenService`. Emite access tokens firmados con el algoritmo HS256, con una duración configurable entre 1 minuto y 1 hora (15 minutos por defecto), que contienen únicamente el identificador del usuario. Al validarlos, acepta solo HS256, no admite tolerancia de reloj en el vencimiento y rechaza cualquier token sin identificador de usuario, fecha de emisión o vencimiento. El rol y el estado no se incluyen en el token, sino que se consultan en la base de datos en cada solicitud.
 - **`Sha256RefreshTokenService`**: implementa `RefreshTokenService`. Genera refresh tokens de 32 bytes aleatorios y almacena en la base de datos únicamente su hash SHA-256. A diferencia de las contraseñas, no requiere un algoritmo de hash lento, ya que el token es aleatorio y de alta entropía, lo que hace inviable un ataque de fuerza bruta.
@@ -1249,6 +1251,7 @@ classDiagram
 - **`JwtAuthGuard`**: lee el access token del encabezado `Authorization: Bearer`, lo valida mediante `AccessTokenService` y, con `ResolveAuthenticatedUserUseCase`, obtiene los datos actualizados del usuario desde la base de datos. Se registra como guard global en `AppModule`.
 - **`SessionsCleanupScheduler`**: tarea programada que ejecuta periódicamente `PurgeExpiredSessionsUseCase` para eliminar las sesiones vencidas.
 - **DTOs de solicitud**: validan los datos recibidos en cada endpoint mediante `class-validator`. Cada DTO contiene los mismos campos que el command o query que representa, salvo el identificador del usuario que realiza la acción, el identificador del usuario afectado y el dispositivo de origen. Estos datos los completa el controlador a partir del usuario autenticado, de la ruta y de los encabezados de la solicitud, y nunca se aceptan desde el cuerpo enviado por el cliente, lo que impide que un usuario se haga pasar por otro.
+- **`LoginRequestDto`**: solo exige que el email y la contraseña sean textos no vacíos y de longitud acotada, para no procesar entradas desmedidas. Elimina los espacios al inicio y al final del email, pero conserva la contraseña tal como fue ingresada. No valida el formato del email ni la política de contraseñas, ya que el inicio de sesión solo compara lo ingresado con lo almacenado: un email con formato inválido recibe la misma respuesta que uno inexistente. Sus mensajes de validación están en español, porque el panel los muestra al usuario.
 - **`AccessTokenResponseDto`**: estructura de la respuesta de los endpoints que inician o renuevan una sesión. Incluye el access token, su duración y los datos del usuario. El refresh token no forma parte de la respuesta, ya que se envía exclusivamente en la cookie.
 
 #### Composición
@@ -2862,7 +2865,7 @@ La autenticación combina dos tokens con características y formas de almacenami
 | `Path`     | `/api/v1/auth`           | La cookie solo se envía a los endpoints de autenticación y no al resto de la API.                                                    |
 | `Domain`   | Sin definir              | La cookie solo se envía al servidor de la API y no a otros subdominios.                                                              |
 | Nombre     | `__Secure-refresh_token` | El prefijo `__Secure-` obliga al navegador a rechazar la cookie si no fue establecida mediante HTTPS.                                |
-| Duración   | 7 días                   | Rota en cada uso, con detección de reutilización.                                                                                    |
+| Duración   | 7 días por defecto       | Configurable entre 1 y 30 días mediante `REFRESH_TOKEN_TTL_DAYS`. Rota en cada uso, con detección de reutilización.                  |
 
 **Endpoints de renovación y cierre de sesión.** Estos dos endpoints leen la cookie y no requieren el access token. Esto permite, por ejemplo, cerrar la sesión aun cuando el access token ya venció. Como defensa adicional ante ataques CSRF, ambos aplican `OriginGuard`, que rechaza toda solicitud cuyo origen no corresponda al dominio del frontend. El origen se toma del encabezado `Origin` y, si no está presente, del encabezado `Referer`; cuando no llega ninguno de los dos, la solicitud se rechaza, ya que no es posible verificar de dónde proviene.
 

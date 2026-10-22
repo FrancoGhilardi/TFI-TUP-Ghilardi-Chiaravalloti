@@ -8,4 +8,10 @@ import type { Password } from "../../domain/value-objects/password.js";
 export abstract class PasswordHasher {
   abstract hash(password: Password): Promise<string>;
   abstract verify(hash: string, plain: string): Promise<boolean>;
+
+  /**
+   * Does the work of a real check when there is no stored hash (an unknown email), so the
+   * response time does not reveal which accounts exist. Never succeeds.
+   */
+  abstract verifyAgainstNothing(plain: string): Promise<false>;
 }

@@ -23,6 +23,9 @@ class FakeHasher extends PasswordHasher {
   verify(hash: string, plain: string): Promise<boolean> {
     return Promise.resolve(hash === `hashed:${plain}`);
   }
+  verifyAgainstNothing(): Promise<false> {
+    return Promise.resolve(false);
+  }
 }
 
 const input = seedAdminInputSchema.parse({

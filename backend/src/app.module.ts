@@ -12,6 +12,7 @@ import { ErrorResponseFilter } from "./shared/presentation/filters/error-respons
 import { RateLimitGuard } from "./shared/presentation/guards/rate-limit.guard.js";
 import { RATE_LIMIT_OPTIONS } from "./shared/presentation/http/rate-limit.js";
 import { DatabaseModule } from "./shared/infrastructure/database/database.module.js";
+import { SharedModule } from "./shared/infrastructure/shared.module.js";
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { DatabaseModule } from "./shared/infrastructure/database/database.module
     // Counters live in memory, which fits a single instance.
     ThrottlerModule.forRoot(RATE_LIMIT_OPTIONS),
     DatabaseModule,
+    SharedModule,
     IdentityModule,
   ],
   controllers: [HealthController],
