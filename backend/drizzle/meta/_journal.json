@@ -36,6 +36,13 @@
       "when": 1791939775587,
       "tag": "0004_runtime_search_path",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792683546784,
+      "tag": "0005_password_changed_at_from_app",
+      "breakpoints": true
     }
   ]
 }

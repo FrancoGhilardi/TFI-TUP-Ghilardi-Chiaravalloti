@@ -106,6 +106,25 @@ describe("validateEnv", () => {
     );
   });
 
+  it("keeps a session for a week by default", () => {
+    expect(validateEnv({ ...BASE }).REFRESH_TOKEN_TTL_DAYS).toBe(7);
+  });
+
+  it.each([
+    ["one day", "1", 1],
+    ["thirty days", "30", 30],
+  ])("accepts a session lifetime of %s", (_label, value, expected) => {
+    expect(validateEnv({ ...BASE, REFRESH_TOKEN_TTL_DAYS: value }).REFRESH_TOKEN_TTL_DAYS).toBe(
+      expected,
+    );
+  });
+
+  it.each(["0", "-1", "1.5", "31", "a week"])("rejects REFRESH_TOKEN_TTL_DAYS=%s", (value) => {
+    expect(() => validateEnv({ ...BASE, REFRESH_TOKEN_TTL_DAYS: value })).toThrow(
+      "REFRESH_TOKEN_TTL_DAYS",
+    );
+  });
+
   it("does not trust any proxy by default", () => {
     expect(validateEnv({ ...BASE }).TRUST_PROXY).toBe(0);
   });

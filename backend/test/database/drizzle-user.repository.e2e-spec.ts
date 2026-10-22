@@ -207,6 +207,17 @@ describe("DrizzleUserRepository (e2e)", () => {
       });
     });
 
+    it("keeps the password change time the domain set, not the database clock", async () => {
+      const id = await insertUser(pool);
+      const user = await repository.findById(id);
+      const changedAt = new Date("2026-10-22T12:00:00.000Z");
+      user?.changePassword("new-hash", changedAt);
+
+      await repository.save(user!);
+
+      expect((await repository.findById(id))?.passwordChangedAt).toEqual(changedAt);
+    });
+
     it("lets the database revoke the sessions when the password changes", async () => {
       const id = await insertUser(pool);
       await pool.query(

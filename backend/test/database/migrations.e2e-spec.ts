@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import type { Pool } from "pg";
 import { adminPool } from "./db-test-utils.js";
 
@@ -44,11 +46,14 @@ describe("migrations (e2e)", () => {
     expect(rows.map((row) => row.typname)).toEqual(["image_status", "user_role"]);
   });
 
-  it("records one row per migration", async () => {
+  it("records one row per migration in the journal", async () => {
+    const journal = JSON.parse(
+      readFileSync(path.resolve(import.meta.dirname, "../../drizzle/meta/_journal.json"), "utf8"),
+    ) as { entries: unknown[] };
     const { rows } = await pool.query<{ count: number }>(
       "select count(*)::int as count from drizzle.__drizzle_migrations",
     );
 
-    expect(rows[0]?.count).toBe(5);
+    expect(rows[0]?.count).toBe(journal.entries.length);
   });
 });
