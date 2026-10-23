@@ -52,6 +52,11 @@ const ERRORS = {
     code: "ORIGIN_NOT_ALLOWED",
     message: "No se pudo verificar el origen de la solicitud.",
   },
+  invalidSession: {
+    statusCode: 401,
+    code: "INVALID_SESSION",
+    message: "Tu sesión terminó. Iniciá sesión de nuevo.",
+  },
   notImplemented: {
     statusCode: 501,
     code: "NOT_IMPLEMENTED",
@@ -88,6 +93,11 @@ describe("Authentication routes (e2e)", () => {
     ["GET", "/api/v1/auth/me"],
   ] as const;
   const cookieRoutes = ["/api/v1/auth/refresh", "/api/v1/auth/logout"] as const;
+  // What each cookie route answers once the origin check lets the request through.
+  const afterOriginCheck = {
+    "/api/v1/auth/refresh": ERRORS.invalidSession,
+    "/api/v1/auth/logout": ERRORS.notImplemented,
+  } as const;
   const call = (method: "GET" | "POST", path: string) =>
     method === "GET" ? http.get(path) : http.post(path);
 
@@ -165,13 +175,13 @@ describe("Authentication routes (e2e)", () => {
 
   describe("cookie routes", () => {
     it.each(cookieRoutes)("%s passes without a token from the frontend origin", async (path) => {
-      await expectError(http.post(path).set("Origin", frontendOrigin), ERRORS.notImplemented);
+      await expectError(http.post(path).set("Origin", frontendOrigin), afterOriginCheck[path]);
     });
 
     it.each(cookieRoutes)("%s passes with a frontend Referer and no Origin", async (path) => {
       await expectError(
         http.post(path).set("Referer", `${frontendOrigin}/panel?page=1`),
-        ERRORS.notImplemented,
+        afterOriginCheck[path],
       );
     });
 

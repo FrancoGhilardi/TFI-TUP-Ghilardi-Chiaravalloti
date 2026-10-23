@@ -13,27 +13,45 @@ export class DrizzleSessionRepository extends SessionRepository {
   }
 
   async findByTokenHash(tokenHash: string): Promise<Session | null> {
-    const [row] = await this.executor
-      .current()
-      .select()
-      .from(sessions)
-      .where(eq(sessions.refreshTokenHash, tokenHash))
-      .limit(1);
+    const [row] = await this.byTokenHash(tokenHash);
+    return row ? SessionMapper.toDomain(row) : null;
+  }
+
+  async findByTokenHashForUpdate(tokenHash: string): Promise<Session | null> {
+    // Outside a transaction the lock would be released at once, which is never what the
+    // caller meant.
+    if (!this.executor.hasActiveTransaction()) {
+      throw new Error("findByTokenHashForUpdate must run inside a transaction");
+    }
+    const [row] = await this.byTokenHash(tokenHash).for("update");
     return row ? SessionMapper.toDomain(row) : null;
   }
 
   async save(session: Session): Promise<void> {
     const row = SessionMapper.toPersistence(session);
-    // Only the revocation can change once a session exists, and it is never undone: a stale
-    // copy read before a trigger or revokeAllForUser revoked the session must not revive it.
+    // Only the revocation and rotation can change once a session exists, and they are never
+    // undone: a stale copy read before a trigger or revokeAllForUser revoked the session must
+    // not revive it.
     await this.executor
       .current()
       .insert(sessions)
       .values(row)
       .onConflictDoUpdate({
         target: sessions.id,
-        set: { revokedAt: sql`coalesce(${sessions.revokedAt}, excluded.revoked_at)` },
+        set: {
+          revokedAt: sql`coalesce(${sessions.revokedAt}, excluded.revoked_at)`,
+          rotatedAt: sql`coalesce(${sessions.rotatedAt}, excluded.rotated_at)`,
+        },
       });
+  }
+
+  private byTokenHash(tokenHash: string) {
+    return this.executor
+      .current()
+      .select()
+      .from(sessions)
+      .where(eq(sessions.refreshTokenHash, tokenHash))
+      .limit(1);
   }
 
   async revokeAllForUser(userId: string, now: Date): Promise<void> {

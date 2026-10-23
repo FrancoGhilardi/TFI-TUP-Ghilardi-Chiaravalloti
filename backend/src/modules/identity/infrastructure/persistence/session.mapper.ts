@@ -13,6 +13,7 @@ export const SessionMapper = {
       refreshTokenHash: row.refreshTokenHash,
       expiresAt: row.expiresAt,
       revokedAt: row.revokedAt ?? undefined,
+      rotatedAt: row.rotatedAt ?? undefined,
       userAgent: row.userAgent ?? undefined,
       createdAt: row.createdAt,
     });
@@ -25,6 +26,7 @@ export const SessionMapper = {
       refreshTokenHash: session.refreshTokenHash,
       expiresAt: session.expiresAt,
       revokedAt: session.revokedAt ?? null,
+      rotatedAt: session.rotatedAt ?? null,
       userAgent: session.userAgent ?? null,
       createdAt: session.createdAt,
     };

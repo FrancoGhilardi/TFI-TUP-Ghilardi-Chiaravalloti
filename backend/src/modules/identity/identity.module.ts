@@ -9,12 +9,15 @@ import { AuthSettings } from "./application/auth-settings.js";
 import { AccessTokenService } from "./application/ports/access-token-service.js";
 import { PasswordHasher } from "./application/ports/password-hasher.js";
 import { RefreshTokenService } from "./application/ports/refresh-token-service.js";
+import { SecurityEventLog } from "./application/ports/security-event-log.js";
 import { SessionIssuer } from "./application/services/session-issuer.js";
 import { LoginUseCase } from "./application/use-cases/login.use-case.js";
+import { RefreshSessionUseCase } from "./application/use-cases/refresh-session.use-case.js";
 import { ResolveAuthenticatedUserUseCase } from "./application/use-cases/resolve-authenticated-user.use-case.js";
 import { SessionRepository } from "./domain/repositories/session.repository.js";
 import { UserRepository } from "./domain/repositories/user.repository.js";
 import { Argon2PasswordHasher } from "./infrastructure/argon2-password-hasher.js";
+import { LoggerSecurityEventLog } from "./infrastructure/logging/logger-security-event-log.js";
 import { DrizzleSessionRepository } from "./infrastructure/persistence/drizzle-session.repository.js";
 import { DrizzleUserRepository } from "./infrastructure/persistence/drizzle-user.repository.js";
 import { JwtAccessTokenService } from "./infrastructure/security/jwt-access-token.service.js";
@@ -41,6 +44,7 @@ import { RefreshTokenCookie } from "./presentation/http/refresh-token-cookie.js"
     { provide: AccessTokenService, useClass: JwtAccessTokenService },
     { provide: RefreshTokenService, useClass: Sha256RefreshTokenService },
     { provide: PasswordHasher, useClass: Argon2PasswordHasher },
+    { provide: SecurityEventLog, useClass: LoggerSecurityEventLog },
     {
       provide: SessionIssuer,
       useFactory: (
@@ -70,6 +74,36 @@ import { RefreshTokenCookie } from "./presentation/http/refresh-token-cookie.js"
         clock: Clock,
       ) => new LoginUseCase(users, hasher, sessionIssuer, transaction, clock),
       inject: [UserRepository, PasswordHasher, SessionIssuer, TransactionManager, Clock],
+    },
+    {
+      provide: RefreshSessionUseCase,
+      useFactory: (
+        sessions: SessionRepository,
+        users: UserRepository,
+        refreshTokens: RefreshTokenService,
+        sessionIssuer: SessionIssuer,
+        transaction: TransactionManager,
+        clock: Clock,
+        securityLog: SecurityEventLog,
+      ) =>
+        new RefreshSessionUseCase(
+          sessions,
+          users,
+          refreshTokens,
+          sessionIssuer,
+          transaction,
+          clock,
+          securityLog,
+        ),
+      inject: [
+        SessionRepository,
+        UserRepository,
+        RefreshTokenService,
+        SessionIssuer,
+        TransactionManager,
+        Clock,
+        SecurityEventLog,
+      ],
     },
     {
       provide: ResolveAuthenticatedUserUseCase,
