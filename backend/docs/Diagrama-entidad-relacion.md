@@ -44,6 +44,7 @@ erDiagram
         uuid id PK
         uuid user_id FK "ON DELETE CASCADE"
         varchar refresh_token_hash
+        uuid family_id "compartido por las sesiones de un mismo inicio de sesión"
         timestamptz expires_at
         timestamptz revoked_at "se completa al desactivar, borrar o cambiar rol/clave"
         timestamptz rotated_at "se completa al renovar; implica revoked_at"
@@ -125,7 +126,7 @@ Almacena las cuentas del panel de administración, con dos roles posibles: `ADMI
 
 ### `sessions`
 
-Registra las sesiones activas de cada usuario a partir del refresh token (guardado como hash, nunca el token real). Se relaciona con `users` mediante `user_id`, con borrado en cascada: si se elimina un usuario, sus sesiones dejan de tener sentido. Permite revocar sesiones puntuales cuando cambian la contraseña, el rol o el estado del usuario, o cuando se detecta reuso de un refresh token. `rotated_at` distingue una sesión reemplazada por una renovación de una revocada por otro motivo: solo volver a usar un token rotado cuenta como reuso.
+Registra las sesiones activas de cada usuario a partir del refresh token (guardado como hash, nunca el token real). Se relaciona con `users` mediante `user_id`, con borrado en cascada: si se elimina un usuario, sus sesiones dejan de tener sentido. Permite revocar sesiones puntuales cuando cambian la contraseña, el rol o el estado del usuario, o cuando se detecta reuso de un refresh token. `rotated_at` distingue una sesión reemplazada por una renovación de una revocada por otro motivo: solo volver a usar un token rotado cuenta como reuso. `family_id` agrupa la sesión creada por un inicio de sesión con todas las que la reemplazaron mediante renovaciones (vale el `id` de la primera), de modo que al cerrar sesión se revoca la familia completa sin afectar las sesiones de otros dispositivos.
 
 ### `categories`
 
@@ -325,17 +326,24 @@ CREATE TABLE libreria.sessions (
   id                  uuid         PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id             uuid         NOT NULL REFERENCES libreria.users (id) ON DELETE CASCADE,
   refresh_token_hash  varchar(255) NOT NULL,
+  family_id           uuid         NOT NULL,
   expires_at          timestamptz  NOT NULL,
   revoked_at          timestamptz,
+  rotated_at          timestamptz,
   user_agent          varchar(500),
   created_at          timestamptz  NOT NULL DEFAULT now(),
 
   CONSTRAINT uq_sessions_refresh_token_hash UNIQUE (refresh_token_hash),
-  CONSTRAINT chk_sessions_expires_after_created CHECK (expires_at > created_at)
+  CONSTRAINT chk_sessions_expires_after_created CHECK (expires_at > created_at),
+  CONSTRAINT chk_sessions_rotated_is_revoked CHECK (rotated_at IS NULL OR revoked_at IS NOT NULL)
 );
 
 CREATE INDEX idx_sessions_user_active
   ON libreria.sessions (user_id)
+  WHERE revoked_at IS NULL;
+
+CREATE INDEX idx_sessions_family_active
+  ON libreria.sessions (family_id)
   WHERE revoked_at IS NULL;
 
 -- Revoca las sesiones al desactivar, dar de baja o cambiar rol o clave

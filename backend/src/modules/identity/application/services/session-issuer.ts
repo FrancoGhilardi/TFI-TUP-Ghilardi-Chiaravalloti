@@ -13,7 +13,10 @@ const DAY_MS = 86_400_000;
 // Length of the sessions.user_agent column, counted in characters like Postgres does.
 const MAX_USER_AGENT_LENGTH = 500;
 
-/** Starts a session for a user who just proved who they are, and issues both tokens. */
+/**
+ * Starts a session for a user who just proved who they are, and issues both tokens. A session
+ * that replaces another one keeps its family; otherwise a new family starts.
+ */
 export class SessionIssuer {
   constructor(
     private readonly sessions: SessionRepository,
@@ -24,13 +27,14 @@ export class SessionIssuer {
     private readonly settings: AuthSettings,
   ) {}
 
-  async issue(user: User, userAgent?: string): Promise<AuthSessionResult> {
+  async issue(user: User, userAgent?: string, familyId?: string): Promise<AuthSessionResult> {
     const now = this.clock.now();
     const refreshToken = this.refreshTokens.generate();
     const session = Session.start({
       id: this.ids.next(),
       userId: user.getId(),
       refreshTokenHash: this.refreshTokens.hash(refreshToken),
+      familyId,
       expiresAt: new Date(now.getTime() + this.settings.refreshTokenTtlDays * DAY_MS),
       userAgent: truncate(userAgent),
       now,

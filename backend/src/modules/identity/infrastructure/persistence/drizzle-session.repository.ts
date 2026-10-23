@@ -54,6 +54,14 @@ export class DrizzleSessionRepository extends SessionRepository {
       .limit(1);
   }
 
+  async revokeFamily(familyId: string, now: Date): Promise<void> {
+    await this.executor
+      .current()
+      .update(sessions)
+      .set({ revokedAt: now })
+      .where(and(eq(sessions.familyId, familyId), isNull(sessions.revokedAt)));
+  }
+
   async revokeAllForUser(userId: string, now: Date): Promise<void> {
     await this.executor
       .current()

@@ -14,6 +14,9 @@ export abstract class SessionRepository {
   /** Stores a new session or the changes of an existing one. */
   abstract save(session: Session): Promise<void>;
 
+  /** Revokes every session of the family that is not revoked yet. */
+  abstract revokeFamily(familyId: string, now: Date): Promise<void>;
+
   /** Revokes every session of the user that is not revoked yet. */
   abstract revokeAllForUser(userId: string, now: Date): Promise<void>;
 

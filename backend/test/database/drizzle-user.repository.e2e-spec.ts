@@ -221,8 +221,8 @@ describe("DrizzleUserRepository (e2e)", () => {
     it("lets the database revoke the sessions when the password changes", async () => {
       const id = await insertUser(pool);
       await pool.query(
-        `INSERT INTO libreria.sessions (user_id, refresh_token_hash, expires_at)
-         VALUES ($1, 'token-hash', now() + interval '1 day')`,
+        `INSERT INTO libreria.sessions (user_id, refresh_token_hash, family_id, expires_at)
+         VALUES ($1, 'token-hash', gen_random_uuid(), now() + interval '1 day')`,
         [id],
       );
       const user = await repository.findById(id);

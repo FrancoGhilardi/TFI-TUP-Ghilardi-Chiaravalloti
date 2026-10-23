@@ -15,6 +15,7 @@ import { StrictRateLimit } from "../../../../shared/presentation/http/rate-limit
 import { NotImplementedYetError } from "../../../../shared/presentation/http/not-implemented-yet-error.js";
 import { InvalidSessionError } from "../../application/errors/invalid-session-error.js";
 import { LoginUseCase } from "../../application/use-cases/login.use-case.js";
+import { LogoutUseCase } from "../../application/use-cases/logout.use-case.js";
 import { RefreshSessionUseCase } from "../../application/use-cases/refresh-session.use-case.js";
 import { UserRole } from "../../domain/user-role.js";
 import { AllowPendingPasswordChange } from "../decorators/allow-pending-password-change.decorator.js";
@@ -35,6 +36,7 @@ export class AuthController {
   constructor(
     private readonly loginUseCase: LoginUseCase,
     private readonly refreshSessionUseCase: RefreshSessionUseCase,
+    private readonly logoutUseCase: LogoutUseCase,
     private readonly refreshTokenCookie: RefreshTokenCookie,
   ) {}
 
@@ -107,7 +109,10 @@ export class AuthController {
   @Post("logout")
   @Public()
   @UseGuards(OriginGuard)
-  logout(): never {
-    throw new NotImplementedYetError();
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<void> {
+    await this.logoutUseCase.execute({ refreshToken: this.refreshTokenCookie.read(req) });
+    // Cleared only once the session is revoked; after a failure the cookie stays for a retry.
+    this.refreshTokenCookie.clear(res);
   }
 }
