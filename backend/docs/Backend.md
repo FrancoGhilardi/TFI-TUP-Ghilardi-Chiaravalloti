@@ -875,7 +875,7 @@ classDiagram
         +userId: string
         +currentPassword: string
         +newPassword: string
-        +userAgent: string
+        +userAgent?: string
     }
     class ResolveAuthenticatedUserQuery {
         +userId: string
@@ -1050,7 +1050,16 @@ La operación es idempotente: si no llega la cookie, si el token no existe o si 
 
 #### Cambio de contraseña
 
-Disponible para cualquier rol. Se verifica la contraseña actual, se valida que la nueva cumpla los requisitos de `Password` y que sea distinta de la anterior, y se guarda el cambio. Como la base de datos revoca automáticamente las sesiones existentes, se emite una sesión nueva después de guardar, para que el usuario no deba volver a iniciar sesión.
+Disponible para cualquier rol, incluso con un cambio de contraseña pendiente; en ese caso, la contraseña actual es la clave temporal con la que el usuario ingresó. Se ejecuta en los siguientes pasos:
+
+1. Se valida que la nueva contraseña cumpla los requisitos de `Password`.
+2. Fuera de la transacción, como en el inicio de sesión, se verifica la contraseña actual, se comprueba que la nueva sea distinta de ella y se genera su hash.
+3. Dentro de una transacción, se vuelve a leer el usuario bloqueando su fila y se confirma que sigue habilitado y que su contraseña no cambió entre tanto.
+4. Se guarda la nueva contraseña, lo que elimina la obligación de cambiarla y descarta cualquier clave temporal pendiente, y por último se crea una sesión nueva.
+
+Como la base de datos revoca todas las sesiones del usuario al cambiar la contraseña, incluida la actual, la sesión nueva se crea después de guardar: el dispositivo que realizó el cambio sigue con la sesión iniciada y los demás deben volver a ingresar. Los access tokens emitidos antes del cambio dejan de ser válidos. Como el `iat` del token se expresa en segundos, uno emitido durante el mismo segundo del cambio, pero antes, sigue siendo válido hasta vencer: es una ventana de menos de un segundo, que se acepta para que el token nuevo, emitido en ese mismo segundo, funcione.
+
+Si la contraseña actual no es correcta, se rechaza con `InvalidCurrentPasswordError` (400), y no con un error de autenticación, para que el frontend no lo confunda con una sesión vencida. Si la nueva coincide con la actual, se rechaza con `PasswordUnchangedError` (422).
 
 #### Validación del usuario autenticado
 
@@ -3024,10 +3033,11 @@ Toda la API aplica un límite general de solicitudes por dirección IP, como pro
 | Toda la API                     | 100 solicitudes por minuto por IP, sumando todas las rutas |
 | `POST /auth/login`              | 5 solicitudes por minuto por IP                            |
 | `POST /auth/forgot-password`    | 3 solicitudes cada 15 minutos por IP                       |
+| `POST /auth/change-password`    | 5 solicitudes por minuto por IP                            |
 | `POST /auth/refresh`            | Límite general de la API                                   |
 | `GET /health` y `/health/ready` | Sin límite                                                 |
 
-El límite del inicio de sesión dificulta los intentos de adivinar contraseñas, y el de recuperación de contraseña evita el envío masivo de mails, que además consumiría el cupo diario del proveedor de correo. Los límites específicos se suman al general: cada solicitud a esos endpoints cuenta también para el límite de toda la API. Los endpoints de salud quedan excluidos para que los controles de la plataforma y del monitoreo nunca se bloqueen.
+Los límites del inicio de sesión y del cambio de contraseña dificultan los intentos de adivinar contraseñas —en el segundo caso, con un access token robado—, y el de recuperación de contraseña evita el envío masivo de mails, que además consumiría el cupo diario del proveedor de correo. Los límites específicos se cuentan por dirección IP y ruta, antes de verificar el access token, por lo que en el cambio de contraseña también cuentan los intentos sin un token válido desde esa dirección; se acepta así, ya que contar por usuario obligaría a confiar en un token todavía no verificado. Los límites específicos se suman al general: cada solicitud a esos endpoints cuenta también para el límite de toda la API. Los endpoints de salud quedan excluidos para que los controles de la plataforma y del monitoreo nunca se bloqueen.
 
 Como la API se ejecuta detrás del proxy de la plataforma de despliegue, la dirección IP del cliente se obtiene del encabezado `X-Forwarded-For`, confiando únicamente en la cantidad de proxies configurada. De esta forma, un cliente no puede elegir su propia dirección para evadir los límites.
 

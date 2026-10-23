@@ -102,7 +102,7 @@ describe("Rate limiting (e2e)", () => {
 
   it("shares the general limit across every route of the API", async () => {
     await repeat(GENERAL_LIMIT / 2, () => http.get("/api/v1/auth/me"), 401);
-    await repeat(GENERAL_LIMIT / 2, () => http.post("/api/v1/auth/change-password"), 401);
+    await repeat(GENERAL_LIMIT / 2, () => http.post("/api/v1/auth/logout"), 403);
 
     await expectTooManyRequests(http.post("/api/v1/auth/refresh"), 60);
   });

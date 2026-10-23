@@ -11,6 +11,7 @@ import { PasswordHasher } from "./application/ports/password-hasher.js";
 import { RefreshTokenService } from "./application/ports/refresh-token-service.js";
 import { SecurityEventLog } from "./application/ports/security-event-log.js";
 import { SessionIssuer } from "./application/services/session-issuer.js";
+import { ChangePasswordUseCase } from "./application/use-cases/change-password.use-case.js";
 import { LoginUseCase } from "./application/use-cases/login.use-case.js";
 import { LogoutUseCase } from "./application/use-cases/logout.use-case.js";
 import { RefreshSessionUseCase } from "./application/use-cases/refresh-session.use-case.js";
@@ -116,6 +117,17 @@ import { RefreshTokenCookie } from "./presentation/http/refresh-token-cookie.js"
         clock: Clock,
       ) => new LogoutUseCase(sessions, users, refreshTokens, transaction, clock),
       inject: [SessionRepository, UserRepository, RefreshTokenService, TransactionManager, Clock],
+    },
+    {
+      provide: ChangePasswordUseCase,
+      useFactory: (
+        users: UserRepository,
+        hasher: PasswordHasher,
+        sessionIssuer: SessionIssuer,
+        transaction: TransactionManager,
+        clock: Clock,
+      ) => new ChangePasswordUseCase(users, hasher, sessionIssuer, transaction, clock),
+      inject: [UserRepository, PasswordHasher, SessionIssuer, TransactionManager, Clock],
     },
     {
       provide: ResolveAuthenticatedUserUseCase,
