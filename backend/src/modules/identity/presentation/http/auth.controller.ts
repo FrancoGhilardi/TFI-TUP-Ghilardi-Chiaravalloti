@@ -14,16 +14,24 @@ import type { Request, Response } from "express";
 import { StrictRateLimit } from "../../../../shared/presentation/http/rate-limit.js";
 import { NotImplementedYetError } from "../../../../shared/presentation/http/not-implemented-yet-error.js";
 import { InvalidSessionError } from "../../application/errors/invalid-session-error.js";
+import { ChangePasswordUseCase } from "../../application/use-cases/change-password.use-case.js";
 import { LoginUseCase } from "../../application/use-cases/login.use-case.js";
 import { LogoutUseCase } from "../../application/use-cases/logout.use-case.js";
 import { RefreshSessionUseCase } from "../../application/use-cases/refresh-session.use-case.js";
 import { UserRole } from "../../domain/user-role.js";
+import type { AuthUser } from "../auth-user.js";
 import { AllowPendingPasswordChange } from "../decorators/allow-pending-password-change.decorator.js";
+import { CurrentUser } from "../decorators/current-user.decorator.js";
 import { Public } from "../decorators/public.decorator.js";
 import { Roles } from "../decorators/roles.decorator.js";
 import { OriginGuard } from "../guards/origin.guard.js";
 import { AccessTokenResponseDto } from "./access-token.response.dto.js";
-import { FORGOT_PASSWORD_RATE_LIMIT, LOGIN_RATE_LIMIT } from "./auth-rate-limits.js";
+import {
+  CHANGE_PASSWORD_RATE_LIMIT,
+  FORGOT_PASSWORD_RATE_LIMIT,
+  LOGIN_RATE_LIMIT,
+} from "./auth-rate-limits.js";
+import { ChangePasswordRequestDto } from "./change-password.request.dto.js";
 import { LoginRequestDto } from "./login.request.dto.js";
 import { RefreshTokenCookie } from "./refresh-token-cookie.js";
 
@@ -37,6 +45,7 @@ export class AuthController {
     private readonly loginUseCase: LoginUseCase,
     private readonly refreshSessionUseCase: RefreshSessionUseCase,
     private readonly logoutUseCase: LogoutUseCase,
+    private readonly changePasswordUseCase: ChangePasswordUseCase,
     private readonly refreshTokenCookie: RefreshTokenCookie,
   ) {}
 
@@ -68,8 +77,23 @@ export class AuthController {
   @Post("change-password")
   @Roles(UserRole.ADMIN, UserRole.SELLER)
   @AllowPendingPasswordChange()
-  changePassword(): never {
-    throw new NotImplementedYetError();
+  @StrictRateLimit(CHANGE_PASSWORD_RATE_LIMIT)
+  @HttpCode(HttpStatus.OK)
+  async changePassword(
+    @CurrentUser() user: AuthUser,
+    @Body() body: ChangePasswordRequestDto,
+    @Headers("user-agent") userAgent: string | undefined,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AccessTokenResponseDto> {
+    // The new password revokes every session of the user, so this device gets a new one.
+    const session = await this.changePasswordUseCase.execute({
+      userId: user.id,
+      currentPassword: body.currentPassword,
+      newPassword: body.newPassword,
+      userAgent,
+    });
+    this.refreshTokenCookie.write(res, session.refreshToken, session.refreshTokenExpiresAt);
+    return AccessTokenResponseDto.from(session);
   }
 
   @Get("me")

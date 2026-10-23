@@ -111,6 +111,16 @@ describe("Authentication routes (e2e)", () => {
     }
     await expectError(pending, ERRORS.invalidSession);
   };
+  // What each account route answers once the token, pending change and role checks pass:
+  // change-password reaches its validation with an empty body, and /me is not built yet.
+  const expectPastAccessChecks = async (path: string, pending: request.Test) => {
+    if (path === "/api/v1/auth/change-password") {
+      const body = (await pending.expect(400)).body as ErrorResponse;
+      expect(body).toMatchObject({ statusCode: 400, code: "VALIDATION_FAILED" });
+      return;
+    }
+    await expectError(pending, ERRORS.notImplemented);
+  };
   const call = (method: "GET" | "POST", path: string) =>
     method === "GET" ? http.get(path) : http.post(path);
 
@@ -147,7 +157,7 @@ describe("Authentication routes (e2e)", () => {
     it.each(accountRoutes)(
       "%s %s lets a user with a pending change through",
       async (method, path) => {
-        await expectError(withToken(call(method, path), tokens.pending), ERRORS.notImplemented);
+        await expectPastAccessChecks(path, withToken(call(method, path), tokens.pending));
       },
     );
 
@@ -182,7 +192,7 @@ describe("Authentication routes (e2e)", () => {
     });
 
     it.each(accountRoutes)("%s %s does not require an Origin", async (method, path) => {
-      await expectError(withToken(call(method, path), tokens.ready), ERRORS.notImplemented);
+      await expectPastAccessChecks(path, withToken(call(method, path), tokens.ready));
     });
   });
 
