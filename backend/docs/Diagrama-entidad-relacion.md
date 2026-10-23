@@ -46,6 +46,7 @@ erDiagram
         varchar refresh_token_hash
         timestamptz expires_at
         timestamptz revoked_at "se completa al desactivar, borrar o cambiar rol/clave"
+        timestamptz rotated_at "se completa al renovar; implica revoked_at"
         varchar user_agent
         timestamptz created_at
     }
@@ -124,7 +125,7 @@ Almacena las cuentas del panel de administración, con dos roles posibles: `ADMI
 
 ### `sessions`
 
-Registra las sesiones activas de cada usuario a partir del refresh token (guardado como hash, nunca el token real). Se relaciona con `users` mediante `user_id`, con borrado en cascada: si se elimina un usuario, sus sesiones dejan de tener sentido. Permite revocar sesiones puntuales cuando cambian la contraseña, el rol o el estado del usuario, o cuando se detecta reuso de un refresh token.
+Registra las sesiones activas de cada usuario a partir del refresh token (guardado como hash, nunca el token real). Se relaciona con `users` mediante `user_id`, con borrado en cascada: si se elimina un usuario, sus sesiones dejan de tener sentido. Permite revocar sesiones puntuales cuando cambian la contraseña, el rol o el estado del usuario, o cuando se detecta reuso de un refresh token. `rotated_at` distingue una sesión reemplazada por una renovación de una revocada por otro motivo: solo volver a usar un token rotado cuenta como reuso.
 
 ### `categories`
 

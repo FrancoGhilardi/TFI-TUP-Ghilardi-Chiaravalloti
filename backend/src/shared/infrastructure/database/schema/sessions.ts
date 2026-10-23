@@ -13,12 +13,16 @@ export const sessions = libreria.table(
     refreshTokenHash: varchar("refresh_token_hash", { length: 255 }).notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    // Set only when a refresh replaced the session; a revocation without it came from a
+    // logout or a change to the user, so using the token again is not a reuse.
+    rotatedAt: timestamp("rotated_at", { withTimezone: true }),
     userAgent: varchar("user_agent", { length: 500 }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     unique("uq_sessions_refresh_token_hash").on(t.refreshTokenHash),
     check("chk_sessions_expires_after_created", sql`expires_at > created_at`),
+    check("chk_sessions_rotated_is_revoked", sql`rotated_at IS NULL OR revoked_at IS NOT NULL`),
     index("idx_sessions_user_active")
       .on(sql`user_id`)
       .where(sql`revoked_at IS NULL`),
