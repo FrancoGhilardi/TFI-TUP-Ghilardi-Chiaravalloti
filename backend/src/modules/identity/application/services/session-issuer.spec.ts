@@ -29,6 +29,10 @@ class RecordingSessionRepository extends SessionRepository {
     return Promise.reject(new Error("Not used by SessionIssuer"));
   }
 
+  revokeFamily(): Promise<void> {
+    return Promise.reject(new Error("Not used by SessionIssuer"));
+  }
+
   revokeAllForUser(): Promise<void> {
     return Promise.reject(new Error("Not used by SessionIssuer"));
   }
@@ -126,6 +130,22 @@ describe("SessionIssuer", () => {
     expect(session?.refreshTokenHash).toBe("sha256:refresh-token");
     expect(session?.createdAt).toEqual(NOW);
     expect(session?.userAgent).toBe("Firefox");
+  });
+
+  it("starts a new family when the session replaces none", async () => {
+    const { sessions, issuer } = setUp();
+
+    await issuer.issue(user);
+
+    expect(sessions.saved[0]?.familyId).toBe("session-1");
+  });
+
+  it("keeps the family of the session it replaces", async () => {
+    const { sessions, issuer } = setUp();
+
+    await issuer.issue(user, "Firefox", "family-1");
+
+    expect(sessions.saved[0]?.familyId).toBe("family-1");
   });
 
   it("makes the session last the configured number of days", async () => {

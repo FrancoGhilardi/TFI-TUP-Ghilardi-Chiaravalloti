@@ -23,12 +23,26 @@ describe("Session", () => {
       expect(session).toMatchObject({
         userId: "user-1",
         refreshTokenHash: "token-hash",
+        familyId: "session-1",
         expiresAt: EXPIRES_AT,
         userAgent: "Mozilla/5.0",
         createdAt: NOW,
         revokedAt: undefined,
       });
       expect(session.isActive(NOW)).toBe(true);
+    });
+
+    it("joins the family of the session it replaces", () => {
+      const session = Session.start({
+        id: "session-2",
+        userId: "user-1",
+        refreshTokenHash: "token-hash",
+        familyId: "session-1",
+        expiresAt: EXPIRES_AT,
+        now: NOW,
+      });
+
+      expect(session.familyId).toBe("session-1");
     });
 
     it("does not require a user agent", () => {
@@ -147,6 +161,7 @@ describe("Session", () => {
         id: "session-2",
         userId: "user-1",
         refreshTokenHash: "token-hash",
+        familyId: "session-1",
         expiresAt: EXPIRES_AT,
         revokedAt: NOW,
         createdAt: new Date("2026-10-19T12:00:00.000Z"),
@@ -157,6 +172,7 @@ describe("Session", () => {
 
       expect(session.isRevoked()).toBe(true);
       expect(session.getId()).toBe("session-2");
+      expect(session.familyId).toBe("session-1");
     });
 
     it("rebuilds an expired session without rejecting it", () => {
@@ -164,6 +180,7 @@ describe("Session", () => {
         id: "session-3",
         userId: "user-1",
         refreshTokenHash: "token-hash",
+        familyId: "session-3",
         expiresAt: new Date("2026-01-01T00:00:00.000Z"),
         createdAt: new Date("2025-12-25T00:00:00.000Z"),
       });

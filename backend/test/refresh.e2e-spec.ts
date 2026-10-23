@@ -46,6 +46,7 @@ const DAY_MS = 86_400_000;
 
 interface SessionRow {
   id: string;
+  family_id: string;
   refresh_token_hash: string;
   revoked_at: Date | null;
   rotated_at: Date | null;
@@ -99,8 +100,9 @@ describe("Refresh (e2e)", () => {
     options: { expiresAt?: Date; createdAt?: Date; revokedAt?: Date } = {},
   ): Promise<void> {
     await pool.query(
-      `INSERT INTO libreria.sessions (user_id, refresh_token_hash, expires_at, created_at, revoked_at)
-       VALUES ($1, $2, $3, $4, $5)`,
+      `INSERT INTO libreria.sessions
+         (user_id, refresh_token_hash, family_id, expires_at, created_at, revoked_at)
+       VALUES ($1, $2, gen_random_uuid(), $3, $4, $5)`,
       [
         userId,
         hashOf(token),
@@ -113,7 +115,7 @@ describe("Refresh (e2e)", () => {
 
   async function sessions(): Promise<SessionRow[]> {
     const { rows } = await pool.query<SessionRow>(
-      `SELECT id, refresh_token_hash, revoked_at, rotated_at, expires_at, user_agent
+      `SELECT id, family_id, refresh_token_hash, revoked_at, rotated_at, expires_at, user_agent
        FROM libreria.sessions WHERE user_id = $1 ORDER BY created_at`,
       [userId],
     );
@@ -174,6 +176,9 @@ describe("Refresh (e2e)", () => {
       expect(current.refresh_token_hash).toBe(hashOf(newToken ?? ""));
       expect(current.revoked_at).toBeNull();
       expect(current.user_agent).toBe("Firefox");
+      // The login starts the family and the refresh keeps it.
+      expect(old.family_id).toBe(old.id);
+      expect(current.family_id).toBe(old.id);
     });
 
     it("writes the new token in the same secure cookie the login uses", async () => {

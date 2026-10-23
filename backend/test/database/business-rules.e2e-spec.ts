@@ -303,8 +303,8 @@ describe("business rules in the database (e2e)", () => {
     ])("revokes open sessions when %s changes", async (_column, assignment) => {
       const userId = await insertUser(pool);
       await pool.query(
-        `INSERT INTO libreria.sessions (user_id, refresh_token_hash, expires_at)
-         VALUES ($1, 'token-hash', now() + interval '1 day')`,
+        `INSERT INTO libreria.sessions (user_id, refresh_token_hash, family_id, expires_at)
+         VALUES ($1, 'token-hash', gen_random_uuid(), now() + interval '1 day')`,
         [userId],
       );
 

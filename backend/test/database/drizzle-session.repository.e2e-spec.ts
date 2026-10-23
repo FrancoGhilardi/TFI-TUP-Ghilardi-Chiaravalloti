@@ -26,11 +26,14 @@ describe("DrizzleSessionRepository (e2e)", () => {
   let transactions: DrizzleTransactionManager;
   let userId: string;
 
-  const start = (overrides: { tokenHash?: string; expiresAt?: Date; forUser?: string } = {}) =>
+  const start = (
+    overrides: { tokenHash?: string; expiresAt?: Date; forUser?: string; familyId?: string } = {},
+  ) =>
     Session.start({
       id: nextId(),
       userId: overrides.forUser ?? userId,
       refreshTokenHash: overrides.tokenHash ?? `hash-${counter}`,
+      familyId: overrides.familyId,
       expiresAt: overrides.expiresAt ?? IN_A_WEEK,
       userAgent: "Mozilla/5.0",
       now: NOW,
@@ -72,6 +75,7 @@ describe("DrizzleSessionRepository (e2e)", () => {
     expect(stored).toMatchObject({
       userId,
       refreshTokenHash: "token-hash",
+      familyId: session.getId(),
       expiresAt: IN_A_WEEK,
       userAgent: "Mozilla/5.0",
       createdAt: NOW,
@@ -156,6 +160,31 @@ describe("DrizzleSessionRepository (e2e)", () => {
     expect((await repository.findByTokenHash("second"))?.revokedAt).toEqual(NOW);
     expect((await repository.findByTokenHash("revoked"))?.revokedAt).toEqual(alreadyRevokedAt);
     expect((await repository.findByTokenHash("others"))?.revokedAt).toBeUndefined();
+  });
+
+  it("stores the family of a session that replaced another", async () => {
+    const first = start({ tokenHash: "first" });
+    await repository.save(first);
+    await repository.save(start({ tokenHash: "second", familyId: first.familyId }));
+
+    expect((await repository.findByTokenHash("second"))?.familyId).toBe(first.getId());
+  });
+
+  it("revokes every active session of a family and leaves other families alone", async () => {
+    const alreadyRevokedAt = new Date("2026-10-19T00:00:00.000Z");
+    const first = start({ tokenHash: "first" });
+    first.rotate(alreadyRevokedAt);
+    const second = start({ tokenHash: "second", familyId: first.familyId });
+    const otherLogin = start({ tokenHash: "other-login" });
+    for (const session of [first, second, otherLogin]) {
+      await repository.save(session);
+    }
+
+    await repository.revokeFamily(first.familyId, NOW);
+
+    expect((await repository.findByTokenHash("first"))?.revokedAt).toEqual(alreadyRevokedAt);
+    expect((await repository.findByTokenHash("second"))?.revokedAt).toEqual(NOW);
+    expect((await repository.findByTokenHash("other-login"))?.revokedAt).toBeUndefined();
   });
 
   it("deletes the sessions that expired before a date and returns how many", async () => {

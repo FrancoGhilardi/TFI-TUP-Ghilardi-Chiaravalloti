@@ -51,6 +51,10 @@ class InMemorySessionRepository extends SessionRepository {
     return Promise.resolve();
   }
 
+  revokeFamily(): Promise<void> {
+    return Promise.reject(new Error("Not used by RefreshSessionUseCase"));
+  }
+
   revokeAllForUser(userId: string, now: Date): Promise<void> {
     this.events.push(`revoke all ${userId}`);
     for (const row of this.rows) {
@@ -125,13 +129,13 @@ class FakeRefreshTokens extends RefreshTokenService {
 }
 
 class FakeSessionIssuer {
-  readonly issued: { user: User; userAgent?: string }[] = [];
+  readonly issued: { user: User; userAgent?: string; familyId?: string }[] = [];
 
   constructor(private readonly events: string[]) {}
 
-  issue(user: User, userAgent?: string): Promise<AuthSessionResult> {
+  issue(user: User, userAgent?: string, familyId?: string): Promise<AuthSessionResult> {
     this.events.push(`issue session ${user.getId()}`);
-    this.issued.push({ user, userAgent });
+    this.issued.push({ user, userAgent, familyId });
     return Promise.resolve({
       accessToken: "access-token",
       accessTokenExpiresIn: 900,
@@ -230,6 +234,7 @@ function session(overrides: Partial<SessionProps> = {}): SessionProps {
     id: "session-1",
     userId: "user-1",
     refreshTokenHash: "hash:old-token",
+    familyId: "family-1",
     expiresAt: IN_A_WEEK,
     createdAt: EARLIER,
     ...overrides,
@@ -275,7 +280,9 @@ describe("RefreshSessionUseCase", () => {
       expect(result.accessToken).toBe("access-token");
       expect(result.refreshToken).toBe("new-token");
       expect(sessions.revokedAt("session-1")).toEqual(NOW);
-      expect(sessionIssuer.issued).toEqual([{ user: ana, userAgent: "Firefox" }]);
+      expect(sessionIssuer.issued).toEqual([
+        { user: ana, userAgent: "Firefox", familyId: "family-1" },
+      ]);
     });
 
     it("renews the session of a user who still has to change their password", async () => {
