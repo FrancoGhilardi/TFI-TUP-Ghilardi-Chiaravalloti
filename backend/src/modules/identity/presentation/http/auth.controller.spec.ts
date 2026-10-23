@@ -1,8 +1,11 @@
 import type { Request, Response } from "express";
 import type { AuthSessionResult } from "../../application/dto/auth-session.result.js";
+import type { ChangePasswordCommand } from "../../application/dto/change-password.command.js";
 import type { LogoutCommand } from "../../application/dto/logout.command.js";
 import type { RefreshSessionCommand } from "../../application/dto/refresh-session.command.js";
+import { InvalidCurrentPasswordError } from "../../application/errors/invalid-current-password-error.js";
 import { InvalidSessionError } from "../../application/errors/invalid-session-error.js";
+import type { ChangePasswordUseCase } from "../../application/use-cases/change-password.use-case.js";
 import type { LoginUseCase } from "../../application/use-cases/login.use-case.js";
 import type { LogoutUseCase } from "../../application/use-cases/logout.use-case.js";
 import type { RefreshSessionUseCase } from "../../application/use-cases/refresh-session.use-case.js";
@@ -27,10 +30,14 @@ function setUp(
   use: {
     refresh?: (command: RefreshSessionCommand) => Promise<AuthSessionResult>;
     logout?: (command: LogoutCommand) => Promise<void>;
+    changePassword?: (command: ChangePasswordCommand) => Promise<AuthSessionResult>;
   } = {},
 ) {
   const refreshSession = { execute: vi.fn(use.refresh ?? (() => Promise.resolve(SESSION))) };
   const logoutSession = { execute: vi.fn(use.logout ?? (() => Promise.resolve())) };
+  const changePassword = {
+    execute: vi.fn(use.changePassword ?? (() => Promise.resolve(SESSION))),
+  };
   const cookie = {
     read: vi.fn(() => "old-token"),
     write: vi.fn(),
@@ -40,13 +47,31 @@ function setUp(
     {} as LoginUseCase,
     refreshSession as unknown as RefreshSessionUseCase,
     logoutSession as unknown as LogoutUseCase,
+    changePassword as unknown as ChangePasswordUseCase,
     cookie,
   );
   const req = {} as Request;
   const res = {} as Response;
   const refresh = () => controller.refresh(req, "Firefox", res);
   const logout = () => controller.logout(req, res);
-  return { refreshSession, logoutSession, cookie, req, res, refresh, logout };
+  const changeOwnPassword = () =>
+    controller.changePassword(
+      SESSION.user,
+      { currentPassword: "current-password", newPassword: "new-password" },
+      "Firefox",
+      res,
+    );
+  return {
+    refreshSession,
+    logoutSession,
+    changePassword,
+    cookie,
+    req,
+    res,
+    refresh,
+    logout,
+    changeOwnPassword,
+  };
 }
 
 describe("AuthController.refresh", () => {
@@ -107,6 +132,37 @@ describe("AuthController.logout", () => {
 
     await expect(logout()).rejects.toBe(error);
 
+    expect(cookie.clear).not.toHaveBeenCalled();
+  });
+});
+
+describe("AuthController.changePassword", () => {
+  it("changes the password of the authenticated user and writes the new session", async () => {
+    const { changePassword, cookie, res, changeOwnPassword } = setUp();
+
+    const body = await changeOwnPassword();
+
+    expect(changePassword.execute).toHaveBeenCalledExactlyOnceWith({
+      userId: "user-1",
+      currentPassword: "current-password",
+      newPassword: "new-password",
+      userAgent: "Firefox",
+    });
+    expect(cookie.write).toHaveBeenCalledExactlyOnceWith(
+      res,
+      "new-token",
+      SESSION.refreshTokenExpiresAt,
+    );
+    expect(body).toEqual({ accessToken: "access-token", expiresIn: 900, user: SESSION.user });
+  });
+
+  it("leaves the cookie alone and rethrows when the password is not changed", async () => {
+    const error = new InvalidCurrentPasswordError();
+    const { cookie, changeOwnPassword } = setUp({ changePassword: () => Promise.reject(error) });
+
+    await expect(changeOwnPassword()).rejects.toBe(error);
+
+    expect(cookie.write).not.toHaveBeenCalled();
     expect(cookie.clear).not.toHaveBeenCalled();
   });
 });
