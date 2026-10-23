@@ -5,6 +5,7 @@ import {
   VersioningType,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import cookieParser from "cookie-parser";
 import type { Express } from "express";
 import helmet from "helmet";
 import type { Env } from "./config/env.js";
@@ -19,6 +20,8 @@ export function setupApp(app: INestApplication): void {
   const httpAdapter = app.getHttpAdapter() as HttpServer<unknown, unknown, Express>;
   httpAdapter.getInstance().set("trust proxy", config.get("TRUST_PROXY", { infer: true }));
   app.use(helmet());
+  // Unsigned: the refresh token is already random and only its hash is stored.
+  app.use(cookieParser());
   // Same origin OriginGuard accepts, so a trailing slash or path in FRONTEND_URL cannot
   // make CORS and the guard disagree.
   app.enableCors({

@@ -1,0 +1,2 @@
+ALTER TABLE "libreria"."sessions" ADD COLUMN "rotated_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "libreria"."sessions" ADD CONSTRAINT "chk_sessions_rotated_is_revoked" CHECK (rotated_at IS NULL OR revoked_at IS NOT NULL);

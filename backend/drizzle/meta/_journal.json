@@ -43,6 +43,13 @@
       "when": 1792683546784,
       "tag": "0005_password_changed_at_from_app",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792767312053,
+      "tag": "0006_session_rotated_at",
+      "breakpoints": true
     }
   ]
 }

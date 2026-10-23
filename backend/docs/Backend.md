@@ -536,13 +536,17 @@ classDiagram
         -refreshTokenHash: string
         -expiresAt: Date
         -revokedAt?: Date
+        -rotatedAt?: Date
         -userAgent?: string
         -createdAt: Date
         +start(userId: string, refreshTokenHash: string, expiresAt: Date, userAgent: string, now: Date)$ Session
         +reconstitute(props: SessionProps)$ Session
         +isActive(now: Date) boolean
+        +isExpired(now: Date) boolean
         +isRevoked() boolean
+        +isRotated() boolean
         +revoke(now: Date) void
+        +rotate(now: Date) void
     }
 
     class UserAdministrationPolicy {
@@ -564,6 +568,7 @@ classDiagram
     class SessionRepository {
         <<abstract repository>>
         +findByTokenHash(tokenHash: string) Promise~Session~
+        +findByTokenHashForUpdate(tokenHash: string) Promise~Session~
         +save(session: Session) Promise~void~
         +revokeAllForUser(userId: string, now: Date) Promise~void~
         +deleteExpiredBefore(date: Date) Promise~number~
@@ -593,7 +598,7 @@ classDiagram
 
 - **`User`**: entidad principal del módulo y raíz de agregado, es decir, el único punto de acceso para modificar los datos de un usuario. Contiene su email, nombre, rol, estado, contraseña (almacenada siempre como hash), clave temporal pendiente y datos de auditoría (quién lo creó, modificó o dio de baja, y cuándo). Todas las modificaciones se realizan a través de sus métodos, que validan las reglas de negocio antes de aplicar cualquier cambio.
 
-- **`Session`**: representa una sesión iniciada por un usuario. Almacena el hash del refresh token, su fecha de vencimiento, el dispositivo desde el que se inició y, si corresponde, la fecha en que fue revocada. Una sesión es válida mientras no haya vencido ni haya sido revocada.
+- **`Session`**: representa una sesión iniciada por un usuario. Almacena el hash del refresh token, su fecha de vencimiento, el dispositivo desde el que se inició y, si corresponde, la fecha en que fue revocada y la fecha en que fue rotada, es decir, reemplazada por una renovación. Una sesión es válida mientras no haya vencido ni haya sido revocada.
 
 #### Value objects y enumeraciones
 
@@ -712,6 +717,10 @@ classDiagram
         +generate() string
         +hash(token: string) string
     }
+    class SecurityEventLog {
+        <<abstract port>>
+        +refreshTokenReused(userId: string) void
+    }
     class PasswordResetNotifier {
         <<abstract port>>
         +sendTemporaryPassword(to: string, name: string, temporaryPassword: string, expiresAt: Date) Promise~void~
@@ -758,6 +767,7 @@ classDiagram
         -sessionIssuer: SessionIssuer
         -transaction: TransactionManager
         -clock: Clock
+        -securityLog: SecurityEventLog
         +execute(command: RefreshSessionCommand) Promise~AuthSessionResult~
     }
     class LogoutUseCase {
@@ -941,6 +951,7 @@ classDiagram
     LoginUseCase --> PasswordHasher
     RefreshSessionUseCase --> SessionIssuer
     RefreshSessionUseCase --> RefreshTokenService
+    RefreshSessionUseCase --> SecurityEventLog
     LogoutUseCase --> RefreshTokenService
     ChangePasswordUseCase --> SessionIssuer
     ChangePasswordUseCase --> PasswordHasher
@@ -969,6 +980,7 @@ classDiagram
 - **`TemporaryPasswordGenerator`**: genera claves temporales aleatorias.
 - **`AccessTokenService`**: emite el access token (JWT) que el usuario utiliza para autenticarse en cada solicitud y lo valida cuando llega, devolviendo el identificador del usuario y el momento de emisión. Toda validación del token pasa por este contrato.
 - **`RefreshTokenService`**: genera los refresh tokens y calcula su hash, ya que en la base de datos nunca se almacena el token real.
+- **`SecurityEventLog`**: registra los eventos de seguridad que conviene investigar, como la reutilización de un refresh token. Solo recibe identificadores, nunca tokens ni sus hashes.
 - **`PasswordResetNotifier`**: envía por mail las claves temporales.
 - **`UserQueries`**: resuelve las consultas de lectura de usuarios (listados paginados y consulta individual) sin reconstruir entidades.
 
@@ -1009,10 +1021,14 @@ Por seguridad, ante un email inexistente o con formato inválido, una contraseñ
 #### Renovación de sesión (rotación del refresh token)
 
 1. Se busca la sesión a partir del hash del refresh token recibido. Si no existe o está vencida, se rechaza la solicitud.
-2. Si la sesión existe pero ya había sido revocada, se interpreta como un posible robo del token: se revocan todas las sesiones del usuario y se rechaza la solicitud.
-3. Si la sesión es válida, se revoca, se verifica que el usuario siga habilitado y se emite una sesión nueva con un nuevo refresh token.
+2. Dentro de una transacción, se bloquea primero al usuario y después la sesión, que se vuelve a leer por si cambió entre tanto. Es el mismo orden en que la base de datos revoca las sesiones al cambiar la contraseña, de modo que ambas operaciones no se bloqueen mutuamente.
+3. Si la sesión ya había sido rotada por una renovación anterior, se interpreta como un posible robo del token: se revocan todas las sesiones del usuario, se registra el evento mediante `SecurityEventLog` y se rechaza la solicitud. La revocación se confirma antes de responder.
+4. Si la sesión fue revocada por otro motivo —un cierre de sesión, o un cambio de contraseña, de rol o de estado del usuario—, solo se rechaza la solicitud. Así, un dispositivo que quedó con un token viejo no cierra las sesiones que el usuario inició después.
+5. Si la sesión es válida, se marca como rotada (lo que también la revoca), se verifica que el usuario siga habilitado y se emite una sesión nueva con un nuevo refresh token, con la duración completa desde ese momento.
 
-De esta forma, cada refresh token puede utilizarse una única vez, y cualquier intento de reutilización cierra todas las sesiones del usuario.
+De esta forma, cada refresh token puede utilizarse una única vez, y cualquier intento de reutilización cierra todas las sesiones del usuario. Dos renovaciones simultáneas con el mismo token se resuelven de a una: la segunda encuentra la sesión revocada y se trata como una reutilización, por lo que el frontend debe realizar una única renovación compartida entre pestañas.
+
+Ante cualquier falla —sin cookie, token desconocido, vencido, revocado o reutilizado, o usuario deshabilitado— el sistema devuelve siempre el mismo error, `InvalidSessionError`, y elimina la cookie para que el navegador deje de enviarla.
 
 #### Cierre de sesión
 
@@ -1087,6 +1103,7 @@ classDiagram
         <<repository>>
         -executor: DrizzleExecutor
         +findByTokenHash(tokenHash: string) Promise~Session~
+        +findByTokenHashForUpdate(tokenHash: string) Promise~Session~
         +save(session: Session) Promise~void~
         +revokeAllForUser(userId: string, now: Date) Promise~void~
         +deleteExpiredBefore(date: Date) Promise~number~
@@ -1127,6 +1144,10 @@ classDiagram
         <<adapter>>
         +generate() string
         +hash(token: string) string
+    }
+    class LoggerSecurityEventLog {
+        <<adapter>>
+        +refreshTokenReused(userId: string) void
     }
     class ResendPasswordResetNotifier {
         <<adapter>>
@@ -1214,6 +1235,7 @@ classDiagram
     JwtAccessTokenService ..|> AccessTokenService
     Sha256RefreshTokenService ..|> RefreshTokenService
     ResendPasswordResetNotifier ..|> PasswordResetNotifier
+    LoggerSecurityEventLog ..|> SecurityEventLog
     AuthController --> RefreshTokenCookie
     AuthController ..> AccessTokenResponseDto
     AuthController ..> LoginRequestDto
@@ -1241,13 +1263,14 @@ classDiagram
 - **`CryptoTemporaryPasswordGenerator`**: implementa `TemporaryPasswordGenerator`. Genera claves de 12 caracteres mediante un generador criptográficamente seguro, excluyendo los caracteres que pueden confundirse visualmente (`0` y `O`, `1`, `l` e `I`), para facilitar su lectura y transcripción desde el mail.
 - **`JwtAccessTokenService`**: implementa `AccessTokenService`. Emite access tokens firmados con el algoritmo HS256, con una duración configurable entre 1 minuto y 1 hora (15 minutos por defecto), que contienen únicamente el identificador del usuario. Al validarlos, acepta solo HS256, no admite tolerancia de reloj en el vencimiento y rechaza cualquier token sin identificador de usuario, fecha de emisión o vencimiento. El rol y el estado no se incluyen en el token, sino que se consultan en la base de datos en cada solicitud.
 - **`Sha256RefreshTokenService`**: implementa `RefreshTokenService`. Genera refresh tokens de 32 bytes aleatorios y almacena en la base de datos únicamente su hash SHA-256. A diferencia de las contraseñas, no requiere un algoritmo de hash lento, ya que el token es aleatorio y de alta entropía, lo que hace inviable un ataque de fuerza bruta.
+- **`LoggerSecurityEventLog`**: implementa `SecurityEventLog` escribiendo cada evento como advertencia en el log de la aplicación.
 - **`ResendPasswordResetNotifier`**: implementa `PasswordResetNotifier` mediante el servicio Resend. Envía un mail, en formato de texto y HTML, con la clave temporal, su vencimiento y el enlace de acceso al panel.
 
 #### Presentación
 
 - **`AuthController`**: expone los endpoints de autenticación: inicio y cierre de sesión, renovación de sesión, recuperación y cambio de contraseña, y consulta de los datos del usuario autenticado.
 - **`UsersController`**: expone los endpoints de administración de usuarios. Está restringido en su totalidad al rol `ADMIN`, mediante una única declaración a nivel de clase que se aplica a todos sus endpoints.
-- **`RefreshTokenCookie`**: centraliza la escritura, lectura y eliminación de la cookie que almacena el refresh token. La cookie se configura como `HttpOnly` (inaccesible desde JavaScript), `Secure` (solo se transmite por HTTPS), `SameSite=Strict` (no se envía en solicitudes originadas en otros sitios) y con alcance limitado a las rutas de autenticación.
+- **`RefreshTokenCookie`**: centraliza la escritura, lectura y eliminación de la cookie que almacena el refresh token. La cookie se configura como `HttpOnly` (inaccesible desde JavaScript), `Secure` (solo se transmite por HTTPS), `SameSite=Strict` (no se envía en solicitudes originadas en otros sitios) y con alcance limitado a las rutas de autenticación. La lectura se apoya en `cookie-parser`, y la eliminación utiliza los mismos atributos que la escritura, ya que de lo contrario el navegador no la borra.
 - **`JwtAuthGuard`**: lee el access token del encabezado `Authorization: Bearer`, lo valida mediante `AccessTokenService` y, con `ResolveAuthenticatedUserUseCase`, obtiene los datos actualizados del usuario desde la base de datos. Se registra como guard global en `AppModule`.
 - **`SessionsCleanupScheduler`**: tarea programada que ejecuta periódicamente `PurgeExpiredSessionsUseCase` para eliminar las sesiones vencidas.
 - **DTOs de solicitud**: validan los datos recibidos en cada endpoint mediante `class-validator`. Cada DTO contiene los mismos campos que el command o query que representa, salvo el identificador del usuario que realiza la acción, el identificador del usuario afectado y el dispositivo de origen. Estos datos los completa el controlador a partir del usuario autenticado, de la ruta y de los encabezados de la solicitud, y nunca se aceptan desde el cuerpo enviado por el cliente, lo que impide que un usuario se haga pasar por otro.
@@ -2866,6 +2889,8 @@ La autenticación combina dos tokens con características y formas de almacenami
 | `Domain`   | Sin definir              | La cookie solo se envía al servidor de la API y no a otros subdominios.                                                              |
 | Nombre     | `__Secure-refresh_token` | El prefijo `__Secure-` obliga al navegador a rechazar la cookie si no fue establecida mediante HTTPS.                                |
 | Duración   | 7 días por defecto       | Configurable entre 1 y 30 días mediante `REFRESH_TOKEN_TTL_DAYS`. Rota en cada uso, con detección de reutilización.                  |
+
+Cuando la renovación de la sesión falla, la respuesta elimina la cookie, de modo que el navegador no siga enviando un token que ya no es válido.
 
 **Endpoints de renovación y cierre de sesión.** Estos dos endpoints leen la cookie y no requieren el access token. Esto permite, por ejemplo, cerrar la sesión aun cuando el access token ya venció. Como defensa adicional ante ataques CSRF, ambos aplican `OriginGuard`, que rechaza toda solicitud cuyo origen no corresponda al dominio del frontend. El origen se toma del encabezado `Origin` y, si no está presente, del encabezado `Referer`; cuando no llega ninguno de los dos, la solicitud se rechaza, ya que no es posible verificar de dónde proviene.
 

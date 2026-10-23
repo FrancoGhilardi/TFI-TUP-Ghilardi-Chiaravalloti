@@ -7,6 +7,8 @@ export interface SessionProps {
   refreshTokenHash: string;
   expiresAt: Date;
   revokedAt?: Date;
+  /** When a refresh replaced the session; always revoked by then. */
+  rotatedAt?: Date;
   userAgent?: string;
   createdAt: Date;
 }
@@ -62,6 +64,10 @@ export class Session extends Entity {
     return this.props.revokedAt;
   }
 
+  get rotatedAt(): Date | undefined {
+    return this.props.rotatedAt;
+  }
+
   get userAgent(): string | undefined {
     return this.props.userAgent;
   }
@@ -74,8 +80,17 @@ export class Session extends Entity {
     return this.props.revokedAt !== undefined;
   }
 
+  /** Whether a refresh already replaced it, so its token was spent, not just revoked. */
+  isRotated(): boolean {
+    return this.props.rotatedAt !== undefined;
+  }
+
+  isExpired(now: Date): boolean {
+    return now.getTime() >= this.props.expiresAt.getTime();
+  }
+
   isActive(now: Date): boolean {
-    return !this.isRevoked() && now.getTime() < this.props.expiresAt.getTime();
+    return !this.isRevoked() && !this.isExpired(now);
   }
 
   /** Revoking twice keeps the first revocation time. */
@@ -84,5 +99,17 @@ export class Session extends Entity {
       return;
     }
     this.props.revokedAt = now;
+  }
+
+  /**
+   * Revokes the session because a refresh replaced it. Only an active session can be rotated:
+   * a revoked one must be told apart from a spent one, and the caller checks that first.
+   */
+  rotate(now: Date): void {
+    if (this.isRevoked()) {
+      throw new Error("Only an unrevoked session can be rotated");
+    }
+    this.props.revokedAt = now;
+    this.props.rotatedAt = now;
   }
 }

@@ -5,6 +5,7 @@ import { Session } from "../../src/modules/identity/domain/entities/session.js";
 import { DrizzleSessionRepository } from "../../src/modules/identity/infrastructure/persistence/drizzle-session.repository.js";
 import { DrizzleClient } from "../../src/shared/infrastructure/database/drizzle.client.js";
 import { DrizzleExecutor } from "../../src/shared/infrastructure/database/drizzle.executor.js";
+import { DrizzleTransactionManager } from "../../src/shared/infrastructure/database/drizzle-transaction-manager.js";
 import { adminPool, insertUser, truncateAll } from "./db-test-utils.js";
 
 try {
@@ -22,6 +23,7 @@ describe("DrizzleSessionRepository (e2e)", () => {
   let pool: Pool;
   let client: DrizzleClient;
   let repository: DrizzleSessionRepository;
+  let transactions: DrizzleTransactionManager;
   let userId: string;
 
   const start = (overrides: { tokenHash?: string; expiresAt?: Date; forUser?: string } = {}) =>
@@ -44,7 +46,9 @@ describe("DrizzleSessionRepository (e2e)", () => {
       DATABASE_POOL_MAX: 2,
     };
     client = new DrizzleClient({ get: (key: string) => values[key] } as ConfigService<Env, true>);
-    repository = new DrizzleSessionRepository(new DrizzleExecutor(client));
+    const executor = new DrizzleExecutor(client);
+    repository = new DrizzleSessionRepository(executor);
+    transactions = new DrizzleTransactionManager(client, executor);
   });
 
   beforeEach(async () => {
@@ -72,6 +76,7 @@ describe("DrizzleSessionRepository (e2e)", () => {
       userAgent: "Mozilla/5.0",
       createdAt: NOW,
       revokedAt: undefined,
+      rotatedAt: undefined,
     });
   });
 
@@ -87,6 +92,40 @@ describe("DrizzleSessionRepository (e2e)", () => {
     await repository.save(stale!);
 
     expect((await repository.findByTokenHash("token-hash"))?.revokedAt).toEqual(NOW);
+  });
+
+  it("stores the rotation of an existing session", async () => {
+    const session = start({ tokenHash: "token-hash" });
+    await repository.save(session);
+
+    session.rotate(NOW);
+    await repository.save(session);
+
+    const stored = await repository.findByTokenHash("token-hash");
+    expect(stored?.revokedAt).toEqual(NOW);
+    expect(stored?.rotatedAt).toEqual(NOW);
+  });
+
+  it("does not undo a rotation with a stale copy", async () => {
+    const session = start({ tokenHash: "token-hash" });
+    await repository.save(session);
+    const stale = await repository.findByTokenHash("token-hash");
+
+    session.rotate(NOW);
+    await repository.save(session);
+    await repository.save(stale!);
+
+    expect((await repository.findByTokenHash("token-hash"))?.rotatedAt).toEqual(NOW);
+  });
+
+  it("lets the database refuse a rotated session that is not revoked", async () => {
+    await repository.save(start({ tokenHash: "token-hash" }));
+
+    await expect(
+      pool.query(
+        "UPDATE libreria.sessions SET rotated_at = now() WHERE refresh_token_hash = 'token-hash'",
+      ),
+    ).rejects.toMatchObject({ code: "23514", constraint: "chk_sessions_rotated_is_revoked" });
   });
 
   it("stores the revocation of an existing session", async () => {
@@ -135,5 +174,66 @@ describe("DrizzleSessionRepository (e2e)", () => {
     await repository.save(start());
 
     await expect(repository.deleteExpiredBefore(NOW)).resolves.toBe(0);
+  });
+
+  describe("locking", () => {
+    const REVOKE = "UPDATE libreria.sessions SET revoked_at = now() WHERE refresh_token_hash = $1";
+
+    const lockedReadAndRevocation = async (read: (tokenHash: string) => Promise<unknown>) => {
+      await repository.save(start({ tokenHash: "token-hash" }));
+      const finished: string[] = [];
+      let markRead: () => void = () => undefined;
+      const wasRead = new Promise<void>((resolve) => {
+        markRead = resolve;
+      });
+
+      const transaction = transactions.run(async () => {
+        await read("token-hash");
+        markRead();
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        finished.push("transaction");
+      });
+      await wasRead;
+      const revocation = pool.query(REVOKE, ["token-hash"]).then(() => finished.push("revocation"));
+      await Promise.all([transaction, revocation]);
+      return finished;
+    };
+
+    it("findByTokenHashForUpdate keeps the session locked until the transaction ends", async () => {
+      // A concurrent revocation has to wait for the transaction to finish.
+      await expect(
+        lockedReadAndRevocation((hash) => repository.findByTokenHashForUpdate(hash)),
+      ).resolves.toEqual(["transaction", "revocation"]);
+    });
+
+    it("findByTokenHash takes no lock, even inside a transaction", async () => {
+      await expect(
+        lockedReadAndRevocation((hash) => repository.findByTokenHash(hash)),
+      ).resolves.toEqual(["revocation", "transaction"]);
+    });
+
+    it("findByTokenHashForUpdate refuses to run outside a transaction", async () => {
+      await expect(repository.findByTokenHashForUpdate("token-hash")).rejects.toThrow(
+        "findByTokenHashForUpdate must run inside a transaction",
+      );
+    });
+
+    it("findByTokenHash takes no lock outside a transaction either", async () => {
+      await repository.save(start({ tokenHash: "token-hash" }));
+      const locker = await pool.connect();
+      try {
+        await locker.query("BEGIN");
+        await locker.query(
+          "SELECT id FROM libreria.sessions WHERE refresh_token_hash = $1 FOR UPDATE",
+          ["token-hash"],
+        );
+
+        // Would wait for the lock if the read tried to take it.
+        await expect(repository.findByTokenHash("token-hash")).resolves.not.toBeNull();
+      } finally {
+        await locker.query("ROLLBACK");
+        locker.release();
+      }
+    });
   });
 });
