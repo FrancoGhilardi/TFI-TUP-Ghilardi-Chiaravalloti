@@ -93,11 +93,24 @@ describe("Authentication routes (e2e)", () => {
     ["GET", "/api/v1/auth/me"],
   ] as const;
   const cookieRoutes = ["/api/v1/auth/refresh", "/api/v1/auth/logout"] as const;
-  // What each cookie route answers once the origin check lets the request through.
-  const afterOriginCheck = {
-    "/api/v1/auth/refresh": ERRORS.invalidSession,
-    "/api/v1/auth/logout": ERRORS.notImplemented,
-  } as const;
+  // What each cookie route answers once the origin check lets the request through: without a
+  // cookie there is no session to renew, and none to end.
+  const expectPastOriginCheck = async (
+    path: (typeof cookieRoutes)[number],
+    pending: request.Test,
+  ) => {
+    if (path === "/api/v1/auth/logout") {
+      const response = await pending.expect(204);
+      expect(response.text).toBe("");
+      expect(response.get("Set-Cookie")).toEqual([
+        expect.stringMatching(
+          /^__Secure-refresh_token=; Path=\/api\/v1\/auth; Expires=Thu, 01 Jan 1970/,
+        ),
+      ]);
+      return;
+    }
+    await expectError(pending, ERRORS.invalidSession);
+  };
   const call = (method: "GET" | "POST", path: string) =>
     method === "GET" ? http.get(path) : http.post(path);
 
@@ -175,13 +188,13 @@ describe("Authentication routes (e2e)", () => {
 
   describe("cookie routes", () => {
     it.each(cookieRoutes)("%s passes without a token from the frontend origin", async (path) => {
-      await expectError(http.post(path).set("Origin", frontendOrigin), afterOriginCheck[path]);
+      await expectPastOriginCheck(path, http.post(path).set("Origin", frontendOrigin));
     });
 
     it.each(cookieRoutes)("%s passes with a frontend Referer and no Origin", async (path) => {
-      await expectError(
+      await expectPastOriginCheck(
+        path,
         http.post(path).set("Referer", `${frontendOrigin}/panel?page=1`),
-        afterOriginCheck[path],
       );
     });
 

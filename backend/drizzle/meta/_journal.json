@@ -50,6 +50,13 @@
       "when": 1792767312053,
       "tag": "0006_session_rotated_at",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792780553926,
+      "tag": "0007_session_family",
+      "breakpoints": true
     }
   ]
 }

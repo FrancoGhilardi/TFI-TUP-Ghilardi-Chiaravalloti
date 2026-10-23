@@ -12,6 +12,7 @@ import { RefreshTokenService } from "./application/ports/refresh-token-service.j
 import { SecurityEventLog } from "./application/ports/security-event-log.js";
 import { SessionIssuer } from "./application/services/session-issuer.js";
 import { LoginUseCase } from "./application/use-cases/login.use-case.js";
+import { LogoutUseCase } from "./application/use-cases/logout.use-case.js";
 import { RefreshSessionUseCase } from "./application/use-cases/refresh-session.use-case.js";
 import { ResolveAuthenticatedUserUseCase } from "./application/use-cases/resolve-authenticated-user.use-case.js";
 import { SessionRepository } from "./domain/repositories/session.repository.js";
@@ -104,6 +105,17 @@ import { RefreshTokenCookie } from "./presentation/http/refresh-token-cookie.js"
         Clock,
         SecurityEventLog,
       ],
+    },
+    {
+      provide: LogoutUseCase,
+      useFactory: (
+        sessions: SessionRepository,
+        users: UserRepository,
+        refreshTokens: RefreshTokenService,
+        transaction: TransactionManager,
+        clock: Clock,
+      ) => new LogoutUseCase(sessions, users, refreshTokens, transaction, clock),
+      inject: [SessionRepository, UserRepository, RefreshTokenService, TransactionManager, Clock],
     },
     {
       provide: ResolveAuthenticatedUserUseCase,
