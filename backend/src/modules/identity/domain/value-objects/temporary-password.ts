@@ -7,6 +7,11 @@ export class TemporaryPassword {
     readonly expiresAt: Date,
   ) {}
 
+  /** A temporary password issued now; its expiry is what `isInCooldown` derives the issue time from. */
+  static issue(hash: string, now: Date, ttlMinutes: number): TemporaryPassword {
+    return new TemporaryPassword(hash, new Date(now.getTime() + ttlMinutes * MINUTE_MS));
+  }
+
   isExpired(now: Date): boolean {
     return now.getTime() >= this.expiresAt.getTime();
   }

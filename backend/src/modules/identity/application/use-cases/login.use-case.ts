@@ -2,13 +2,12 @@ import type { Clock } from "../../../../shared/application/clock.js";
 import type { TransactionManager } from "../../../../shared/application/transaction-manager.js";
 import type { UseCase } from "../../../../shared/application/use-case.js";
 import type { User } from "../../domain/entities/user.js";
-import { InvalidEmailError } from "../../domain/errors/invalid-email-error.js";
 import type { UserRepository } from "../../domain/repositories/user.repository.js";
-import { Email } from "../../domain/value-objects/email.js";
 import type { AuthSessionResult } from "../dto/auth-session.result.js";
 import type { LoginCommand } from "../dto/login.command.js";
 import { InvalidCredentialsError } from "../errors/invalid-credentials-error.js";
 import type { PasswordHasher } from "../ports/password-hasher.js";
+import { parseEmail } from "../parse-email.js";
 import type { SessionIssuer } from "../services/session-issuer.js";
 
 /** Which stored hash the typed password matched. */
@@ -77,17 +76,6 @@ export class LoginUseCase implements UseCase<LoginCommand, AuthSessionResult> {
       return { kind: "temporary", hash: temporary.hash };
     }
     return null;
-  }
-}
-
-function parseEmail(value: string): Email | null {
-  try {
-    return Email.create(value);
-  } catch (error) {
-    if (error instanceof InvalidEmailError) {
-      return null;
-    }
-    throw error;
   }
 }
 
