@@ -75,6 +75,17 @@ describe("LoggingBackgroundTasks", () => {
     expect(done).toEqual(["first", "second", "third"]);
   });
 
+  it("logs what caused the failure too", async () => {
+    const error = vi.spyOn(Logger.prototype, "error").mockImplementation(() => undefined);
+    const tasks = new LoggingBackgroundTasks();
+    const cause = new Error("daily_quota_exceeded");
+
+    tasks.run("Password reset request", () => Promise.reject(new Error("mail failed", { cause })));
+    await tasks.idle();
+
+    expect(error.mock.calls[0]?.[1]).toContain(`Caused by: ${cause.stack}`);
+  });
+
   it("closes at once when nothing is running", async () => {
     await expect(new LoggingBackgroundTasks().beforeApplicationShutdown()).resolves.toBeUndefined();
   });

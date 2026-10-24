@@ -1,5 +1,6 @@
 import { type BeforeApplicationShutdown, Injectable, Logger } from "@nestjs/common";
 import { BackgroundTasks } from "../application/background-tasks.js";
+import { stackWithCauses } from "../application/error-stack.js";
 
 /**
  * Runs each task in the same process once the current request is done, and logs its failure.
@@ -22,7 +23,10 @@ export class LoggingBackgroundTasks extends BackgroundTasks implements BeforeApp
       .then(
         () => undefined,
         (error: unknown) => {
-          this.logger.error(`${name} failed`, error instanceof Error ? error.stack : String(error));
+          this.logger.error(
+            `${name} failed`,
+            error instanceof Error ? stackWithCauses(error) : String(error),
+          );
         },
       )
       .finally(() => this.pending.delete(task));

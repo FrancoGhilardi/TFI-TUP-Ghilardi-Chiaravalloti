@@ -166,6 +166,7 @@ classDiagram
     class InvalidValueError { <<domain>> }
     class AuthenticationError { <<domain>> }
     class ForbiddenActionError { <<domain>> }
+    class ExternalServiceError { <<domain>> }
 
     class Money {
         <<value object domain>>
@@ -322,6 +323,7 @@ classDiagram
     DomainError <|-- InvalidValueError
     DomainError <|-- AuthenticationError
     DomainError <|-- ForbiddenActionError
+    DomainError <|-- ExternalServiceError
     DrizzleTransactionManager ..|> TransactionManager
     DrizzleTransactionManager --> DrizzleExecutor
     DrizzleExecutor --> DrizzleClient
@@ -349,8 +351,9 @@ classDiagram
   - `InvalidValueError`: un dato no cumple el formato o rango esperado.
   - `AuthenticationError`: credenciales inválidas.
   - `ForbiddenActionError`: acción no permitida para el usuario.
+  - `ExternalServiceError`: un servicio del que depende la operación, como el proveedor de mails, falló o no respondió.
 
-  Las seis especializaciones son abstractas y se ubican junto a `DomainError`, de modo que los casos de uso puedan lanzarlas sin depender de la capa de presentación; cada error concreto define su propio código.
+  Las siete especializaciones son abstractas y se ubican junto a `DomainError`, de modo que los casos de uso puedan lanzarlas sin depender de la capa de presentación; cada error concreto define su propio código.
 
 - **`Money`**: value object que representa montos en pesos. Internamente trabaja con centavos enteros para evitar los errores de redondeo propios de los números decimales, y ofrece operaciones de comparación, como verificar que el precio de oferta sea menor al precio regular.
 
@@ -439,6 +442,7 @@ Los mensajes de las violaciones de PostgreSQL son genéricos, están en español
 | `EntityNotFoundError`                                                                                                                                                    | 404                                |
 | `ConflictError` y errores de PostgreSQL `23505` (valor duplicado) y `23503` (referencia inválida)                                                                        | 409                                |
 | `BusinessRuleViolationError` y error de PostgreSQL `23514` (restricción `CHECK` o trigger de validación, incluidos los diferidos que fallan al confirmar la transacción) | 422                                |
+| `ExternalServiceError` (se registra en el log junto con la falla que lo causó)                                                                                           | 502                                |
 | Excepción HTTP del framework (por ejemplo, ruta inexistente o límite de solicitudes)                                                                                     | El estado de la excepción          |
 | Cualquier otro error                                                                                                                                                     | 500, sin exponer detalles internos |
 
@@ -740,6 +744,7 @@ classDiagram
     class PasswordResetNotifier {
         <<abstract port>>
         +sendTemporaryPassword(to: string, name: string, temporaryPassword: string, expiresAt: Date) Promise~void~
+        +sendAssignedPassword(to: string, name: string, temporaryPassword: string) Promise~void~
     }
     class UserQueries {
         <<abstract port>>
@@ -994,7 +999,7 @@ classDiagram
 - **`AccessTokenService`**: emite el access token (JWT) que el usuario utiliza para autenticarse en cada solicitud y lo valida cuando llega, devolviendo el identificador del usuario y el momento de emisión. Toda validación del token pasa por este contrato.
 - **`RefreshTokenService`**: genera los refresh tokens y calcula su hash, ya que en la base de datos nunca se almacena el token real.
 - **`SecurityEventLog`**: registra los eventos de seguridad que conviene investigar, como la reutilización de un refresh token. Solo recibe identificadores, nunca tokens ni sus hashes.
-- **`PasswordResetNotifier`**: envía por mail las claves temporales.
+- **`PasswordResetNotifier`**: envía por mail las claves temporales: la que el usuario pide al olvidar su contraseña, que convive con la actual hasta vencer, y la que genera un administrador al restablecerla, que la reemplaza. Si el mail no puede entregarse, la implementación lanza `MailDeliveryError` (502, `MAIL_DELIVERY_FAILED`), con la falla del proveedor como causa.
 - **`UserQueries`**: resuelve las consultas de lectura de usuarios (listados paginados y consulta individual) sin reconstruir entidades.
 
 #### Servicios y configuración
@@ -1084,7 +1089,7 @@ El administrador define una contraseña inicial, que el frontend solicita confir
 
 #### Envío de contraseña temporal a otro usuario
 
-Dentro de una transacción, el sistema genera una clave temporal, la almacena como hash reemplazando la contraseña anterior y la envía por mail. Al cambiar la contraseña, la base de datos revoca las sesiones activas del usuario. Si el envío del mail falla, la transacción se revierte: el usuario conserva su contraseña anterior y el administrador recibe el error para reintentar la operación.
+Dentro de una transacción, el sistema genera una clave temporal, la almacena como hash reemplazando la contraseña anterior y la envía por mail. Al cambiar la contraseña, la base de datos revoca las sesiones activas del usuario. Si el envío del mail falla, la transacción se revierte: el usuario conserva su contraseña anterior y el administrador recibe el error `MailDeliveryError` (502, "No se pudo enviar el mail. Probá de nuevo.") para reintentar la operación. De este modo, una falla del proveedor nunca deja al usuario con una contraseña que nadie conoce.
 
 #### Reactivación de usuario
 
@@ -1184,6 +1189,7 @@ classDiagram
         <<adapter>>
         -loginUrl: string
         +sendTemporaryPassword(to: string, name: string, temporaryPassword: string, expiresAt: Date) Promise~void~
+        +sendAssignedPassword(to: string, name: string, temporaryPassword: string) Promise~void~
     }
     class ResendPasswordResetNotifier {
         <<adapter>>
@@ -1191,6 +1197,7 @@ classDiagram
         -from: string
         -frontendLoginUrl: string
         +sendTemporaryPassword(to: string, name: string, temporaryPassword: string, expiresAt: Date) Promise~void~
+        +sendAssignedPassword(to: string, name: string, temporaryPassword: string) Promise~void~
     }
 
     class AuthController {
@@ -1308,7 +1315,7 @@ classDiagram
 - **`JwtAccessTokenService`**: implementa `AccessTokenService`. Emite access tokens firmados con el algoritmo HS256, con una duración configurable entre 1 minuto y 1 hora (15 minutos por defecto), que contienen únicamente el identificador del usuario. Al validarlos, acepta solo HS256, no admite tolerancia de reloj en el vencimiento y rechaza cualquier token sin identificador de usuario, fecha de emisión o vencimiento. El rol y el estado no se incluyen en el token, sino que se consultan en la base de datos en cada solicitud.
 - **`Sha256RefreshTokenService`**: implementa `RefreshTokenService`. Genera refresh tokens de 32 bytes aleatorios y almacena en la base de datos únicamente su hash SHA-256. A diferencia de las contraseñas, no requiere un algoritmo de hash lento, ya que el token es aleatorio y de alta entropía, lo que hace inviable un ataque de fuerza bruta.
 - **`LoggerSecurityEventLog`**: implementa `SecurityEventLog` escribiendo cada evento como advertencia en el log de la aplicación.
-- **`ResendPasswordResetNotifier`**: implementa `PasswordResetNotifier` mediante el servicio Resend. Envía un mail en español, en formato de texto y HTML, con la clave temporal, su vencimiento en hora de Argentina y el enlace de acceso al panel (`/admin/login`). El nombre del usuario se escapa en la versión HTML.
+- **`ResendPasswordResetNotifier`**: implementa `PasswordResetNotifier` mediante el servicio Resend. Envía mails simples en español, en formato de texto y HTML, con la clave temporal y el enlace de acceso al panel (`/admin/login`): el de recuperación indica además su vencimiento en hora de Argentina y aclara que la contraseña actual sigue funcionando; el de restablecimiento por un administrador aclara que la contraseña anterior ya no funciona. El nombre del usuario se escapa en la versión HTML. Espera al proveedor hasta 10 segundos y no reintenta: cualquier falla, incluido el vencimiento de ese plazo, se informa como `MailDeliveryError`.
 - **`LoggerPasswordResetNotifier`**: implementa `PasswordResetNotifier` escribiendo el mail en el log, clave incluida, en lugar de enviarlo. Se utiliza cuando no están configuradas las credenciales de Resend, lo que solo se admite fuera de producción, para poder probar el flujo en el entorno local.
 
 #### Presentación
