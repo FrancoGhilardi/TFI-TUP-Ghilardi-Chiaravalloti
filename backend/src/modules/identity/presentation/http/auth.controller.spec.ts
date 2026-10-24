@@ -6,9 +6,11 @@ import type { RefreshSessionCommand } from "../../application/dto/refresh-sessio
 import { InvalidCurrentPasswordError } from "../../application/errors/invalid-current-password-error.js";
 import { InvalidSessionError } from "../../application/errors/invalid-session-error.js";
 import type { ChangePasswordUseCase } from "../../application/use-cases/change-password.use-case.js";
+import type { BackgroundTasks } from "../../../../shared/application/background-tasks.js";
 import type { LoginUseCase } from "../../application/use-cases/login.use-case.js";
 import type { LogoutUseCase } from "../../application/use-cases/logout.use-case.js";
 import type { RefreshSessionUseCase } from "../../application/use-cases/refresh-session.use-case.js";
+import type { RequestPasswordResetUseCase } from "../../application/use-cases/request-password-reset.use-case.js";
 import { UserRole } from "../../domain/user-role.js";
 import { AuthController } from "./auth.controller.js";
 
@@ -38,6 +40,13 @@ function setUp(
   const changePassword = {
     execute: vi.fn(use.changePassword ?? (() => Promise.resolve(SESSION))),
   };
+  const requestPasswordReset = { execute: vi.fn(() => Promise.resolve()) };
+  // Keeps the work instead of running it, as the real tasks only run after the response.
+  const scheduled: (() => Promise<unknown>)[] = [];
+  const runInBackground = vi.fn((_name: string, work: () => Promise<unknown>) => {
+    scheduled.push(work);
+  });
+  const backgroundTasks: BackgroundTasks = { run: runInBackground };
   const cookie = {
     read: vi.fn(() => "old-token"),
     write: vi.fn(),
@@ -48,6 +57,8 @@ function setUp(
     refreshSession as unknown as RefreshSessionUseCase,
     logoutSession as unknown as LogoutUseCase,
     changePassword as unknown as ChangePasswordUseCase,
+    requestPasswordReset as unknown as RequestPasswordResetUseCase,
+    backgroundTasks,
     cookie,
   );
   const req = {} as Request;
@@ -61,7 +72,12 @@ function setUp(
       "Firefox",
       res,
     );
+  const forgotPassword = () => controller.forgotPassword({ email: "ana@example.com" });
   return {
+    forgotPassword,
+    requestPasswordReset,
+    runInBackground,
+    scheduled,
     refreshSession,
     logoutSession,
     changePassword,
@@ -164,5 +180,23 @@ describe("AuthController.changePassword", () => {
 
     expect(cookie.write).not.toHaveBeenCalled();
     expect(cookie.clear).not.toHaveBeenCalled();
+  });
+});
+
+describe("AuthController.forgotPassword", () => {
+  it("answers before the request is processed, which runs in the background", async () => {
+    const { requestPasswordReset, runInBackground, scheduled, forgotPassword } = setUp();
+
+    expect(forgotPassword()).toBeUndefined();
+
+    expect(requestPasswordReset.execute).not.toHaveBeenCalled();
+    expect(runInBackground).toHaveBeenCalledExactlyOnceWith(
+      "Password reset request",
+      expect.any(Function),
+    );
+    await scheduled[0]?.();
+    expect(requestPasswordReset.execute).toHaveBeenCalledExactlyOnceWith({
+      email: "ana@example.com",
+    });
   });
 });

@@ -202,6 +202,10 @@ classDiagram
         <<abstract application>>
         +next() string
     }
+    class BackgroundTasks {
+        <<abstract application>>
+        +run(name: string, work: Function) void
+    }
     class EventPublisher {
         <<abstract application>>
         +publish(event: ApplicationEvent) Promise~void~
@@ -256,6 +260,11 @@ classDiagram
     class SystemClock {
         <<infrastructure>>
         +now() Date
+    }
+    class LoggingBackgroundTasks {
+        <<infrastructure>>
+        +run(name: string, work: Function) void
+        +beforeApplicationShutdown() Promise~void~
     }
     class NestEventPublisher {
         <<infrastructure>>
@@ -317,6 +326,7 @@ classDiagram
     DrizzleTransactionManager --> DrizzleExecutor
     DrizzleExecutor --> DrizzleClient
     SystemClock ..|> Clock
+    LoggingBackgroundTasks ..|> BackgroundTasks
     NestEventPublisher ..|> EventPublisher
     UniqueSlugGenerator ..> Slug
     JwtAuthGuard ..> Public
@@ -356,6 +366,8 @@ classDiagram
 
 - **`IdGenerator`**: contrato para generar el identificador de una entidad nueva antes de guardarla. Las entidades se crean siempre con su identificador, lo que permite compararlas y relacionarlas sin depender de la base de datos, y su implementación genera identificadores UUID con el módulo de criptografía de Node.
 
+- **`BackgroundTasks`**: contrato para ejecutar un trabajo después de responder la solicitud que lo originó, de modo que el tiempo de respuesta no dependa de lo que ese trabajo encuentre. Lo utiliza la recuperación de contraseña, para no revelar qué cuentas existen.
+
 - **`EventPublisher`**: contrato para publicar eventos del sistema. Permite desacoplar acciones secundarias de la operación principal; por ejemplo, al subir una imagen se publica un evento y su procesamiento se realiza de forma asincrónica.
 
 - **`UniqueSlugGenerator`**: servicio que genera un slug único; si ya existe uno igual, le agrega un sufijo numérico (`cuaderno-rayado-a4-2`).
@@ -369,6 +381,8 @@ classDiagram
 - **`DrizzleExecutor`**: provee a los repositorios la conexión que deben usar: la transacción activa, si existe, o la conexión normal en caso contrario.
 
 - **`SystemClock`** y **`NestEventPublisher`**: implementaciones concretas de `Clock` y `EventPublisher`, basadas en el reloj del sistema y en el módulo de eventos de NestJS.
+
+- **`LoggingBackgroundTasks`**: implementación de `BackgroundTasks` que ejecuta cada trabajo en el mismo proceso, una vez respondida la solicitud, y registra en el log cualquier falla. Al cerrar la aplicación deja de aceptar trabajos nuevos, que se descartan con una advertencia en el log, y espera los pendientes antes de cerrar la conexión con la base de datos.
 
 #### Presentación
 
@@ -1044,9 +1058,13 @@ La operación es idempotente: si no llega la cookie, si el token no existe o si 
 
 #### Recuperación de contraseña olvidada
 
-1. La operación finaliza siempre sin error, exista o no el email ingresado, para no revelar qué cuentas están registradas.
-2. Si el usuario existe, está habilitado y no realizó otra solicitud en los últimos 5 minutos, se genera una clave temporal, se almacena como hash con un vencimiento de 30 minutos y se envía por mail.
-3. No se revocan las sesiones activas ni se invalida la contraseña actual, ya que la solicitud podría no haber sido realizada por el titular de la cuenta.
+1. La operación finaliza siempre sin error, con la misma respuesta exista o no el email ingresado, para no revelar qué cuentas están registradas. Como buscar al usuario, generar el hash y enviar el mail solo ocurre cuando la cuenta existe, el pedido se procesa en segundo plano mediante `BackgroundTasks`, después de responder: de lo contrario, el tiempo de respuesta revelaría la cuenta.
+2. Se genera una clave temporal y su hash fuera de la transacción. Esto ocurre en todas las solicitudes, aunque no corresponda enviar un mail, de modo que la carga del servidor tampoco revele si la cuenta existe.
+3. Si el usuario existe, está habilitado y no realizó otra solicitud en los últimos 5 minutos, dentro de una transacción se vuelve a leer el usuario bloqueando su fila, se confirma que sigue cumpliendo esas condiciones —de modo que dos solicitudes simultáneas envíen un único mail— y se almacena el hash con un vencimiento de 30 minutos.
+4. Después de confirmar la transacción se envía el mail, con un tiempo máximo de espera de 10 segundos, para no mantener una conexión ni la fila del usuario bloqueadas mientras responde el proveedor. Si el envío falla, se descarta la clave —siempre que siga siendo la misma— para no dejar una clave que nadie recibió bloqueando nuevas solicitudes, y la falla queda registrada en el log.
+5. No se revocan las sesiones activas ni se invalida la contraseña actual, ya que la solicitud podría no haber sido realizada por el titular de la cuenta.
+
+El vencimiento y el período de espera son valores fijos de `AuthSettings`, como establece el diseño.
 
 #### Cambio de contraseña
 
@@ -1167,6 +1185,11 @@ classDiagram
         <<adapter>>
         +refreshTokenReused(userId: string) void
     }
+    class LoggerPasswordResetNotifier {
+        <<adapter>>
+        -loginUrl: string
+        +sendTemporaryPassword(to: string, name: string, temporaryPassword: string, expiresAt: Date) Promise~void~
+    }
     class ResendPasswordResetNotifier {
         <<adapter>>
         -client: Resend
@@ -1253,6 +1276,7 @@ classDiagram
     JwtAccessTokenService ..|> AccessTokenService
     Sha256RefreshTokenService ..|> RefreshTokenService
     ResendPasswordResetNotifier ..|> PasswordResetNotifier
+    LoggerPasswordResetNotifier ..|> PasswordResetNotifier
     LoggerSecurityEventLog ..|> SecurityEventLog
     AuthController --> RefreshTokenCookie
     AuthController ..> AccessTokenResponseDto
@@ -1282,7 +1306,8 @@ classDiagram
 - **`JwtAccessTokenService`**: implementa `AccessTokenService`. Emite access tokens firmados con el algoritmo HS256, con una duración configurable entre 1 minuto y 1 hora (15 minutos por defecto), que contienen únicamente el identificador del usuario. Al validarlos, acepta solo HS256, no admite tolerancia de reloj en el vencimiento y rechaza cualquier token sin identificador de usuario, fecha de emisión o vencimiento. El rol y el estado no se incluyen en el token, sino que se consultan en la base de datos en cada solicitud.
 - **`Sha256RefreshTokenService`**: implementa `RefreshTokenService`. Genera refresh tokens de 32 bytes aleatorios y almacena en la base de datos únicamente su hash SHA-256. A diferencia de las contraseñas, no requiere un algoritmo de hash lento, ya que el token es aleatorio y de alta entropía, lo que hace inviable un ataque de fuerza bruta.
 - **`LoggerSecurityEventLog`**: implementa `SecurityEventLog` escribiendo cada evento como advertencia en el log de la aplicación.
-- **`ResendPasswordResetNotifier`**: implementa `PasswordResetNotifier` mediante el servicio Resend. Envía un mail, en formato de texto y HTML, con la clave temporal, su vencimiento y el enlace de acceso al panel.
+- **`ResendPasswordResetNotifier`**: implementa `PasswordResetNotifier` mediante el servicio Resend. Envía un mail en español, en formato de texto y HTML, con la clave temporal, su vencimiento en hora de Argentina y el enlace de acceso al panel (`/admin/login`). El nombre del usuario se escapa en la versión HTML.
+- **`LoggerPasswordResetNotifier`**: implementa `PasswordResetNotifier` escribiendo el mail en el log, clave incluida, en lugar de enviarlo. Se utiliza cuando no están configuradas las credenciales de Resend, lo que solo se admite fuera de producción, para poder probar el flujo en el entorno local.
 
 #### Presentación
 
@@ -2934,6 +2959,8 @@ Se eligió Resend por los siguientes motivos:
 - Su plan gratuito incluye 3.000 mails por mes, con un límite de 100 por día y un dominio propio verificado, capacidad suficiente para el volumen previsto (condiciones consultadas en septiembre de 2026).
 
 Para enviar mails a cualquier destinatario, Resend exige verificar el dominio propio mediante registros DNS (SPF y DKIM), que certifican que los mails se envían con autorización del titular del dominio. Por lo tanto, al igual que la cookie de sesión, este servicio depende del registro previo del dominio `.com.ar`.
+
+Mientras el dominio no esté verificado, y en el entorno local, las credenciales de Resend (`RESEND_API_KEY` y `MAIL_FROM`) pueden omitirse, siempre las dos juntas: en ese caso, los mails se escriben en el log en lugar de enviarse. En producción, ambas son obligatorias y la aplicación no arranca sin ellas.
 
 Gracias a la arquitectura del sistema, el proveedor puede reemplazarse sin modificar la lógica de negocio: basta con desarrollar una nueva implementación del contrato `PasswordResetNotifier` y registrarla en el módulo `identity`.
 
