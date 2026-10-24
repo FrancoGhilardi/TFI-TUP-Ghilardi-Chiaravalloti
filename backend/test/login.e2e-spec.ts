@@ -125,6 +125,7 @@ describe("Login (e2e)", () => {
 
       const response = await login("ana@example.com", PASSWORD).expect(200);
 
+      expect(response.get("Cache-Control")).toBe("no-store");
       expect(response.body).toEqual({
         accessToken: expect.any(String) as string,
         expiresIn: 900,

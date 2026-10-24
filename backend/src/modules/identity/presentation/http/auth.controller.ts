@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Headers,
   HttpCode,
   HttpStatus,
@@ -13,7 +14,6 @@ import {
 import type { Request, Response } from "express";
 import { BackgroundTasks } from "../../../../shared/application/background-tasks.js";
 import { StrictRateLimit } from "../../../../shared/presentation/http/rate-limit.js";
-import { NotImplementedYetError } from "../../../../shared/presentation/http/not-implemented-yet-error.js";
 import { InvalidSessionError } from "../../application/errors/invalid-session-error.js";
 import { ChangePasswordUseCase } from "../../application/use-cases/change-password.use-case.js";
 import { LoginUseCase } from "../../application/use-cases/login.use-case.js";
@@ -34,14 +34,15 @@ import {
   LOGIN_RATE_LIMIT,
 } from "./auth-rate-limits.js";
 import { ChangePasswordRequestDto } from "./change-password.request.dto.js";
+import { AuthenticatedUserResponseDto } from "./authenticated-user.response.dto.js";
 import { ForgotPasswordRequestDto } from "./forgot-password.request.dto.js";
 import { LoginRequestDto } from "./login.request.dto.js";
 import { RefreshTokenCookie } from "./refresh-token-cookie.js";
 
-/**
- * Authentication endpoints. A handler without its use case answers 501, so the access
- * rules of the route apply and can be tested on their own.
- */
+// Responses with tokens or account data must not be kept by the browser or a proxy.
+const NO_STORE = "no-store";
+
+/** Authentication endpoints: sessions, passwords and the authenticated user. */
 @Controller("auth")
 export class AuthController {
   constructor(
@@ -58,6 +59,7 @@ export class AuthController {
   @Public()
   @StrictRateLimit(LOGIN_RATE_LIMIT)
   @HttpCode(HttpStatus.OK)
+  @Header("Cache-Control", NO_STORE)
   async login(
     @Body() body: LoginRequestDto,
     @Headers("user-agent") userAgent: string | undefined,
@@ -89,6 +91,7 @@ export class AuthController {
   @AllowPendingPasswordChange()
   @StrictRateLimit(CHANGE_PASSWORD_RATE_LIMIT)
   @HttpCode(HttpStatus.OK)
+  @Header("Cache-Control", NO_STORE)
   async changePassword(
     @CurrentUser() user: AuthUser,
     @Body() body: ChangePasswordRequestDto,
@@ -109,8 +112,10 @@ export class AuthController {
   @Get("me")
   @Roles(UserRole.ADMIN, UserRole.SELLER)
   @AllowPendingPasswordChange()
-  me(): never {
-    throw new NotImplementedYetError();
+  @Header("Cache-Control", NO_STORE)
+  me(@CurrentUser() user: AuthUser): AuthenticatedUserResponseDto {
+    // JwtAuthGuard read the user from the database for this request, so it is current.
+    return AuthenticatedUserResponseDto.from(user);
   }
 
   // These read the refresh token cookie instead of the access token, so they are public
@@ -119,6 +124,7 @@ export class AuthController {
   @Public()
   @UseGuards(OriginGuard)
   @HttpCode(HttpStatus.OK)
+  @Header("Cache-Control", NO_STORE)
   async refresh(
     @Req() req: Request,
     @Headers("user-agent") userAgent: string | undefined,

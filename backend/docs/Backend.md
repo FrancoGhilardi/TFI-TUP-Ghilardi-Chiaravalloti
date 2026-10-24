@@ -815,10 +815,6 @@ classDiagram
         -users: UserRepository
         +execute(query: ResolveAuthenticatedUserQuery) Promise~AuthenticatedUserResult~
     }
-    class GetCurrentUserUseCase {
-        -queries: UserQueries
-        +execute(userId: string) Promise~UserResult~
-    }
     class PurgeExpiredSessionsUseCase {
         -sessions: SessionRepository
         -clock: Clock
@@ -979,7 +975,6 @@ classDiagram
     RequestPasswordResetUseCase --> AuthSettings
     SessionIssuer --> AuthSettings
     AccessTokenService ..> AccessToken
-    GetCurrentUserUseCase --> UserQueries
     ListUsersUseCase --> UserQueries
     GetUserUseCase --> UserQueries
     CreateUserUseCase --> PasswordHasher
@@ -1011,10 +1006,10 @@ classDiagram
 
 Cada operación del módulo se implementa como un caso de uso independiente:
 
-| Grupo                      | Casos de uso                                                                                                                                                                                                |
-| :------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Autenticación y sesiones   | `LoginUseCase`, `RefreshSessionUseCase`, `LogoutUseCase`, `RequestPasswordResetUseCase`, `ChangePasswordUseCase`, `ResolveAuthenticatedUserUseCase`, `GetCurrentUserUseCase`, `PurgeExpiredSessionsUseCase` |
-| Administración de usuarios | `ListUsersUseCase`, `GetUserUseCase`, `CreateUserUseCase`, `UpdateUserUseCase`, `ResetUserPasswordUseCase`, `DeleteUserUseCase`, `RestoreUserUseCase`                                                       |
+| Grupo                      | Casos de uso                                                                                                                                                                       |
+| :------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Autenticación y sesiones   | `LoginUseCase`, `RefreshSessionUseCase`, `LogoutUseCase`, `RequestPasswordResetUseCase`, `ChangePasswordUseCase`, `ResolveAuthenticatedUserUseCase`, `PurgeExpiredSessionsUseCase` |
+| Administración de usuarios | `ListUsersUseCase`, `GetUserUseCase`, `CreateUserUseCase`, `UpdateUserUseCase`, `ResetUserPasswordUseCase`, `DeleteUserUseCase`, `RestoreUserUseCase`                              |
 
 #### Estructuras de datos
 
@@ -1205,14 +1200,13 @@ classDiagram
         -logoutUseCase: LogoutUseCase
         -requestPasswordReset: RequestPasswordResetUseCase
         -changePasswordUseCase: ChangePasswordUseCase
-        -getCurrentUser: GetCurrentUserUseCase
         -cookie: RefreshTokenCookie
         +login(body: LoginRequestDto, userAgent: string, res: Response) Promise~AccessTokenResponseDto~
         +refresh(req: Request, userAgent: string, res: Response) Promise~AccessTokenResponseDto~
         +logout(req: Request, res: Response) Promise~void~
         +forgotPassword(body: ForgotPasswordRequestDto) Promise~void~
         +changePassword(user: AuthUser, body: ChangePasswordRequestDto, userAgent: string, res: Response) Promise~AccessTokenResponseDto~
-        +me(user: AuthUser) Promise~UserResult~
+        +me(user: AuthUser) AuthenticatedUserResponseDto
     }
     class UsersController {
         <<controller>>
@@ -1255,7 +1249,14 @@ classDiagram
     class AccessTokenResponseDto {
         +accessToken: string
         +expiresIn: number
-        +user: AuthenticatedUserResult
+        +user: AuthenticatedUserResponseDto
+    }
+    class AuthenticatedUserResponseDto {
+        +id: string
+        +email: string
+        +name: string
+        +role: UserRole
+        +mustChangePassword: boolean
     }
     class LoginRequestDto { <<implements LoginCommand sin userAgent>> }
     class ForgotPasswordRequestDto { <<implements RequestPasswordResetCommand>> }
@@ -1280,6 +1281,7 @@ classDiagram
     LoggerSecurityEventLog ..|> SecurityEventLog
     AuthController --> RefreshTokenCookie
     AuthController ..> AccessTokenResponseDto
+    AuthController ..> AuthenticatedUserResponseDto
     AuthController ..> LoginRequestDto
     AuthController ..> ForgotPasswordRequestDto
     AuthController ..> ChangePasswordRequestDto
@@ -1319,6 +1321,9 @@ classDiagram
 - **DTOs de solicitud**: validan los datos recibidos en cada endpoint mediante `class-validator`. Cada DTO contiene los mismos campos que el command o query que representa, salvo el identificador del usuario que realiza la acción, el identificador del usuario afectado y el dispositivo de origen. Estos datos los completa el controlador a partir del usuario autenticado, de la ruta y de los encabezados de la solicitud, y nunca se aceptan desde el cuerpo enviado por el cliente, lo que impide que un usuario se haga pasar por otro.
 - **`LoginRequestDto`**: solo exige que el email y la contraseña sean textos no vacíos y de longitud acotada, para no procesar entradas desmedidas. Elimina los espacios al inicio y al final del email, pero conserva la contraseña tal como fue ingresada. No valida el formato del email ni la política de contraseñas, ya que el inicio de sesión solo compara lo ingresado con lo almacenado: un email con formato inválido recibe la misma respuesta que uno inexistente. Sus mensajes de validación están en español, porque el panel los muestra al usuario.
 - **`AccessTokenResponseDto`**: estructura de la respuesta de los endpoints que inician o renuevan una sesión. Incluye el access token, su duración y los datos del usuario. El refresh token no forma parte de la respuesta, ya que se envía exclusivamente en la cookie.
+- **`AuthenticatedUserResponseDto`**: datos del usuario autenticado tal como los muestran todas las respuestas de autenticación —el `user` del inicio de sesión, la renovación y el cambio de contraseña, y `GET /auth/me`—: identificador, email, nombre, rol y si tiene pendiente el cambio de contraseña. Copia esos campos uno por uno, de modo que ningún otro dato del usuario llegue a la respuesta. En `GET /auth/me` se arma a partir del usuario que `JwtAuthGuard` ya obtuvo de la base de datos en esa misma solicitud, por lo que refleja su estado actual sin una consulta adicional ni un caso de uso propio.
+
+Las respuestas que incluyen tokens o datos de la cuenta (inicio de sesión, renovación, cambio de contraseña y `GET /auth/me`) se envían con `Cache-Control: no-store`, para que ni el navegador ni un proxy intermedio las conserven.
 
 #### Composición
 
@@ -2977,14 +2982,14 @@ Esta sección presenta el listado completo de los endpoints de la API REST, orga
 
 ### Autenticación
 
-| Método | Ruta                    | Acceso                                                  | Caso de uso                   |
-| :----- | :---------------------- | :------------------------------------------------------ | :---------------------------- |
-| POST   | `/auth/login`           | Público                                                 | `LoginUseCase`                |
-| POST   | `/auth/refresh`         | Cookie de sesión y verificación de origen               | `RefreshSessionUseCase`       |
-| POST   | `/auth/logout`          | Cookie de sesión y verificación de origen               | `LogoutUseCase`               |
-| POST   | `/auth/forgot-password` | Público                                                 | `RequestPasswordResetUseCase` |
-| POST   | `/auth/change-password` | Autenticado, incluso con cambio de contraseña pendiente | `ChangePasswordUseCase`       |
-| GET    | `/auth/me`              | Autenticado, incluso con cambio de contraseña pendiente | `GetCurrentUserUseCase`       |
+| Método | Ruta                    | Acceso                                                  | Caso de uso                         |
+| :----- | :---------------------- | :------------------------------------------------------ | :---------------------------------- |
+| POST   | `/auth/login`           | Público                                                 | `LoginUseCase`                      |
+| POST   | `/auth/refresh`         | Cookie de sesión y verificación de origen               | `RefreshSessionUseCase`             |
+| POST   | `/auth/logout`          | Cookie de sesión y verificación de origen               | `LogoutUseCase`                     |
+| POST   | `/auth/forgot-password` | Público                                                 | `RequestPasswordResetUseCase`       |
+| POST   | `/auth/change-password` | Autenticado, incluso con cambio de contraseña pendiente | `ChangePasswordUseCase`             |
+| GET    | `/auth/me`              | Autenticado, incluso con cambio de contraseña pendiente | Usuario resuelto por `JwtAuthGuard` |
 
 Los endpoints de cambio de contraseña y de consulta del usuario actual son los únicos habilitados para un usuario que tiene pendiente el cambio de su contraseña temporal; el resto de la API le queda bloqueado hasta que lo complete. El endpoint de cambio de contraseña es, además, el único endpoint de gestión de cuenta disponible para el rol `SELLER`.
 
