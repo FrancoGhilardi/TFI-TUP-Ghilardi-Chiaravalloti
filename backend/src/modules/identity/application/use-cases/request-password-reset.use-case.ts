@@ -90,10 +90,12 @@ export class RequestPasswordResetUseCase implements UseCase<RequestPasswordReset
         await this.users.save(locked);
       });
     } catch (error) {
-      const reason = mailError instanceof Error ? mailError.message : String(mailError);
-      throw new Error(`The temporary password mail failed (${reason}) and the password was kept`, {
-        cause: error,
-      });
+      // Both failures are kept, so the log shows what the provider said too.
+      throw new AggregateError(
+        [mailError, error],
+        "The temporary password mail failed and the password could not be withdrawn",
+        { cause: error },
+      );
     }
   }
 

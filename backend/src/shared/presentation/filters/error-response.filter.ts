@@ -8,12 +8,15 @@ import {
 } from "@nestjs/common";
 import { HttpAdapterHost } from "@nestjs/core";
 
+import { stackWithCauses } from "../../application/error-stack.js";
+
 import {
   AuthenticationError,
   BusinessRuleViolationError,
   ConflictError,
   DomainError,
   EntityNotFoundError,
+  ExternalServiceError,
   ForbiddenActionError,
   InvalidValueError,
 } from "../../domain/errors/index.js";
@@ -27,21 +30,39 @@ const FIRST_SERVER_ERROR_STATUS: number = HttpStatus.INTERNAL_SERVER_ERROR;
 
 type ErrorBody = Pick<ErrorResponse, "statusCode" | "code" | "message" | "details">;
 
-const DOMAIN_ERROR_STATUS: [typeof DomainError, HttpStatus][] = [
-  [InvalidValueError, HttpStatus.BAD_REQUEST],
-  [AuthenticationError, HttpStatus.UNAUTHORIZED],
-  [ForbiddenActionError, HttpStatus.FORBIDDEN],
-  [EntityNotFoundError, HttpStatus.NOT_FOUND],
-  [ConflictError, HttpStatus.CONFLICT],
-  [BusinessRuleViolationError, HttpStatus.UNPROCESSABLE_ENTITY],
-  [NotImplementedYetError, HttpStatus.NOT_IMPLEMENTED],
+interface DomainErrorMapping {
+  type: typeof DomainError;
+  status: HttpStatus;
+  /** A real failure someone has to look into, unlike an expected outcome of the request. */
+  logged: boolean;
+}
+
+const DOMAIN_ERRORS: DomainErrorMapping[] = [
+  { type: InvalidValueError, status: HttpStatus.BAD_REQUEST, logged: false },
+  { type: AuthenticationError, status: HttpStatus.UNAUTHORIZED, logged: false },
+  { type: ForbiddenActionError, status: HttpStatus.FORBIDDEN, logged: false },
+  { type: EntityNotFoundError, status: HttpStatus.NOT_FOUND, logged: false },
+  { type: ConflictError, status: HttpStatus.CONFLICT, logged: false },
+  { type: BusinessRuleViolationError, status: HttpStatus.UNPROCESSABLE_ENTITY, logged: false },
+  { type: NotImplementedYetError, status: HttpStatus.NOT_IMPLEMENTED, logged: false },
+  { type: ExternalServiceError, status: HttpStatus.BAD_GATEWAY, logged: true },
 ];
 
-const statusOf = (error: DomainError) =>
-  DOMAIN_ERROR_STATUS.find(([type]) => error instanceof type)?.[1];
+const mappingOf = (error: DomainError) => DOMAIN_ERRORS.find(({ type }) => error instanceof type);
 
-const isMappedDomainError = (exception: unknown) =>
-  exception instanceof DomainError && statusOf(exception) !== undefined;
+const statusOf = (error: DomainError) => mappingOf(error)?.status;
+
+// Unmapped errors are failures nobody anticipated, so they are always logged.
+const isLogged = (exception: unknown) =>
+  !(exception instanceof DomainError) || (mappingOf(exception)?.logged ?? true);
+
+// The message of a domain error is written for the user; the log names the error instead.
+const headlineOf = (exception: unknown) => {
+  if (exception instanceof DomainError) {
+    return `${exception.name} ${exception.code}`;
+  }
+  return exception instanceof Error ? exception.message : String(exception);
+};
 
 /** Shown to end users as is, so they are written in Spanish and free of technical terms. */
 export const DATABASE_ERROR_MESSAGES = {
@@ -103,12 +124,10 @@ export class ErrorResponseFilter implements ExceptionFilter {
     }
 
     const body = this.toBody(exception);
-    // A mapped domain error is an expected outcome, whatever its status; only server
-    // errors nobody anticipated are logged.
-    if (body.statusCode >= FIRST_SERVER_ERROR_STATUS && !isMappedDomainError(exception)) {
+    if (body.statusCode >= FIRST_SERVER_ERROR_STATUS && isLogged(exception)) {
       this.logger.error(
-        exception instanceof Error ? exception.message : String(exception),
-        exception instanceof Error ? exception.stack : undefined,
+        headlineOf(exception),
+        exception instanceof Error ? stackWithCauses(exception) : undefined,
       );
     }
 

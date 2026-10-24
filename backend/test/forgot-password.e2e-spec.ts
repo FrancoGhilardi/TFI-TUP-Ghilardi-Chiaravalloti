@@ -52,6 +52,10 @@ class RecordingNotifier extends PasswordResetNotifier {
     this.sent.push({ to, name, temporaryPassword, expiresAt });
     return Promise.resolve();
   }
+
+  sendAssignedPassword(): Promise<void> {
+    return Promise.reject(new Error("Not used by forgot-password"));
+  }
 }
 
 interface UserRow {
