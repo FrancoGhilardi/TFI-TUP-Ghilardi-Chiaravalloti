@@ -73,7 +73,7 @@ describe("Rate limiting (e2e)", () => {
   it("limits forgot-password to 3 requests every 15 minutes", async () => {
     const forgotPassword = () => http.post("/api/v1/auth/forgot-password");
 
-    await repeat(FORGOT_PASSWORD_RATE_LIMIT.limit, forgotPassword, 501);
+    await repeat(FORGOT_PASSWORD_RATE_LIMIT.limit, forgotPassword, 400);
     await expectTooManyRequests(forgotPassword(), 900);
   });
 
@@ -89,7 +89,7 @@ describe("Rate limiting (e2e)", () => {
     await repeat(LOGIN_RATE_LIMIT.limit, login, 400);
     await login().expect(429);
 
-    await http.post("/api/v1/auth/forgot-password").expect(501);
+    await http.post("/api/v1/auth/forgot-password").expect(400);
     await http.get("/api/v1/auth/me").expect(401);
   });
 

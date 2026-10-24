@@ -44,6 +44,8 @@ describe("validateEnv", () => {
       DATABASE_SSL_MODE: "verify-full",
       DATABASE_SSL_CA: "-----BEGIN CERTIFICATE-----",
       JWT_ACCESS_SECRET: SECRET,
+      RESEND_API_KEY: "re_key",
+      MAIL_FROM: "Librería Mi Sueño <no-reply@libreriamisueno.com.ar>",
     });
 
     expect(env.DATABASE_SSL_MODE).toBe("verify-full");
@@ -152,6 +154,51 @@ describe("validateEnv", () => {
         JWT_ACCESS_SECRET: "dev-only-access-token-secret-change-me",
       }),
     ).toThrow("The development secret cannot be used in production");
+  });
+
+  it("does not need Resend outside production, and takes a blank value as not set", () => {
+    const env = validateEnv({ ...BASE, RESEND_API_KEY: "", MAIL_FROM: "  " });
+
+    expect(env.RESEND_API_KEY).toBeUndefined();
+    expect(env.MAIL_FROM).toBeUndefined();
+  });
+
+  it.each(["RESEND_API_KEY", "MAIL_FROM"])("does not accept %s alone", (key) => {
+    expect(() =>
+      validateEnv({ ...BASE, [key]: key === "MAIL_FROM" ? "a@b.com" : "re_key" }),
+    ).toThrow("Set both RESEND_API_KEY and MAIL_FROM, or neither");
+  });
+
+  it.each([
+    "no-reply@libreriamisueno.com.ar",
+    "Librería Mi Sueño <no-reply@libreriamisueno.com.ar>",
+  ])("accepts MAIL_FROM=%s", (from) => {
+    expect(validateEnv({ ...BASE, RESEND_API_KEY: "re_key", MAIL_FROM: from }).MAIL_FROM).toBe(
+      from,
+    );
+  });
+
+  it.each(["no-reply@", "no-reply", "Librería <no-reply@libreriamisueno.com.ar", "<>"])(
+    "rejects MAIL_FROM=%s",
+    (from) => {
+      expect(() => validateEnv({ ...BASE, RESEND_API_KEY: "re_key", MAIL_FROM: from })).toThrow(
+        "MAIL_FROM",
+      );
+    },
+  );
+
+  it.each(["RESEND_API_KEY", "MAIL_FROM"])("requires %s in production", (key) => {
+    const production = {
+      NODE_ENV: "production",
+      DATABASE_URL: "postgresql://libreria_app.ref:pwd@db.example.com:5432/postgres",
+      DATABASE_SSL_MODE: "require",
+      JWT_ACCESS_SECRET: SECRET,
+      RESEND_API_KEY: "re_key",
+      MAIL_FROM: "no-reply@libreriamisueno.com.ar",
+    };
+
+    expect(() => validateEnv(production)).not.toThrow();
+    expect(() => validateEnv({ ...production, [key]: "" })).toThrow(key);
   });
 
   it.each(["0", "-1"])("rejects DATABASE_POOL_MAX=%s", (value) => {

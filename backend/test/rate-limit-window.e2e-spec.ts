@@ -25,9 +25,8 @@ describe("Rate limit windows (e2e)", () => {
 
   const post = (path: string) => request(app.getHttpServer()).post(`/api/v1/auth/${path}`);
 
-  // Statuses of a request the limiter lets through: login rejects the empty body and
-  // forgot-password has no use case yet.
-  const PASSED = { login: 400, "forgot-password": 501 } as const;
+  // Status of a request the limiter lets through: both reject the empty body.
+  const PASSED = { login: 400, "forgot-password": 400 } as const;
 
   async function exhaust(path: keyof typeof PASSED, limit: number) {
     for (let i = 0; i < limit; i++) {

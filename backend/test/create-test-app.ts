@@ -1,4 +1,4 @@
-import type { INestApplication, Type } from "@nestjs/common";
+import type { Abstract, INestApplication, Type } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test } from "@nestjs/testing";
 import type { App } from "supertest/types.js";
@@ -8,6 +8,8 @@ import type { Env } from "./../src/config/env.js";
 
 interface TestAppOptions {
   controllers?: Type[];
+  /** Providers replaced by a test double, such as the mail notifier. */
+  overrides?: { provide: Abstract<unknown>; useValue: unknown }[];
   /** Pinned so the tests never depend on the TRUST_PROXY of the local .env or CI. */
   trustProxy?: number;
 }
@@ -17,10 +19,14 @@ interface TestAppOptions {
  * so `trustProxy` is injected through ConfigService instead of process.env.
  */
 export async function createTestApp(options: TestAppOptions = {}): Promise<INestApplication<App>> {
-  const moduleRef = await Test.createTestingModule({
+  const builder = Test.createTestingModule({
     imports: [AppModule],
     controllers: options.controllers ?? [],
-  }).compile();
+  });
+  for (const { provide, useValue } of options.overrides ?? []) {
+    builder.overrideProvider(provide).useValue(useValue);
+  }
+  const moduleRef = await builder.compile();
   const app = moduleRef.createNestApplication<INestApplication<App>>();
 
   const trustProxy = options.trustProxy ?? 0;
