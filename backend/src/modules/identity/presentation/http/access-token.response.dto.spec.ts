@@ -16,9 +16,10 @@ describe("AccessTokenResponseDto", () => {
       accessTokenExpiresIn: 900,
       refreshToken: "refresh-token",
       refreshTokenExpiresAt: new Date("2026-10-29T12:00:00.000Z"),
-      user,
+      user: { ...user, passwordHash: "secret-hash" } as typeof user,
     });
 
+    // The user goes through the same mapping as GET /auth/me.
     expect(JSON.parse(JSON.stringify(body))).toEqual({
       accessToken: "access-token",
       expiresIn: 900,
