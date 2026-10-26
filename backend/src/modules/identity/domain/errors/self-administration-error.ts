@@ -1,8 +1,20 @@
 import { BusinessRuleViolationError } from "../../../../shared/domain/errors/index.js";
 
-/** An admin tried to change their own role, deactivate or delete themselves. */
+export type SelfAdministrationAction = "changeRole" | "deactivate" | "delete" | "resetPassword";
+
+const MESSAGES: Record<SelfAdministrationAction, string> = {
+  changeRole: "No podés cambiar tu propio rol.",
+  deactivate: "No podés desactivarte a vos mismo.",
+  delete: "No podés darte de baja a vos mismo.",
+  resetPassword: "No podés restablecer tu propia contraseña. Usá el cambio de contraseña.",
+};
+
+/**
+ * An admin tried to act on their own account: change their role, deactivate or delete
+ * themselves, or reset their password. Same code for all, with a message for each.
+ */
 export class SelfAdministrationError extends BusinessRuleViolationError {
-  constructor() {
-    super("SELF_ADMINISTRATION", "No podés cambiar tu propio rol, desactivarte ni darte de baja.");
+  constructor(readonly action: SelfAdministrationAction) {
+    super("SELF_ADMINISTRATION", MESSAGES[action]);
   }
 }
