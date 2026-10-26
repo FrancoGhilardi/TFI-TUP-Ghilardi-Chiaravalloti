@@ -23,10 +23,28 @@ describe("identity errors", () => {
       "Ya existe un usuario con ese email.",
     ],
     [
-      new SelfAdministrationError(),
+      new SelfAdministrationError("changeRole"),
       BusinessRuleViolationError,
       "SELF_ADMINISTRATION",
-      "No podés cambiar tu propio rol, desactivarte ni darte de baja.",
+      "No podés cambiar tu propio rol.",
+    ],
+    [
+      new SelfAdministrationError("deactivate"),
+      BusinessRuleViolationError,
+      "SELF_ADMINISTRATION",
+      "No podés desactivarte a vos mismo.",
+    ],
+    [
+      new SelfAdministrationError("delete"),
+      BusinessRuleViolationError,
+      "SELF_ADMINISTRATION",
+      "No podés darte de baja a vos mismo.",
+    ],
+    [
+      new SelfAdministrationError("resetPassword"),
+      BusinessRuleViolationError,
+      "SELF_ADMINISTRATION",
+      "No podés restablecer tu propia contraseña. Usá el cambio de contraseña.",
     ],
     [
       new LastActiveAdminError(),

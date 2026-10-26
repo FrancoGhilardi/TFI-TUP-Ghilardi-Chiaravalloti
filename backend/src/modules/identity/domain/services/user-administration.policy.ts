@@ -1,6 +1,9 @@
 import type { User } from "../entities/user.js";
 import { LastActiveAdminError } from "../errors/last-active-admin-error.js";
-import { SelfAdministrationError } from "../errors/self-administration-error.js";
+import {
+  type SelfAdministrationAction,
+  SelfAdministrationError,
+} from "../errors/self-administration-error.js";
 import { UserRole } from "../user-role.js";
 
 /**
@@ -20,7 +23,7 @@ export class UserAdministrationPolicy {
     if (newRole === target.role) {
       return;
     }
-    this.assertNotSelf(actorId, target);
+    this.assertNotSelf(actorId, target, "changeRole");
     if (newRole !== UserRole.ADMIN) {
       this.assertAnotherActiveAdminRemains(target, otherActiveAdmins);
     }
@@ -30,7 +33,7 @@ export class UserAdministrationPolicy {
     if (!target.active) {
       return;
     }
-    this.assertNotSelf(actorId, target);
+    this.assertNotSelf(actorId, target, "deactivate");
     this.assertAnotherActiveAdminRemains(target, otherActiveAdmins);
   }
 
@@ -38,13 +41,18 @@ export class UserAdministrationPolicy {
     if (target.isDeleted()) {
       return;
     }
-    this.assertNotSelf(actorId, target);
+    this.assertNotSelf(actorId, target, "delete");
     this.assertAnotherActiveAdminRemains(target, otherActiveAdmins);
   }
 
-  private assertNotSelf(actorId: string, target: User): void {
+  /** An admin changes their own password with change-password, never with a reset. */
+  assertCanResetPassword(actorId: string, target: User): void {
+    this.assertNotSelf(actorId, target, "resetPassword");
+  }
+
+  private assertNotSelf(actorId: string, target: User, action: SelfAdministrationAction): void {
     if (actorId === target.getId()) {
-      throw new SelfAdministrationError();
+      throw new SelfAdministrationError(action);
     }
   }
 

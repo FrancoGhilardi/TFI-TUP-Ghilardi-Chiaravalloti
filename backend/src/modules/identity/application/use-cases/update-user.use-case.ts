@@ -2,7 +2,6 @@ import type { Clock } from "../../../../shared/application/clock.js";
 import type { TransactionManager } from "../../../../shared/application/transaction-manager.js";
 import type { UseCase } from "../../../../shared/application/use-case.js";
 import type { User } from "../../domain/entities/user.js";
-import { DeletedUserError } from "../../domain/errors/deleted-user-error.js";
 import { EmailAlreadyInUseError } from "../../domain/errors/email-already-in-use-error.js";
 import type { UserRepository } from "../../domain/repositories/user.repository.js";
 import type { UserAdministrationPolicy } from "../../domain/services/user-administration.policy.js";
@@ -12,6 +11,7 @@ import type { UpdateUserCommand } from "../dto/update-user.command.js";
 import type { UserResult } from "../dto/user.result.js";
 import { UserNotFoundError } from "../errors/user-not-found-error.js";
 import type { UserQueries } from "../ports/user-queries.js";
+import { loadEditableUser } from "../services/editable-user.js";
 
 /**
  * An admin edits a user's email, name, role or status. No admin can take away their own role
@@ -33,13 +33,7 @@ export class UpdateUserUseCase implements UseCase<UpdateUserCommand, UserResult>
     const name = command.name === undefined ? undefined : UserName.create(command.name);
 
     await this.transaction.run(async () => {
-      const user = await this.users.findById(command.userId);
-      if (!user) {
-        throw new UserNotFoundError();
-      }
-      if (user.isDeleted()) {
-        throw new DeletedUserError();
-      }
+      const user = await loadEditableUser(this.users, command.userId);
       const now = this.clock.now();
       const before = snapshot(user);
 
