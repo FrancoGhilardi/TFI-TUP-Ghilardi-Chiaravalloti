@@ -2,10 +2,14 @@ import { Injectable } from "@nestjs/common";
 import { and, count, eq, isNull, ne, type SQL } from "drizzle-orm";
 import { DrizzleExecutor } from "../../../../shared/infrastructure/database/drizzle.executor.js";
 import { users } from "../../../../shared/infrastructure/database/schema/index.js";
+import { isUniqueViolation } from "../../../../shared/infrastructure/database/unique-violation.js";
 import type { User } from "../../domain/entities/user.js";
+import { EmailAlreadyInUseError } from "../../domain/errors/email-already-in-use-error.js";
 import { UserRepository } from "../../domain/repositories/user.repository.js";
 import type { Email } from "../../domain/value-objects/email.js";
 import { UserMapper } from "./user.mapper.js";
+
+const EMAIL_INDEX = "uq_users_email_not_deleted";
 
 // "Current" users are the ones not deleted, as in the unique email index.
 const isCurrent = isNull(users.deletedAt);
@@ -59,11 +63,20 @@ export class DrizzleUserRepository extends UserRepository {
     delete changes.id;
     delete changes.createdAt;
     delete changes.createdBy;
-    await this.executor
-      .current()
-      .insert(users)
-      .values(row)
-      .onConflictDoUpdate({ target: users.id, set: changes });
+    try {
+      await this.executor
+        .current()
+        .insert(users)
+        .values(row)
+        .onConflictDoUpdate({ target: users.id, set: changes });
+    } catch (error) {
+      // Two saves at once with the same email pass the existsByEmail check; the index stops
+      // the second, which is the same conflict.
+      if (isUniqueViolation(error, EMAIL_INDEX)) {
+        throw new EmailAlreadyInUseError();
+      }
+      throw error;
+    }
   }
 
   /**

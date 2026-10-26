@@ -6,6 +6,7 @@ import {
   PASSWORD_INPUT_MAX_LENGTH,
   TOO_LONG_MESSAGE,
 } from "./request-limits.js";
+import { trimString } from "./request-transforms.js";
 
 /**
  * Only shape and size are checked: a login compares the text with the stored hash, so the
@@ -14,7 +15,7 @@ import {
  */
 export class LoginRequestDto implements Omit<LoginCommand, "userAgent"> {
   // A space copied along with the address is not part of it; the password is kept as typed.
-  @Transform(({ value }: { value: unknown }) => (typeof value === "string" ? value.trim() : value))
+  @Transform(trimString)
   @IsString({ message: "Ingresá tu email." })
   @IsNotEmpty({ message: "Ingresá tu email." })
   @MaxLength(EMAIL_INPUT_MAX_LENGTH, { message: TOO_LONG_MESSAGE })
