@@ -430,7 +430,7 @@ Todas las respuestas de error comparten el mismo formato:
 }
 ```
 
-El campo `code` es estable y permite al frontend distinguir los errores: es el código del error de dominio o, para las violaciones de PostgreSQL y las excepciones HTTP, un código genérico (`UNIQUE_VIOLATION`, `FOREIGN_KEY_VIOLATION`, `CHECK_VIOLATION`, `NOT_FOUND`, etc.). El campo `details` solo aparece en los errores de validación de datos de entrada, con un elemento por campo inválido (`code` `VALIDATION_FAILED`).
+Toda respuesta de error se envía con `Cache-Control: no-store`, aunque la ruta declare una caché para sus respuestas exitosas, de modo que ningún navegador ni proxy reutilice un error. El campo `code` es estable y permite al frontend distinguir los errores: es el código del error de dominio o, para las violaciones de PostgreSQL y las excepciones HTTP, un código genérico (`UNIQUE_VIOLATION`, `FOREIGN_KEY_VIOLATION`, `CHECK_VIOLATION`, `NOT_FOUND`, etc.). El campo `details` solo aparece en los errores de validación de datos de entrada, con un elemento por campo inválido (`code` `VALIDATION_FAILED`).
 
 Los mensajes de las violaciones de PostgreSQL son genéricos, están en español y están pensados para mostrarse directamente al usuario, sin términos técnicos.
 
@@ -1774,7 +1774,7 @@ classDiagram
 
 #### Puerto de consultas
 
-- **`CategoryQueries`**: contrato que resuelve todas las consultas de lectura de categorías, sin reconstruir entidades. Ofrece cuatro operaciones: obtener el árbol de categorías visibles para la tienda, buscar categorías visibles por texto, obtener el listado paginado del panel y consultar una categoría individual con sus datos completos.
+- **`CategoryQueries`**: contrato que resuelve todas las consultas de lectura de categorías, sin reconstruir entidades. En el árbol de la tienda, una categoría aparece solo si ella y todas sus categorías superiores están activas y vigentes, de modo que desactivar o dar de baja una categoría oculta también todo lo que tiene debajo. Cada nivel se ordena por su posición, después por nombre y, como desempate, por identificador. El árbol se arma en memoria desde las categorías raíz, con una única lectura, por lo que una categoría que, por un error en los datos, formara un ciclo nunca se alcanza desde una raíz y queda fuera, sin que la consulta pueda entrar en un bucle. La respuesta puede conservarse durante 60 segundos (`Cache-Control: public, max-age=60`), igual que la revalidación del frontend. Ofrece cuatro operaciones: obtener el árbol de categorías visibles para la tienda, buscar categorías visibles por texto, obtener el listado paginado del panel y consultar una categoría individual con sus datos completos.
 
 #### Casos de uso
 
