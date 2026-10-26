@@ -127,6 +127,8 @@ export class ErrorResponseFilter implements ExceptionFilter {
       path: url.split("?")[0],
       timestamp: new Date().toISOString(),
     };
+    // A route may have declared a cache for its success; an error must never be reused.
+    httpAdapter.setHeader(response, "Cache-Control", "no-store");
     httpAdapter.reply(response, payload, body.statusCode);
   }
 
