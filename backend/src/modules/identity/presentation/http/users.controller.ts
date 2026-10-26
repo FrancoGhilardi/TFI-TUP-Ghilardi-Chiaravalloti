@@ -12,14 +12,15 @@ import {
   Query,
 } from "@nestjs/common";
 import type { Page } from "../../../../shared/application/pagination.js";
-import { NotImplementedYetError } from "../../../../shared/presentation/http/not-implemented-yet-error.js";
 import { StrictRateLimit } from "../../../../shared/presentation/http/rate-limit.js";
 import type { UserResult } from "../../application/dto/user.result.js";
 import { UserNotFoundError } from "../../application/errors/user-not-found-error.js";
 import { CreateUserUseCase } from "../../application/use-cases/create-user.use-case.js";
+import { DeleteUserUseCase } from "../../application/use-cases/delete-user.use-case.js";
 import { GetUserUseCase } from "../../application/use-cases/get-user.use-case.js";
 import { ListUsersUseCase } from "../../application/use-cases/list-users.use-case.js";
 import { ResetUserPasswordUseCase } from "../../application/use-cases/reset-user-password.use-case.js";
+import { RestoreUserUseCase } from "../../application/use-cases/restore-user.use-case.js";
 import { UpdateUserUseCase } from "../../application/use-cases/update-user.use-case.js";
 import { UserRole } from "../../domain/user-role.js";
 import type { AuthUser } from "../auth-user.js";
@@ -43,6 +44,8 @@ export class UsersController {
     private readonly createUser: CreateUserUseCase,
     private readonly updateUser: UpdateUserUseCase,
     private readonly resetUserPassword: ResetUserPasswordUseCase,
+    private readonly deleteUser: DeleteUserUseCase,
+    private readonly restoreUser: RestoreUserUseCase,
   ) {}
 
   @Get()
@@ -97,14 +100,16 @@ export class UsersController {
     return this.resetUserPassword.execute({ actorId: actor.id, userId: id });
   }
 
-  // Designed routes whose use case is not built yet: their access rules already apply.
+  /** A logical deletion: the user stays, with the date and the admin who deleted it. */
   @Delete(":id")
-  remove(): never {
-    throw new NotImplementedYetError();
+  @HttpCode(HttpStatus.NO_CONTENT)
+  remove(@Param("id", USER_ID) id: string, @CurrentUser() actor: AuthUser): Promise<void> {
+    return this.deleteUser.execute({ actorId: actor.id, userId: id });
   }
 
   @Post(":id/restore")
-  restore(): never {
-    throw new NotImplementedYetError();
+  @HttpCode(HttpStatus.OK)
+  restore(@Param("id", USER_ID) id: string, @CurrentUser() actor: AuthUser): Promise<UserResult> {
+    return this.restoreUser.execute({ actorId: actor.id, userId: id });
   }
 }

@@ -243,7 +243,10 @@ export class User extends Entity {
     this.props.lastLoginAt = now;
   }
 
-  /** Deletion is always logical; there is no way to remove a user for good. */
+  /**
+   * Deletion is always logical; there is no way to remove a user for good. A temporary
+   * password pending from the forgot flow is voided, so it cannot outlive the deletion.
+   */
   softDelete(actorId: string, now: Date): void {
     if (this.isDeleted()) {
       return;
@@ -251,6 +254,7 @@ export class User extends Entity {
     this.props.deletedAt = now;
     this.props.deletedBy = actorId;
     this.props.active = false;
+    this.props.temporaryPassword = undefined;
     this.touch(actorId, now);
   }
 
