@@ -163,16 +163,6 @@ describe("Users admin (e2e)", () => {
     });
   });
 
-  it.each([
-    ["DELETE", ""],
-    ["POST", "restore"],
-  ] as const)("answers 501 to %s .../%s, not built yet", async (method, action) => {
-    const path = `/api/v1/admin/users/${UNKNOWN_ID}${action ? `/${action}` : ""}`;
-    const pending = method === "DELETE" ? http.delete(path) : http.post(path);
-
-    await expectError(as(adminToken, pending), 501, "NOT_IMPLEMENTED");
-  });
-
   describe("GET /admin/users", () => {
     const list = (query = "") => as(adminToken, http.get(`/api/v1/admin/users${query}`));
 

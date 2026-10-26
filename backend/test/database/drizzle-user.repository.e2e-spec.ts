@@ -3,6 +3,7 @@ import type { Pool } from "pg";
 import type { Env } from "../../src/config/env.js";
 import { User } from "../../src/modules/identity/domain/entities/user.js";
 import { EmailAlreadyInUseError } from "../../src/modules/identity/domain/errors/email-already-in-use-error.js";
+import { LastActiveAdminError } from "../../src/modules/identity/domain/errors/last-active-admin-error.js";
 import { UserRole } from "../../src/modules/identity/domain/user-role.js";
 import { Email } from "../../src/modules/identity/domain/value-objects/email.js";
 import { TemporaryPassword } from "../../src/modules/identity/domain/value-objects/temporary-password.js";
@@ -121,6 +122,14 @@ describe("DrizzleUserRepository (e2e)", () => {
         createdBy: overrides.createdBy,
         now: NOW,
       });
+
+    it("reports removing the last active admin, as the database stops it", async () => {
+      const id = await insertUser(pool, { role: "ADMIN" });
+      const lastAdmin = await repository.findById(id);
+      lastAdmin?.softDelete("someone", NOW);
+
+      await expect(repository.save(lastAdmin!)).rejects.toThrow(LastActiveAdminError);
+    });
 
     it("reports a second current user with the same email as the email being in use", async () => {
       await repository.save(newUser());

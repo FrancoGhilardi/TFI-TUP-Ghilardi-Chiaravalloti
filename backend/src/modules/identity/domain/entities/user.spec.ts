@@ -370,6 +370,16 @@ describe("User", () => {
       expect(target.canLogin()).toBe(false);
     });
 
+    it("voids a temporary password pending from the forgot flow", () => {
+      const target = user({
+        temporaryPassword: new TemporaryPassword("temp-hash", new Date(NOW.getTime() + 60_000)),
+      });
+
+      target.softDelete(ACTOR, NOW);
+
+      expect(target.temporaryPassword).toBeUndefined();
+    });
+
     it("does nothing on a user that is already deleted", () => {
       const firstDeletion = new Date("2026-05-01");
       const target = user({ deletedAt: firstDeletion, deletedBy: "someone-else", active: false });

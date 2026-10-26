@@ -18,9 +18,11 @@ import { TemporaryPasswordFactory } from "./application/services/temporary-passw
 import { UserQueries } from "./application/ports/user-queries.js";
 import { ChangePasswordUseCase } from "./application/use-cases/change-password.use-case.js";
 import { CreateUserUseCase } from "./application/use-cases/create-user.use-case.js";
+import { DeleteUserUseCase } from "./application/use-cases/delete-user.use-case.js";
 import { GetUserUseCase } from "./application/use-cases/get-user.use-case.js";
 import { ListUsersUseCase } from "./application/use-cases/list-users.use-case.js";
 import { ResetUserPasswordUseCase } from "./application/use-cases/reset-user-password.use-case.js";
+import { RestoreUserUseCase } from "./application/use-cases/restore-user.use-case.js";
 import { UpdateUserUseCase } from "./application/use-cases/update-user.use-case.js";
 import { LoginUseCase } from "./application/use-cases/login.use-case.js";
 import { LogoutUseCase } from "./application/use-cases/logout.use-case.js";
@@ -253,6 +255,26 @@ import { UsersController } from "./presentation/http/users.controller.js";
         TransactionManager,
         Clock,
       ],
+    },
+    {
+      provide: DeleteUserUseCase,
+      useFactory: (
+        users: UserRepository,
+        policy: UserAdministrationPolicy,
+        transaction: TransactionManager,
+        clock: Clock,
+      ) => new DeleteUserUseCase(users, policy, transaction, clock),
+      inject: [UserRepository, UserAdministrationPolicy, TransactionManager, Clock],
+    },
+    {
+      provide: RestoreUserUseCase,
+      useFactory: (
+        users: UserRepository,
+        queries: UserQueries,
+        transaction: TransactionManager,
+        clock: Clock,
+      ) => new RestoreUserUseCase(users, queries, transaction, clock),
+      inject: [UserRepository, UserQueries, TransactionManager, Clock],
     },
     {
       provide: ResolveAuthenticatedUserUseCase,
