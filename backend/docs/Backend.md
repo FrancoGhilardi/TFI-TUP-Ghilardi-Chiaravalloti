@@ -355,9 +355,9 @@ classDiagram
 
   Las siete especializaciones son abstractas y se ubican junto a `DomainError`, de modo que los casos de uso puedan lanzarlas sin depender de la capa de presentación; cada error concreto define su propio código.
 
-- **`Money`**: value object que representa montos en pesos. Internamente trabaja con centavos enteros para evitar los errores de redondeo propios de los números decimales, y ofrece operaciones de comparación, como verificar que el precio de oferta sea menor al precio regular.
+- **`Money`**: value object que representa montos en pesos. Internamente trabaja con centavos enteros para evitar los errores de redondeo propios de los números decimales, y ofrece operaciones de comparación, como verificar que el precio de oferta sea menor al precio regular. Admite montos de 0 a 9.999.999.999,99, el rango de la columna de la base de datos, y se construye a partir de un texto con hasta dos decimales separados por un punto.
 
-- **`Slug`**: value object que representa el identificador legible de un producto o categoría en la URL (por ejemplo, `cuaderno-rayado-a4`). Se genera a partir de un texto y garantiza un formato válido: minúsculas, sin tildes ni espacios.
+- **`Slug`**: value object que representa el identificador legible de un producto o categoría en la URL (por ejemplo, `cuaderno-rayado-a4`). Se genera a partir de un texto y garantiza un formato válido: minúsculas, sin tildes ni espacios, con las palabras separadas por un único guion. Un texto que no contiene ninguna letra ni número se rechaza.
 
 #### Aplicación
 
@@ -1454,12 +1454,12 @@ classDiagram
         +reconstitute(props: ProductProps)$ Product
         +changeTitle(title: string) void
         +changeDescription(description?: string) void
-        +changePrice(price: Money) void
-        +startSale(salePrice: Money, endsAt?: Date) void
+        +changePrice(price: Money, now: Date) void
+        +startSale(salePrice: Money, endsAt: Date | undefined, now: Date) void
         +endSale() void
         +setStock(quantity: number) void
         +setFeatured(featured: boolean) void
-        +markAsNew(until?: Date) void
+        +markAsNew(until: Date | undefined, now: Date) void
         +unmarkAsNew() void
         +changeSortOrder(order: number) void
         +assignCategories(assignments: CategoryAssignment[]) void
@@ -1551,13 +1551,13 @@ classDiagram
 
 - **`Category`**: raíz del agregado de categorías. Contiene el nombre, el slug, la descripción, la categoría padre (vacía si es una categoría raíz), la posición de orden y el estado. Sus métodos permiten renombrarla, moverla dentro de la jerarquía, activarla o desactivarla, darla de baja y reactivarla.
 
-- **`Product`**: raíz del agregado de productos y entidad central del catálogo. Contiene el SKU, el título, el slug, la descripción, el precio, los datos de la oferta, el stock, las marcas de destacado y novedad, la posición de orden, el estado, las categorías asignadas y los productos similares, además de los datos de auditoría. Sus métodos permiten modificar cada uno de estos datos validando las reglas de negocio correspondientes.
+- **`Product`**: raíz del agregado de productos y entidad central del catálogo. Contiene el SKU, el título, el slug, la descripción, el precio, los datos de la oferta, el stock, las marcas de destacado y novedad, la posición de orden, el estado, las categorías asignadas y los productos similares, además de los datos de auditoría. Sus métodos permiten modificar cada uno de estos datos validando las reglas de negocio correspondientes. Los métodos de modificación no registran al autor: el caso de uso compara el producto antes y después de aplicarlos y, solo si algo cambió, registra al autor con `markUpdatedBy` y lo guarda, de modo que una operación que no cambia nada no modifique los datos de auditoría.
 
 - **`ProductImage`**: raíz del agregado de imágenes. Contiene el producto al que pertenece, su posición, las claves de almacenamiento del archivo original y de la versión pública, el texto alternativo, los datos técnicos del archivo y el estado de procesamiento. Se relaciona con el producto únicamente a través de su identificador, ya que se gestiona de forma independiente.
 
 #### Value objects y enumeraciones
 
-- **`Sku`**: código interno del producto, generado por el sistema con el formato `LMS-` seguido de al menos seis dígitos (por ejemplo, `LMS-000001`).
+- **`Sku`**: código interno del producto, generado por el sistema con el formato `LMS-` seguido de al menos seis dígitos (por ejemplo, `LMS-000001`). Lo genera la base de datos a partir de una secuencia, y la entidad lo recibe ya generado.
 - **`CategoryAssignment`**: representa la asignación de una categoría a un producto e indica si es su categoría principal.
 - **`ImageStatus`**: enumeración con los estados de procesamiento de una imagen: pendiente (`PENDING`), procesada (`PROCESSED`) o con error (`FAILED`).
 
@@ -1580,10 +1580,12 @@ Además, las entidades del catálogo utilizan los value objects del núcleo comp
 - El slug se genera al crear la categoría y no puede modificarse.
 - Una categoría no puede ser su propia categoría padre ni ubicarse debajo de una de sus subcategorías. Para verificarlo, al moverla se analizan los ancestros de la nueva categoría padre y se rechaza la operación si la categoría se encuentra entre ellos, lo que evita la formación de ciclos en la jerarquía.
 - Una categoría no puede darse de baja si tiene subcategorías activas o si es la única categoría asignada a algún producto vigente, ya que ese producto quedaría sin categoría.
+- Una categoría o un producto dados de baja no pueden modificarse; solo pueden reactivarse. La baja conserva el estado activo o inactivo, que vuelve con la reactivación. Como excepción, una categoría dada de baja puede moverse a la raíz, para poder reactivarla cuando su categoría padre sigue dada de baja.
 
 #### Productos
 
-- El precio debe ser mayor a cero, y el precio de oferta, menor al precio regular. Esta validación se aplica tanto al definir la oferta como al modificar el precio de un producto que ya tiene una oferta vigente.
+- El precio debe ser mayor a cero, y el precio de oferta, menor al precio regular. Esta validación se aplica tanto al definir la oferta como al modificar el precio de un producto que ya tiene una oferta vigente; si la oferta ya venció, el cambio de precio la da por terminada y descarta su precio, para que una oferta vencida nunca impida modificar el precio.
+- Los vencimientos de una oferta y de la marca de novedad, si se indican, deben ser fechas futuras; sin vencimiento, se mantienen hasta que se quiten.
 - Para poner un producto en oferta es obligatorio indicar el precio de oferta.
 - El stock no puede ser negativo.
 - Todo producto debe tener al menos una categoría, sin repeticiones y con exactamente una categoría principal.
