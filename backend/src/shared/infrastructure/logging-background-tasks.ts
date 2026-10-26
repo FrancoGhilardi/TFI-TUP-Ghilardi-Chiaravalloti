@@ -23,10 +23,8 @@ export class LoggingBackgroundTasks extends BackgroundTasks implements BeforeApp
       .then(
         () => undefined,
         (error: unknown) => {
-          this.logger.error(
-            `${name} failed`,
-            error instanceof Error ? stackWithCauses(error) : String(error),
-          );
+          // A single text, so the logger never takes the details for its context.
+          this.logger.error(`${name} failed\n${stackWithCauses(error)}`);
         },
       )
       .finally(() => this.pending.delete(task));

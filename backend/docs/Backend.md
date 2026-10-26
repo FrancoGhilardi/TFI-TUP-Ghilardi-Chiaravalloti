@@ -749,7 +749,7 @@ classDiagram
     class UserQueries {
         <<abstract port>>
         +findPage(query: ListUsersQuery) Promise~Page~UserResult~~
-        +findById(id: string) Promise~UserResult~
+        +findById(id: string) Promise~UserResult | null~
     }
     class AuthSettings {
         <<settings>>
@@ -837,6 +837,7 @@ classDiagram
     class CreateUserUseCase {
         -users: UserRepository
         -hasher: PasswordHasher
+        -ids: IdGenerator
         -queries: UserQueries
         -clock: Clock
         +execute(command: CreateUserCommand) Promise~UserResult~
@@ -926,7 +927,7 @@ classDiagram
     class ListUsersQuery {
         +q?: string
         +role?: UserRole
-        +status: RecordStatusFilter
+        +status?: RecordStatusFilter
         +sortDir: SortDirection
         +page: number
         +limit: number
@@ -953,10 +954,10 @@ classDiagram
         +role: UserRole
         +isActive: boolean
         +mustChangePassword: boolean
-        +lastLoginAt?: Date
+        +lastLoginAt: Date | null
         +createdAt: Date
         +updatedAt: Date
-        +deletedAt?: Date
+        +deletedAt: Date | null
     }
     class UserSummaryResult {
         +id: string
@@ -1000,7 +1001,7 @@ classDiagram
 - **`RefreshTokenService`**: genera los refresh tokens y calcula su hash, ya que en la base de datos nunca se almacena el token real.
 - **`SecurityEventLog`**: registra los eventos de seguridad que conviene investigar, como la reutilización de un refresh token. Solo recibe identificadores, nunca tokens ni sus hashes.
 - **`PasswordResetNotifier`**: envía por mail las claves temporales: la que el usuario pide al olvidar su contraseña, que convive con la actual hasta vencer, y la que genera un administrador al restablecerla, que la reemplaza. Si el mail no puede entregarse, la implementación lanza `MailDeliveryError` (502, `MAIL_DELIVERY_FAILED`), con la falla del proveedor como causa.
-- **`UserQueries`**: resuelve las consultas de lectura de usuarios (listados paginados y consulta individual) sin reconstruir entidades.
+- **`UserQueries`**: resuelve las consultas de lectura de usuarios (listados paginados y consulta individual) sin reconstruir entidades. El listado se ordena por nombre, sin distinguir mayúsculas, en el sentido indicado por `sortDir` y con el email como desempate, de modo que las páginas nunca se superpongan; si no se indica un estado, muestra los usuarios vigentes, activos o no, y los dados de baja solo aparecen al pedirlos (`DELETED` o `ALL`). La búsqueda compara el texto ingresado con el nombre y el email, sin distinguir mayúsculas y tratando los comodines como caracteres comunes. La paginación empieza en la página 1, con 20 usuarios por defecto y hasta 100.
 
 #### Servicios y configuración
 
@@ -1061,7 +1062,7 @@ La operación es idempotente: si no llega la cookie, si el token no existe o si 
 1. La operación finaliza siempre sin error, con la misma respuesta exista o no el email ingresado, para no revelar qué cuentas están registradas. Como buscar al usuario, generar el hash y enviar el mail solo ocurre cuando la cuenta existe, el pedido se procesa en segundo plano mediante `BackgroundTasks`, después de responder: de lo contrario, el tiempo de respuesta revelaría la cuenta.
 2. Se genera una clave temporal y su hash fuera de la transacción. Esto ocurre en todas las solicitudes, aunque no corresponda enviar un mail, de modo que la carga del servidor tampoco revele si la cuenta existe.
 3. Si el usuario existe, está habilitado y no realizó otra solicitud en los últimos 5 minutos, dentro de una transacción se vuelve a leer el usuario bloqueando su fila, se confirma que sigue cumpliendo esas condiciones —de modo que dos solicitudes simultáneas envíen un único mail— y se almacena el hash con un vencimiento de 30 minutos.
-4. Después de confirmar la transacción se envía el mail, con un tiempo máximo de espera de 10 segundos, para no mantener una conexión ni la fila del usuario bloqueadas mientras responde el proveedor. Si el envío falla, se descarta la clave —siempre que siga siendo la misma— para no dejar una clave que nadie recibió bloqueando nuevas solicitudes, y la falla queda registrada en el log.
+4. Después de confirmar la transacción se envía el mail, con un tiempo máximo de espera de 10 segundos, para no mantener una conexión ni la fila del usuario bloqueadas mientras responde el proveedor. Si el proveedor rechaza el mail, se descarta la clave —siempre que siga siendo la misma— para no dejar una clave que nadie recibió bloqueando nuevas solicitudes. Ante cualquier otra falla el resultado es incierto —el proveedor no respondió a tiempo, se cortó la conexión o respondió con un error propio—: el mail pudo haber llegado igual, por lo que la clave se conserva. El cliente de Resend informa de la misma forma un pedido que nunca salió y una respuesta que nunca llegó, por lo que en el primer caso el usuario deberá esperar los 5 minutos del período de espera para volver a pedirla; se acepta ese costo antes que descartar una clave que pudo haber recibido. En todos los casos la falla queda registrada en el log.
 5. No se revocan las sesiones activas ni se invalida la contraseña actual, ya que la solicitud podría no haber sido realizada por el titular de la cuenta.
 
 El vencimiento y el período de espera son valores fijos de `AuthSettings`, como establece el diseño.
@@ -1085,7 +1086,7 @@ Se ejecuta en cada solicitud a un endpoint protegido. La solicitud se rechaza si
 
 #### Alta de usuario
 
-El administrador define una contraseña inicial, que el frontend solicita confirmar. El caso de uso valida la contraseña, verifica que el email no esté en uso, genera el hash y la asigna como clave temporal, por lo que el nuevo usuario debe cambiarla en su primer ingreso.
+El administrador define una contraseña inicial, que el frontend solicita confirmar. El caso de uso valida el email, el nombre y la contraseña, verifica que el email no esté en uso por otro usuario vigente (`EmailAlreadyInUseError`) y genera el hash. El usuario se crea activo, con el administrador como autor y con la obligación de cambiar la contraseña en su primer ingreso. No se envía ningún mail: el administrador le comunica la contraseña.
 
 #### Envío de contraseña temporal a otro usuario
 
@@ -1097,7 +1098,7 @@ Se verifica que el email del usuario no esté siendo utilizado por otro usuario 
 
 #### Edición y baja de usuario
 
-Dentro de una transacción, se obtiene el usuario, se cuenta la cantidad de otros administradores activos y se consulta `UserAdministrationPolicy` antes de aplicar cualquier cambio, para garantizar que un administrador no se modifique a sí mismo y que el sistema no quede sin administradores activos.
+Dentro de una transacción, se obtiene el usuario bloqueando su fila, se cuenta la cantidad de otros administradores activos y se consulta `UserAdministrationPolicy` antes de aplicar cualquier cambio, para garantizar que un administrador no cambie su propio rol ni se desactive a sí mismo y que el sistema no quede sin administradores activos. En la edición solo cambian los campos enviados; un usuario dado de baja no puede editarse, solo reactivarse, y una edición que no cambia nada no modifica los datos de auditoría. Si cambian el rol o el estado, la base de datos revoca las sesiones del usuario.
 
 ### Relación con el resto del sistema
 
@@ -1315,13 +1316,13 @@ classDiagram
 - **`JwtAccessTokenService`**: implementa `AccessTokenService`. Emite access tokens firmados con el algoritmo HS256, con una duración configurable entre 1 minuto y 1 hora (15 minutos por defecto), que contienen únicamente el identificador del usuario. Al validarlos, acepta solo HS256, no admite tolerancia de reloj en el vencimiento y rechaza cualquier token sin identificador de usuario, fecha de emisión o vencimiento. El rol y el estado no se incluyen en el token, sino que se consultan en la base de datos en cada solicitud.
 - **`Sha256RefreshTokenService`**: implementa `RefreshTokenService`. Genera refresh tokens de 32 bytes aleatorios y almacena en la base de datos únicamente su hash SHA-256. A diferencia de las contraseñas, no requiere un algoritmo de hash lento, ya que el token es aleatorio y de alta entropía, lo que hace inviable un ataque de fuerza bruta.
 - **`LoggerSecurityEventLog`**: implementa `SecurityEventLog` escribiendo cada evento como advertencia en el log de la aplicación.
-- **`ResendPasswordResetNotifier`**: implementa `PasswordResetNotifier` mediante el servicio Resend. Envía mails simples en español, en formato de texto y HTML, con la clave temporal y el enlace de acceso al panel (`/admin/login`): el de recuperación indica además su vencimiento en hora de Argentina y aclara que la contraseña actual sigue funcionando; el de restablecimiento por un administrador aclara que la contraseña anterior ya no funciona. El nombre del usuario se escapa en la versión HTML. Espera al proveedor hasta 10 segundos y no reintenta: cualquier falla, incluido el vencimiento de ese plazo, se informa como `MailDeliveryError`.
+- **`ResendPasswordResetNotifier`**: implementa `PasswordResetNotifier` mediante el servicio Resend. Envía mails simples en español, en formato de texto y HTML, con la clave temporal y el enlace de acceso al panel (`/admin/login`): el de recuperación indica además su vencimiento en hora de Argentina y aclara que la contraseña actual sigue funcionando; el de restablecimiento por un administrador aclara que la contraseña anterior ya no funciona. El nombre del usuario se escapa en la versión HTML. Espera al proveedor hasta 10 segundos y no reintenta: cualquier falla, incluido el vencimiento de ese plazo, se informa como `MailDeliveryError`, que indica si el mail pudo haber llegado igual (sin respuesta, conexión cortada o error del proveedor) o si fue rechazado (respuesta 4xx). La respuesta del proveedor, con su código de estado, queda como causa en el log.
 - **`LoggerPasswordResetNotifier`**: implementa `PasswordResetNotifier` escribiendo el mail en el log, clave incluida, en lugar de enviarlo. Se utiliza cuando no están configuradas las credenciales de Resend, lo que solo se admite fuera de producción, para poder probar el flujo en el entorno local.
 
 #### Presentación
 
 - **`AuthController`**: expone los endpoints de autenticación: inicio y cierre de sesión, renovación de sesión, recuperación y cambio de contraseña, y consulta de los datos del usuario autenticado.
-- **`UsersController`**: expone los endpoints de administración de usuarios. Está restringido en su totalidad al rol `ADMIN`, mediante una única declaración a nivel de clase que se aplica a todos sus endpoints.
+- **`UsersController`**: expone los endpoints de administración de usuarios. Está restringido en su totalidad al rol `ADMIN`, mediante una única declaración a nivel de clase que se aplica a todos sus endpoints. Un identificador que no tiene formato UUID se responde como un usuario inexistente (`UserNotFoundError`, 404), sin consultar la base de datos. Si dos operaciones simultáneas asignan el mismo email, el índice único de la base frena la segunda y el repositorio la informa como `EmailAlreadyInUseError`, igual que el chequeo previo.
 - **`RefreshTokenCookie`**: centraliza la escritura, lectura y eliminación de la cookie que almacena el refresh token. La cookie se configura como `HttpOnly` (inaccesible desde JavaScript), `Secure` (solo se transmite por HTTPS), `SameSite=Strict` (no se envía en solicitudes originadas en otros sitios) y con alcance limitado a las rutas de autenticación. La lectura se apoya en `cookie-parser`, y la eliminación utiliza los mismos atributos que la escritura, ya que de lo contrario el navegador no la borra.
 - **`JwtAuthGuard`**: lee el access token del encabezado `Authorization: Bearer`, lo valida mediante `AccessTokenService` y, con `ResolveAuthenticatedUserUseCase`, obtiene los datos actualizados del usuario desde la base de datos. Se registra como guard global en `AppModule`.
 - **`SessionsCleanupScheduler`**: tarea programada que ejecuta periódicamente `PurgeExpiredSessionsUseCase` para eliminar las sesiones vencidas.

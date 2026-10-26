@@ -191,12 +191,12 @@ describe("ErrorResponseFilter", () => {
 
       setup().run(error);
 
-      const [message, stack] = logError.mock.calls[0] as [string, string];
-      // Named by class and code: the message is the user's Spanish text.
-      expect(message).toBe("TestExternalServiceError PROVIDER_FAILED");
-      expect(stack).toContain(error.stack);
-      expect(stack).toContain(`Caused by: ${cause.stack}`);
-      expect(stack).toContain("Caused by: Error: ECONNRESET");
+      const [logged] = logError.mock.calls[0] as [string];
+      // Named by class and code everywhere: the message is the user's Spanish text.
+      expect(logged.split("\n")[0]).toBe("TestExternalServiceError PROVIDER_FAILED");
+      expect(logged).not.toContain("Probá de nuevo");
+      expect(logged).toContain(`Caused by: ${cause.stack}`);
+      expect(logged).toContain("Caused by: Error: ECONNRESET");
     });
   });
 
@@ -304,7 +304,7 @@ describe("ErrorResponseFilter", () => {
       const error = new Error("secret failure");
       setup().run(error);
 
-      expect(logError).toHaveBeenCalledWith("secret failure", error.stack);
+      expect(logError).toHaveBeenCalledWith(error.stack);
     });
 
     it("answers and logs a domain error without a status as an unexpected 500", () => {
@@ -313,7 +313,12 @@ describe("ErrorResponseFilter", () => {
 
       expect(status).toBe(500);
       expect(body).toMatchObject({ code: "INTERNAL_ERROR", message: "Internal server error" });
-      expect(logError).toHaveBeenCalledWith("TestUnmappedDomainError UNMAPPED", error.stack);
+      expect(logError).toHaveBeenCalledWith(
+        error.stack?.replace(
+          "TestUnmappedDomainError: secret unmapped failure",
+          "TestUnmappedDomainError UNMAPPED",
+        ),
+      );
     });
   });
 

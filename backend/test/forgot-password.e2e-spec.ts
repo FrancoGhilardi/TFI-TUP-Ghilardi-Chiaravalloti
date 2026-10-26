@@ -3,6 +3,7 @@ import argon2 from "argon2";
 import type { Pool } from "pg";
 import request from "supertest";
 import type { App } from "supertest/types.js";
+import { MailDeliveryError } from "./../src/modules/identity/application/errors/mail-delivery-error.js";
 import { PasswordResetNotifier } from "./../src/modules/identity/application/ports/password-reset-notifier.js";
 import { UserRole } from "./../src/modules/identity/domain/user-role.js";
 import { Roles } from "./../src/modules/identity/presentation/decorators/roles.decorator.js";
@@ -38,7 +39,8 @@ interface SentMail {
 /** Keeps the mails instead of sending them; can be told to fail like a provider outage. */
 class RecordingNotifier extends PasswordResetNotifier {
   readonly sent: SentMail[] = [];
-  failing = false;
+  /** What the next sends fail with, if anything: a rejection or a mail that may have gone out. */
+  failure: MailDeliveryError | undefined;
 
   sendTemporaryPassword(
     to: string,
@@ -46,8 +48,8 @@ class RecordingNotifier extends PasswordResetNotifier {
     temporaryPassword: string,
     expiresAt: Date,
   ): Promise<void> {
-    if (this.failing) {
-      return Promise.reject(new Error("mail provider down"));
+    if (this.failure) {
+      return Promise.reject(this.failure);
     }
     this.sent.push({ to, name, temporaryPassword, expiresAt });
     return Promise.resolve();
@@ -228,16 +230,35 @@ describe("Forgot password (e2e)", () => {
       expect(notifier.sent).toHaveLength(1);
     });
 
-    it("keeps no temporary password when the mail cannot be sent, and logs it", async () => {
+    it("keeps the temporary password when the mail may have arrived anyway, and logs it", async () => {
       const error = vi.spyOn(Logger.prototype, "error").mockImplementation(() => undefined);
-      notifier.failing = true;
+      notifier.failure = new MailDeliveryError(new Error("timeout"), true);
+
+      await forgotPassword("ana@example.com").expect(204);
+      await processed();
+
+      expect((await readUser()).temporary_password_hash).not.toBeNull();
+      expect(error).toHaveBeenCalledWith(
+        expect.stringMatching(
+          /^Password reset request failed\nMailDeliveryError MAIL_DELIVERY_FAILED/,
+        ),
+      );
+    });
+
+    it("keeps no temporary password when the provider rejects the mail, and logs it", async () => {
+      const error = vi.spyOn(Logger.prototype, "error").mockImplementation(() => undefined);
+      notifier.failure = new MailDeliveryError(new Error("invalid_from_address"), false);
 
       await forgotPassword("ana@example.com").expect(204);
       await processed();
 
       expect((await readUser()).temporary_password_hash).toBeNull();
-      expect(error).toHaveBeenCalledWith("Password reset request failed", expect.any(String));
-      notifier.failing = false;
+      expect(error).toHaveBeenCalledWith(
+        expect.stringMatching(
+          /^Password reset request failed\nMailDeliveryError MAIL_DELIVERY_FAILED/,
+        ),
+      );
+      notifier.failure = undefined;
       await temporaryPassword();
     });
   });
