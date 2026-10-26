@@ -51,39 +51,56 @@ describe("ResendPasswordResetNotifier", () => {
   describe.each(["temporary", "assigned"] as const)(
     "fails with MailDeliveryError for the %s mail",
     (kind) => {
-      it("when Resend does not accept it, keeping the reason", async () => {
-        const { sends } = setUp(() =>
+      // The status is not always a number at runtime: the client passes the body through.
+      const rejected = (statusCode: number | null | undefined) =>
+        setUp(() =>
           Promise.resolve({
             data: null,
             error: {
               name: "daily_quota_exceeded",
               message: "Daily quota exceeded",
-              statusCode: 429,
+              statusCode: statusCode as number | null,
             },
             headers: null,
           }),
-        );
+        )
+          .sends[kind]()
+          .catch((caught: unknown) => caught);
 
-        const error = await sends[kind]().catch((caught: unknown) => caught);
+      it("when Resend rejects it, keeping its whole answer, status included", async () => {
+        const error = (await rejected(429)) as MailDeliveryError;
 
         expect(error).toBeInstanceOf(MailDeliveryError);
-        expect((error as MailDeliveryError).cause).toEqual(
-          new Error("Resend did not accept the mail: daily_quota_exceeded: Daily quota exceeded"),
-        );
+        expect(error.maybeDelivered).toBe(false);
+        expect(error.cause).toMatchObject({
+          message: "Resend did not accept the mail",
+          cause: { name: "daily_quota_exceeded", statusCode: 429 },
+        });
       });
 
-      it("when the client throws", async () => {
+      it.each([
+        // How the client reports a timeout or an unreachable provider alike.
+        ["without a status, as after a timeout or when the provider is unreachable", null],
+        ["with a status missing from its answer", undefined],
+        ["with a provider error", 500],
+      ])("as maybe delivered when Resend answers %s", async (_label, statusCode) => {
+        expect(((await rejected(statusCode)) as MailDeliveryError).maybeDelivered).toBe(true);
+      });
+
+      it("as maybe delivered when the client throws", async () => {
         const failure = new TypeError("fetch failed");
         const { sends } = setUp(() => Promise.reject(failure));
 
         await expect(sends[kind]()).rejects.toMatchObject({
           code: "MAIL_DELIVERY_FAILED",
           cause: failure,
+          maybeDelivered: true,
         });
       });
 
-      it("when the provider does not answer in time", async () => {
-        // Like the client, which rethrows the reason of the aborted signal.
+      it("as maybe delivered when the timeout aborts the client while it reads the answer", async () => {
+        // The only timeout the client throws instead of returning: it rethrows the reason of
+        // the aborted signal when it happens while reading the body.
         const { sends } = setUp(
           (_payload, options) =>
             new Promise((_resolve, reject) => {
@@ -97,7 +114,7 @@ describe("ResendPasswordResetNotifier", () => {
         const error = await sends[kind]().catch((caught: unknown) => caught);
 
         expect(error).toBeInstanceOf(MailDeliveryError);
-        expect((error as MailDeliveryError).cause).toMatchObject({ name: "TimeoutError" });
+        expect(error).toMatchObject({ maybeDelivered: true, cause: { name: "TimeoutError" } });
       });
     },
   );

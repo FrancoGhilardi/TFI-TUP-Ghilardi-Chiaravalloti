@@ -8,6 +8,7 @@ import type { Password } from "../../domain/value-objects/password.js";
 import { TemporaryPassword } from "../../domain/value-objects/temporary-password.js";
 import { UserName } from "../../domain/value-objects/user-name.js";
 import { AuthSettings } from "../auth-settings.js";
+import { MailDeliveryError } from "../errors/mail-delivery-error.js";
 import { PasswordHasher } from "../ports/password-hasher.js";
 import { PasswordResetNotifier } from "../ports/password-reset-notifier.js";
 import { TemporaryPasswordGenerator } from "../ports/temporary-password-generator.js";
@@ -18,6 +19,9 @@ const EARLIER = new Date("2026-01-01T00:00:00.000Z");
 const IN_30_MINUTES = new Date("2026-10-22T12:30:00.000Z");
 const MINUTE_MS = 60_000;
 const TEMPORARY = "Tmp2Pass3Key";
+
+/** The provider said no, so the mail certainly did not go out. */
+const rejected = () => new MailDeliveryError(new Error("Resend did not accept the mail"), false);
 
 class InMemoryUserRepository extends UserRepository {
   private reads = 0;
@@ -261,8 +265,8 @@ describe("RequestPasswordResetUseCase", () => {
       expect(notifier.sent).toHaveLength(1);
     });
 
-    it("withdraws the temporary password when the mail cannot be sent", async () => {
-      const failure = new Error("mail provider down");
+    it("withdraws the temporary password when the provider rejected the mail", async () => {
+      const failure = rejected();
       const ana = user();
       const { events, repository, request } = setUp({ users: [ana], mailFailure: failure });
 
@@ -279,22 +283,38 @@ describe("RequestPasswordResetUseCase", () => {
       ]);
     });
 
+    it.each([
+      ["the mail may have arrived anyway", new MailDeliveryError(new Error("timeout"), true)],
+      ["the failure is not a known rejection", new Error("unexpected")],
+    ])("keeps the temporary password when %s", async (_label, failure) => {
+      const ana = user();
+      const { events, repository, request } = setUp({ users: [ana], mailFailure: failure });
+
+      await expect(request("ana@example.com")).rejects.toBe(failure);
+
+      expect(ana.temporaryPassword?.hash).toBe(`hashed:${TEMPORARY}`);
+      expect(repository.saved).toEqual([ana]);
+      expect(events.at(-1)).toBe("send mail ana@example.com");
+    });
+
     it("keeps a temporary password issued by another request meanwhile", async () => {
       const newer = user({ temporaryPassword: issued(0) });
+      const failure = rejected();
       const { repository, request } = setUp({
-        mailFailure: new Error("mail provider down"),
+        mailFailure: failure,
         beforeRead: (read) => (read === 3 ? [newer] : undefined),
       });
 
-      await expect(request("ana@example.com")).rejects.toThrow("mail provider down");
+      await expect(request("ana@example.com")).rejects.toBe(failure);
 
       expect(newer.temporaryPassword?.hash).toBe("hashed:older");
       expect(repository.saved).toHaveLength(1);
     });
 
     it("reports a temporary password it could not withdraw", async () => {
+      const failure = rejected();
       const { request } = setUp({
-        mailFailure: new Error("mail provider down"),
+        mailFailure: failure,
         beforeRead: (read) => {
           if (read === 3) throw new Error("database down");
           return undefined;
@@ -306,7 +326,7 @@ describe("RequestPasswordResetUseCase", () => {
       expect(error).toBeInstanceOf(AggregateError);
       expect(error).toMatchObject({
         message: "The temporary password mail failed and the password could not be withdrawn",
-        errors: [new Error("mail provider down"), new Error("database down")],
+        errors: [failure, new Error("database down")],
       });
     });
   });
