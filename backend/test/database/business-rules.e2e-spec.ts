@@ -273,6 +273,14 @@ describe("business rules in the database (e2e)", () => {
       );
     });
 
+    it("names the rule it breaks, so the application can tell it apart", async () => {
+      const adminId = await insertUser(pool, { role: "ADMIN" });
+
+      await expect(
+        pool.query("UPDATE libreria.users SET is_active = false WHERE id = $1", [adminId]),
+      ).rejects.toMatchObject({ code: CHECK_VIOLATION, constraint: "chk_users_last_active_admin" });
+    });
+
     it("rejects deleting the only active admin", async () => {
       const adminId = await insertUser(pool, { role: "ADMIN" });
 
