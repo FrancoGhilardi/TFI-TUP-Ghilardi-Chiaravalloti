@@ -749,7 +749,7 @@ classDiagram
     class UserQueries {
         <<abstract port>>
         +findPage(query: ListUsersQuery) Promise~Page~UserResult~~
-        +findById(id: string) Promise~UserResult~
+        +findById(id: string) Promise~UserResult | null~
     }
     class AuthSettings {
         <<settings>>
@@ -837,6 +837,7 @@ classDiagram
     class CreateUserUseCase {
         -users: UserRepository
         -hasher: PasswordHasher
+        -ids: IdGenerator
         -queries: UserQueries
         -clock: Clock
         +execute(command: CreateUserCommand) Promise~UserResult~
@@ -926,7 +927,7 @@ classDiagram
     class ListUsersQuery {
         +q?: string
         +role?: UserRole
-        +status: RecordStatusFilter
+        +status?: RecordStatusFilter
         +sortDir: SortDirection
         +page: number
         +limit: number
@@ -953,10 +954,10 @@ classDiagram
         +role: UserRole
         +isActive: boolean
         +mustChangePassword: boolean
-        +lastLoginAt?: Date
+        +lastLoginAt: Date | null
         +createdAt: Date
         +updatedAt: Date
-        +deletedAt?: Date
+        +deletedAt: Date | null
     }
     class UserSummaryResult {
         +id: string
@@ -1000,7 +1001,7 @@ classDiagram
 - **`RefreshTokenService`**: genera los refresh tokens y calcula su hash, ya que en la base de datos nunca se almacena el token real.
 - **`SecurityEventLog`**: registra los eventos de seguridad que conviene investigar, como la reutilización de un refresh token. Solo recibe identificadores, nunca tokens ni sus hashes.
 - **`PasswordResetNotifier`**: envía por mail las claves temporales: la que el usuario pide al olvidar su contraseña, que convive con la actual hasta vencer, y la que genera un administrador al restablecerla, que la reemplaza. Si el mail no puede entregarse, la implementación lanza `MailDeliveryError` (502, `MAIL_DELIVERY_FAILED`), con la falla del proveedor como causa.
-- **`UserQueries`**: resuelve las consultas de lectura de usuarios (listados paginados y consulta individual) sin reconstruir entidades.
+- **`UserQueries`**: resuelve las consultas de lectura de usuarios (listados paginados y consulta individual) sin reconstruir entidades. El listado se ordena por nombre, sin distinguir mayúsculas, en el sentido indicado por `sortDir` y con el email como desempate, de modo que las páginas nunca se superpongan; si no se indica un estado, muestra los usuarios vigentes, activos o no, y los dados de baja solo aparecen al pedirlos (`DELETED` o `ALL`). La búsqueda compara el texto ingresado con el nombre y el email, sin distinguir mayúsculas y tratando los comodines como caracteres comunes. La paginación empieza en la página 1, con 20 usuarios por defecto y hasta 100.
 
 #### Servicios y configuración
 
@@ -1085,7 +1086,7 @@ Se ejecuta en cada solicitud a un endpoint protegido. La solicitud se rechaza si
 
 #### Alta de usuario
 
-El administrador define una contraseña inicial, que el frontend solicita confirmar. El caso de uso valida la contraseña, verifica que el email no esté en uso, genera el hash y la asigna como clave temporal, por lo que el nuevo usuario debe cambiarla en su primer ingreso.
+El administrador define una contraseña inicial, que el frontend solicita confirmar. El caso de uso valida el email, el nombre y la contraseña, verifica que el email no esté en uso por otro usuario vigente (`EmailAlreadyInUseError`) y genera el hash. El usuario se crea activo, con el administrador como autor y con la obligación de cambiar la contraseña en su primer ingreso. No se envía ningún mail: el administrador le comunica la contraseña.
 
 #### Envío de contraseña temporal a otro usuario
 
@@ -1097,7 +1098,7 @@ Se verifica que el email del usuario no esté siendo utilizado por otro usuario 
 
 #### Edición y baja de usuario
 
-Dentro de una transacción, se obtiene el usuario, se cuenta la cantidad de otros administradores activos y se consulta `UserAdministrationPolicy` antes de aplicar cualquier cambio, para garantizar que un administrador no se modifique a sí mismo y que el sistema no quede sin administradores activos.
+Dentro de una transacción, se obtiene el usuario bloqueando su fila, se cuenta la cantidad de otros administradores activos y se consulta `UserAdministrationPolicy` antes de aplicar cualquier cambio, para garantizar que un administrador no cambie su propio rol ni se desactive a sí mismo y que el sistema no quede sin administradores activos. En la edición solo cambian los campos enviados; un usuario dado de baja no puede editarse, solo reactivarse, y una edición que no cambia nada no modifica los datos de auditoría. Si cambian el rol o el estado, la base de datos revoca las sesiones del usuario.
 
 ### Relación con el resto del sistema
 
@@ -1321,7 +1322,7 @@ classDiagram
 #### Presentación
 
 - **`AuthController`**: expone los endpoints de autenticación: inicio y cierre de sesión, renovación de sesión, recuperación y cambio de contraseña, y consulta de los datos del usuario autenticado.
-- **`UsersController`**: expone los endpoints de administración de usuarios. Está restringido en su totalidad al rol `ADMIN`, mediante una única declaración a nivel de clase que se aplica a todos sus endpoints.
+- **`UsersController`**: expone los endpoints de administración de usuarios. Está restringido en su totalidad al rol `ADMIN`, mediante una única declaración a nivel de clase que se aplica a todos sus endpoints. Un identificador que no tiene formato UUID se responde como un usuario inexistente (`UserNotFoundError`, 404), sin consultar la base de datos. Si dos operaciones simultáneas asignan el mismo email, el índice único de la base frena la segunda y el repositorio la informa como `EmailAlreadyInUseError`, igual que el chequeo previo.
 - **`RefreshTokenCookie`**: centraliza la escritura, lectura y eliminación de la cookie que almacena el refresh token. La cookie se configura como `HttpOnly` (inaccesible desde JavaScript), `Secure` (solo se transmite por HTTPS), `SameSite=Strict` (no se envía en solicitudes originadas en otros sitios) y con alcance limitado a las rutas de autenticación. La lectura se apoya en `cookie-parser`, y la eliminación utiliza los mismos atributos que la escritura, ya que de lo contrario el navegador no la borra.
 - **`JwtAuthGuard`**: lee el access token del encabezado `Authorization: Bearer`, lo valida mediante `AccessTokenService` y, con `ResolveAuthenticatedUserUseCase`, obtiene los datos actualizados del usuario desde la base de datos. Se registra como guard global en `AppModule`.
 - **`SessionsCleanupScheduler`**: tarea programada que ejecuta periódicamente `PurgeExpiredSessionsUseCase` para eliminar las sesiones vencidas.
