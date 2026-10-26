@@ -4,15 +4,13 @@ import type { UseCase } from "../../../../shared/application/use-case.js";
 import type { User } from "../../domain/entities/user.js";
 import type { UserRepository } from "../../domain/repositories/user.repository.js";
 import type { Email } from "../../domain/value-objects/email.js";
-import { Password } from "../../domain/value-objects/password.js";
 import { TemporaryPassword } from "../../domain/value-objects/temporary-password.js";
 import type { AuthSettings } from "../auth-settings.js";
 import type { RequestPasswordResetCommand } from "../dto/request-password-reset.command.js";
 import { MailDeliveryError } from "../errors/mail-delivery-error.js";
 import { parseEmail } from "../parse-email.js";
-import type { PasswordHasher } from "../ports/password-hasher.js";
 import type { PasswordResetNotifier } from "../ports/password-reset-notifier.js";
-import type { TemporaryPasswordGenerator } from "../ports/temporary-password-generator.js";
+import type { TemporaryPasswordFactory } from "../services/temporary-password-factory.js";
 
 /**
  * Forgot password: mails a temporary password that works alongside the current one until it
@@ -22,8 +20,7 @@ import type { TemporaryPasswordGenerator } from "../ports/temporary-password-gen
 export class RequestPasswordResetUseCase implements UseCase<RequestPasswordResetCommand, void> {
   constructor(
     private readonly users: UserRepository,
-    private readonly generator: TemporaryPasswordGenerator,
-    private readonly hasher: PasswordHasher,
+    private readonly temporaryPasswords: TemporaryPasswordFactory,
     private readonly notifier: PasswordResetNotifier,
     private readonly transaction: TransactionManager,
     private readonly clock: Clock,
@@ -36,8 +33,7 @@ export class RequestPasswordResetUseCase implements UseCase<RequestPasswordReset
     // Every request hashes, even when no mail goes out, so the load it puts on the server
     // does not reveal whether the account exists. It runs before the transaction, so no
     // connection or row lock is held while it does.
-    const plain = this.generator.generate();
-    const hash = await this.hasher.hash(Password.create(plain));
+    const { plain, hash } = await this.temporaryPasswords.create();
     if (!email || !user || !this.canReceive(user, this.clock.now())) {
       return;
     }

@@ -41,6 +41,25 @@ describe("UserAdministrationPolicy", () => {
   const policy = new UserAdministrationPolicy();
 
   describe("an admin acting on their own account", () => {
+    it.each([
+      [
+        "changeRole",
+        (p: UserAdministrationPolicy) =>
+          p.assertCanChangeRole(ACTOR, activeAdmin(ACTOR), UserRole.SELLER, 3),
+      ],
+      [
+        "deactivate",
+        (p: UserAdministrationPolicy) => p.assertCanDeactivate(ACTOR, activeAdmin(ACTOR), 3),
+      ],
+      ["delete", (p: UserAdministrationPolicy) => p.assertCanDelete(ACTOR, activeAdmin(ACTOR), 3)],
+      [
+        "resetPassword",
+        (p: UserAdministrationPolicy) => p.assertCanResetPassword(ACTOR, activeAdmin(ACTOR)),
+      ],
+    ])("says which action was refused (%s)", (action, act) => {
+      expect(() => act(policy)).toThrow(expect.objectContaining({ action }) as Error);
+    });
+
     it.each(ACTIONS)("cannot %s", (_label, action) => {
       expect(() => action(policy, activeAdmin(ACTOR), 3)).toThrow(SelfAdministrationError);
     });
@@ -91,6 +110,22 @@ describe("UserAdministrationPolicy", () => {
 
     it("anyone can be promoted to ADMIN", () => {
       expect(() => policy.assertCanChangeRole(ACTOR, seller(), UserRole.ADMIN, 0)).not.toThrow();
+    });
+  });
+
+  describe("resetting a password", () => {
+    it("is refused on the admin's own account", () => {
+      expect(() => policy.assertCanResetPassword(ACTOR, activeAdmin(ACTOR))).toThrow(
+        SelfAdministrationError,
+      );
+    });
+
+    it.each([
+      ["an admin", activeAdmin()],
+      ["a seller", seller()],
+      ["an inactive user", inactiveAdmin()],
+    ])("is allowed for %s, with no last-admin rule", (_label, target) => {
+      expect(() => policy.assertCanResetPassword(ACTOR, target)).not.toThrow();
     });
   });
 

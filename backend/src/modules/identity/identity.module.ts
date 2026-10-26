@@ -14,11 +14,13 @@ import { RefreshTokenService } from "./application/ports/refresh-token-service.j
 import { SecurityEventLog } from "./application/ports/security-event-log.js";
 import { TemporaryPasswordGenerator } from "./application/ports/temporary-password-generator.js";
 import { SessionIssuer } from "./application/services/session-issuer.js";
+import { TemporaryPasswordFactory } from "./application/services/temporary-password-factory.js";
 import { UserQueries } from "./application/ports/user-queries.js";
 import { ChangePasswordUseCase } from "./application/use-cases/change-password.use-case.js";
 import { CreateUserUseCase } from "./application/use-cases/create-user.use-case.js";
 import { GetUserUseCase } from "./application/use-cases/get-user.use-case.js";
 import { ListUsersUseCase } from "./application/use-cases/list-users.use-case.js";
+import { ResetUserPasswordUseCase } from "./application/use-cases/reset-user-password.use-case.js";
 import { UpdateUserUseCase } from "./application/use-cases/update-user.use-case.js";
 import { LoginUseCase } from "./application/use-cases/login.use-case.js";
 import { LogoutUseCase } from "./application/use-cases/logout.use-case.js";
@@ -65,6 +67,12 @@ import { UsersController } from "./presentation/http/users.controller.js";
     { provide: PasswordHasher, useClass: Argon2PasswordHasher },
     { provide: SecurityEventLog, useClass: LoggerSecurityEventLog },
     { provide: TemporaryPasswordGenerator, useClass: CryptoTemporaryPasswordGenerator },
+    {
+      provide: TemporaryPasswordFactory,
+      useFactory: (generator: TemporaryPasswordGenerator, hasher: PasswordHasher) =>
+        new TemporaryPasswordFactory(generator, hasher),
+      inject: [TemporaryPasswordGenerator, PasswordHasher],
+    },
     {
       provide: PasswordResetNotifier,
       useFactory: (config: ConfigService<Env, true>) => {
@@ -164,8 +172,7 @@ import { UsersController } from "./presentation/http/users.controller.js";
       provide: RequestPasswordResetUseCase,
       useFactory: (
         users: UserRepository,
-        generator: TemporaryPasswordGenerator,
-        hasher: PasswordHasher,
+        temporaryPasswords: TemporaryPasswordFactory,
         notifier: PasswordResetNotifier,
         transaction: TransactionManager,
         clock: Clock,
@@ -173,8 +180,7 @@ import { UsersController } from "./presentation/http/users.controller.js";
       ) =>
         new RequestPasswordResetUseCase(
           users,
-          generator,
-          hasher,
+          temporaryPasswords,
           notifier,
           transaction,
           clock,
@@ -182,8 +188,7 @@ import { UsersController } from "./presentation/http/users.controller.js";
         ),
       inject: [
         UserRepository,
-        TemporaryPasswordGenerator,
-        PasswordHasher,
+        TemporaryPasswordFactory,
         PasswordResetNotifier,
         TransactionManager,
         Clock,
@@ -221,6 +226,33 @@ import { UsersController } from "./presentation/http/users.controller.js";
         clock: Clock,
       ) => new UpdateUserUseCase(users, policy, queries, transaction, clock),
       inject: [UserRepository, UserAdministrationPolicy, UserQueries, TransactionManager, Clock],
+    },
+    {
+      provide: ResetUserPasswordUseCase,
+      useFactory: (
+        users: UserRepository,
+        temporaryPasswords: TemporaryPasswordFactory,
+        notifier: PasswordResetNotifier,
+        policy: UserAdministrationPolicy,
+        transaction: TransactionManager,
+        clock: Clock,
+      ) =>
+        new ResetUserPasswordUseCase(
+          users,
+          temporaryPasswords,
+          notifier,
+          policy,
+          transaction,
+          clock,
+        ),
+      inject: [
+        UserRepository,
+        TemporaryPasswordFactory,
+        PasswordResetNotifier,
+        UserAdministrationPolicy,
+        TransactionManager,
+        Clock,
+      ],
     },
     {
       provide: ResolveAuthenticatedUserUseCase,

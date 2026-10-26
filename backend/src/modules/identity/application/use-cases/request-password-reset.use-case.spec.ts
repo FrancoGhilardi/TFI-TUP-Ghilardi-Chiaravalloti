@@ -12,6 +12,7 @@ import { MailDeliveryError } from "../errors/mail-delivery-error.js";
 import { PasswordHasher } from "../ports/password-hasher.js";
 import { PasswordResetNotifier } from "../ports/password-reset-notifier.js";
 import { TemporaryPasswordGenerator } from "../ports/temporary-password-generator.js";
+import { TemporaryPasswordFactory } from "../services/temporary-password-factory.js";
 import { RequestPasswordResetUseCase } from "./request-password-reset.use-case.js";
 
 const NOW = new Date("2026-10-22T12:00:00.000Z");
@@ -186,8 +187,7 @@ function setUp(
   const notifier = new RecordingNotifier(events, options.mailFailure);
   const useCase = new RequestPasswordResetUseCase(
     repository,
-    new FixedGenerator(events),
-    new FakeHasher(events),
+    new TemporaryPasswordFactory(new FixedGenerator(events), new FakeHasher(events)),
     notifier,
     new RecordingTransaction(events),
     new FixedClock(),

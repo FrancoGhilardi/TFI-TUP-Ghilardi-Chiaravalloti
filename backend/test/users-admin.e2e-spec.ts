@@ -164,7 +164,6 @@ describe("Users admin (e2e)", () => {
   });
 
   it.each([
-    ["POST", "reset-password"],
     ["DELETE", ""],
     ["POST", "restore"],
   ] as const)("answers 501 to %s .../%s, not built yet", async (method, action) => {
