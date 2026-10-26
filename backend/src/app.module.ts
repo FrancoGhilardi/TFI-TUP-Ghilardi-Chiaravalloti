@@ -4,6 +4,7 @@ import { ConfigModule } from "@nestjs/config";
 import { ThrottlerModule } from "@nestjs/throttler";
 import { validateEnv } from "./config/env.js";
 import { HealthController } from "./health/health.controller.js";
+import { CatalogModule } from "./modules/catalog/catalog.module.js";
 import { IdentityModule } from "./modules/identity/identity.module.js";
 import { JwtAuthGuard } from "./modules/identity/presentation/guards/jwt-auth.guard.js";
 import { MustChangePasswordGuard } from "./modules/identity/presentation/guards/must-change-password.guard.js";
@@ -26,6 +27,7 @@ import { SharedModule } from "./shared/infrastructure/shared.module.js";
     DatabaseModule,
     SharedModule,
     IdentityModule,
+    CatalogModule,
   ],
   controllers: [HealthController],
   providers: [
