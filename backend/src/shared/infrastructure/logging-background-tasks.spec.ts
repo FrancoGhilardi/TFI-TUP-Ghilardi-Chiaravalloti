@@ -35,7 +35,9 @@ describe("LoggingBackgroundTasks", () => {
     tasks.run("Password reset request", () => Promise.reject(failure));
     await tasks.beforeApplicationShutdown();
 
-    expect(error).toHaveBeenCalledExactlyOnceWith("Password reset request failed", failure.stack);
+    expect(error).toHaveBeenCalledExactlyOnceWith(
+      `Password reset request failed\n${failure.stack}`,
+    );
   });
 
   it("starts no new task once the app is closing, and says so", async () => {
@@ -83,7 +85,7 @@ describe("LoggingBackgroundTasks", () => {
     tasks.run("Password reset request", () => Promise.reject(new Error("mail failed", { cause })));
     await tasks.idle();
 
-    expect(error.mock.calls[0]?.[1]).toContain(`Caused by: ${cause.stack}`);
+    expect(error.mock.calls[0]?.[0]).toContain(`Caused by: ${cause.stack}`);
   });
 
   it("closes at once when nothing is running", async () => {

@@ -8,6 +8,7 @@ import { Password } from "../../domain/value-objects/password.js";
 import { TemporaryPassword } from "../../domain/value-objects/temporary-password.js";
 import type { AuthSettings } from "../auth-settings.js";
 import type { RequestPasswordResetCommand } from "../dto/request-password-reset.command.js";
+import { MailDeliveryError } from "../errors/mail-delivery-error.js";
 import { parseEmail } from "../parse-email.js";
 import type { PasswordHasher } from "../ports/password-hasher.js";
 import type { PasswordResetNotifier } from "../ports/password-reset-notifier.js";
@@ -70,7 +71,12 @@ export class RequestPasswordResetUseCase implements UseCase<RequestPasswordReset
         issued.temporary.expiresAt,
       );
     } catch (error) {
-      await this.withdraw(email, hash, error);
+      // Only a mail the provider clearly rejected is known not to have arrived. Any other
+      // failure keeps the password usable, as the mail may be on its way; the wait before a
+      // new request is then the same as after a mail that did arrive.
+      if (error instanceof MailDeliveryError && !error.maybeDelivered) {
+        await this.withdraw(email, hash, error);
+      }
       throw error;
     }
   }

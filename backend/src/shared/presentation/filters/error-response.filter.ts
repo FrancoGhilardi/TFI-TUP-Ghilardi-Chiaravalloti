@@ -48,21 +48,10 @@ const DOMAIN_ERRORS: DomainErrorMapping[] = [
   { type: ExternalServiceError, status: HttpStatus.BAD_GATEWAY, logged: true },
 ];
 
-const mappingOf = (error: DomainError) => DOMAIN_ERRORS.find(({ type }) => error instanceof type);
-
-const statusOf = (error: DomainError) => mappingOf(error)?.status;
-
-// Unmapped errors are failures nobody anticipated, so they are always logged.
-const isLogged = (exception: unknown) =>
-  !(exception instanceof DomainError) || (mappingOf(exception)?.logged ?? true);
-
-// The message of a domain error is written for the user; the log names the error instead.
-const headlineOf = (exception: unknown) => {
-  if (exception instanceof DomainError) {
-    return `${exception.name} ${exception.code}`;
-  }
-  return exception instanceof Error ? exception.message : String(exception);
-};
+const mappingOf = (exception: unknown) =>
+  exception instanceof DomainError
+    ? DOMAIN_ERRORS.find(({ type }) => exception instanceof type)
+    : undefined;
 
 /** Shown to end users as is, so they are written in Spanish and free of technical terms. */
 export const DATABASE_ERROR_MESSAGES = {
@@ -123,12 +112,13 @@ export class ErrorResponseFilter implements ExceptionFilter {
       return;
     }
 
-    const body = this.toBody(exception);
-    if (body.statusCode >= FIRST_SERVER_ERROR_STATUS && isLogged(exception)) {
-      this.logger.error(
-        headlineOf(exception),
-        exception instanceof Error ? stackWithCauses(exception) : undefined,
-      );
+    const mapping = mappingOf(exception);
+    const body = this.toBody(exception, mapping);
+    // Unmapped errors are failures nobody anticipated, so they are always logged.
+    if (body.statusCode >= FIRST_SERVER_ERROR_STATUS && (mapping?.logged ?? true)) {
+      // A single text, so the logger never takes the details for its context. It starts with
+      // the error itself, a domain error named by class and code rather than its user text.
+      this.logger.error(stackWithCauses(exception));
     }
 
     const url = String(httpAdapter.getRequestUrl(ctx.getRequest()));
@@ -140,9 +130,9 @@ export class ErrorResponseFilter implements ExceptionFilter {
     httpAdapter.reply(response, payload, body.statusCode);
   }
 
-  private toBody(exception: unknown): ErrorBody {
+  private toBody(exception: unknown, mapping: DomainErrorMapping | undefined): ErrorBody {
     if (exception instanceof DomainError) {
-      return this.fromDomainError(exception);
+      return this.fromDomainError(exception, mapping);
     }
     const sqlState = extractSqlState(exception);
     if (sqlState !== undefined && sqlState in SQL_STATE_ERRORS) {
@@ -154,13 +144,12 @@ export class ErrorResponseFilter implements ExceptionFilter {
     return this.fromUnknown();
   }
 
-  private fromDomainError(error: DomainError): ErrorBody {
-    const statusCode = statusOf(error);
-    if (statusCode === undefined) {
+  private fromDomainError(error: DomainError, mapping: DomainErrorMapping | undefined): ErrorBody {
+    if (mapping === undefined) {
       return this.fromUnknown();
     }
     return {
-      statusCode,
+      statusCode: mapping.status,
       code: error.code,
       message: error.message,
       ...(error instanceof RequestValidationError && { details: error.details }),
