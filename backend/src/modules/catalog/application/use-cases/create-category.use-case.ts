@@ -1,8 +1,12 @@
 import type { Clock } from "../../../../shared/application/clock.js";
 import type { IdGenerator } from "../../../../shared/application/id-generator.js";
 import type { TransactionManager } from "../../../../shared/application/transaction-manager.js";
-import type { UniqueSlugGenerator } from "../../../../shared/application/unique-slug-generator.js";
+import {
+  slugStoreOf,
+  type UniqueSlugGenerator,
+} from "../../../../shared/application/unique-slug-generator.js";
 import type { UseCase } from "../../../../shared/application/use-case.js";
+import { CATEGORY_SLUG_MAX_LENGTH } from "../../domain/catalog-limits.js";
 import { Category } from "../../domain/entities/category.js";
 import { CategoryNameInUseError } from "../../domain/errors/category-name-in-use-error.js";
 import type { CategoryRepository } from "../../domain/repositories/category.repository.js";
@@ -32,6 +36,12 @@ export class CreateCategoryUseCase implements UseCase<CreateCategoryCommand, Adm
     const id = this.ids.next();
 
     await this.transaction.run(async () => {
+      // Advisory locks go before row locks, as in a move: the slug first, then the parent.
+      const slug = await this.slugs.generate(
+        name,
+        slugStoreOf(this.categories),
+        CATEGORY_SLUG_MAX_LENGTH,
+      );
       // The parent stays locked, so it cannot be deleted before this one is saved under it.
       if (command.parentId !== undefined) {
         await assertParentAvailable(this.categories, command.parentId);
@@ -45,7 +55,7 @@ export class CreateCategoryUseCase implements UseCase<CreateCategoryCommand, Adm
         id,
         parentId: command.parentId,
         name,
-        slug: await this.slugs.generate(name, (slug) => this.categories.existsBySlug(slug)),
+        slug,
         description: command.description,
         sortOrder: command.sortOrder,
         now: this.clock.now(),
