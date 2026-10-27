@@ -73,6 +73,11 @@ describe("Category", () => {
       expect(create({ name: "ñ".repeat(100) }).name).toHaveLength(100);
     });
 
+    it("checks a name on its own as a category would keep it", () => {
+      expect(Category.validName("  Cuadernos  ")).toBe("Cuadernos");
+      expect(() => Category.validName("   ")).toThrow(InvalidCategoryNameError);
+    });
+
     it("rejects a description over 2000 characters", () => {
       expect(() => create({ description: "a".repeat(2001) })).toThrow(InvalidDescriptionError);
     });

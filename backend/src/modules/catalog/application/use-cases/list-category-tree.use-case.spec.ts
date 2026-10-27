@@ -19,6 +19,14 @@ class FakeCategoryQueries extends CategoryQueries {
   findVisibleRows(): Promise<CategoryTreeRow[]> {
     return Promise.resolve(this.rows);
   }
+
+  findAdminPage(): Promise<never> {
+    return Promise.reject(new Error("Not used"));
+  }
+
+  findAdminById(): Promise<never> {
+    return Promise.reject(new Error("Not used"));
+  }
 }
 
 describe("ListCategoryTreeUseCase", () => {

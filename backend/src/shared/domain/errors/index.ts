@@ -1,4 +1,4 @@
-export { DomainError } from "./domain-error.js";
+export { DomainError, type DomainErrorOptions, type ErrorDetails } from "./domain-error.js";
 export { EntityNotFoundError } from "./entity-not-found-error.js";
 export { ConflictError } from "./conflict-error.js";
 export { BusinessRuleViolationError } from "./business-rule-violation-error.js";

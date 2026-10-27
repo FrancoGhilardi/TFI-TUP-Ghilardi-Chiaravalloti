@@ -150,11 +150,13 @@ export class ErrorResponseFilter implements ExceptionFilter {
     if (mapping === undefined) {
       return this.fromUnknown();
     }
+    // Only what an error declares for the client is sent, never any other property.
+    const details = error instanceof RequestValidationError ? error.details : error.publicDetails;
     return {
       statusCode: mapping.status,
       code: error.code,
       message: error.message,
-      ...(error instanceof RequestValidationError && { details: error.details }),
+      ...(details !== undefined && { details }),
     };
   }
 
