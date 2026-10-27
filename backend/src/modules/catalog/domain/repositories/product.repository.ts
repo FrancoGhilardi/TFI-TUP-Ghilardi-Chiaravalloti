@@ -8,7 +8,10 @@ export abstract class ProductRepository {
 
   abstract existsBySlug(slug: Slug): Promise<boolean>;
 
-  /** The ids among `ids` that belong to current products. */
+  /**
+   * The ids among `ids` that belong to current products. Inside a transaction they cannot be
+   * deleted until it ends.
+   */
   abstract findExistingIds(ids: string[]): Promise<string[]>;
 
   abstract save(product: Product): Promise<void>;

@@ -10,9 +10,12 @@ import { CategoryHasActiveChildrenError } from "./category-has-active-children-e
 import { CategoryInUseError } from "./category-in-use-error.js";
 import { CategoryNameInUseError } from "./category-name-in-use-error.js";
 import { CategoryNotDeletedError } from "./category-not-deleted-error.js";
+import { CategoryUnavailableError } from "./category-unavailable-error.js";
 import { InvalidCategoryAssignmentError } from "./invalid-category-assignment-error.js";
 import { InvalidCategoryNameError } from "./invalid-category-name-error.js";
 import { InvalidDescriptionError } from "./invalid-description-error.js";
+import { InvalidImageCountError } from "./invalid-image-count-error.js";
+import { InvalidImageError } from "./invalid-image-error.js";
 import { InvalidNewUntilError } from "./invalid-new-until-error.js";
 import { InvalidPriceError } from "./invalid-price-error.js";
 import { InvalidProductTitleError } from "./invalid-product-title-error.js";
@@ -23,12 +26,49 @@ import { InvalidStockError } from "./invalid-stock-error.js";
 import { ParentCategoryUnavailableError } from "./parent-category-unavailable-error.js";
 import { ProductDeletedError } from "./product-deleted-error.js";
 import { ProductNotDeletedError } from "./product-not-deleted-error.js";
+import { RelatedProductUnavailableError } from "./related-product-unavailable-error.js";
 import { SalePriceNotLowerError } from "./sale-price-not-lower-error.js";
 import { SelfRelatedProductError } from "./self-related-product-error.js";
 
 type Base = typeof InvalidValueError | typeof BusinessRuleViolationError | typeof ConflictError;
 
 const CASES: [DomainError, Base, string, string][] = [
+  [
+    new CategoryUnavailableError(),
+    BusinessRuleViolationError,
+    "CATEGORY_UNAVAILABLE",
+    "Alguna de las categorías elegidas no existe, está inactiva o fue dada de baja.",
+  ],
+  [
+    new RelatedProductUnavailableError(),
+    BusinessRuleViolationError,
+    "RELATED_PRODUCT_UNAVAILABLE",
+    "Alguno de los productos similares elegidos no existe o fue dado de baja.",
+  ],
+  [
+    new InvalidImageCountError(),
+    InvalidValueError,
+    "INVALID_IMAGE_COUNT",
+    "El producto tiene que tener entre 1 y 5 imágenes.",
+  ],
+  [
+    new InvalidImageError("type", 2),
+    InvalidValueError,
+    "INVALID_IMAGE",
+    "La imagen 2 tiene que ser JPEG, PNG o WebP.",
+  ],
+  [
+    new InvalidImageError("size", 1),
+    InvalidValueError,
+    "INVALID_IMAGE",
+    "La imagen 1 no puede pesar más de 10 MB.",
+  ],
+  [
+    new InvalidImageError("size"),
+    InvalidValueError,
+    "INVALID_IMAGE",
+    "Las imágenes no pueden pesar más de 10 MB.",
+  ],
   [
     new InvalidCategoryAssignmentError("severalPrimary"),
     InvalidValueError,
