@@ -9,7 +9,10 @@ export abstract class CategoryRepository {
    */
   abstract findById(id: string): Promise<Category | null>;
 
-  /** The categories among `ids` that are active and current. */
+  /**
+   * The categories among `ids` that are active and current. Inside a transaction they cannot
+   * be deleted until it ends.
+   */
   abstract findVisibleByIds(ids: string[]): Promise<Category[]>;
 
   /** Whether a current category other than `excludeId` has that name, ignoring case. */

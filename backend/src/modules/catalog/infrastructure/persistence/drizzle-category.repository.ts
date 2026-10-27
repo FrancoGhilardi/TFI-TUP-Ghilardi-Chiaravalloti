@@ -36,15 +36,20 @@ export class DrizzleCategoryRepository extends CategoryRepository {
     return row ? CategoryMapper.toDomain(row) : null;
   }
 
+  /**
+   * Inside a transaction the rows found are share-locked until it ends: a deletion, which
+   * locks the category for update, waits and then counts the product that uses it.
+   */
   async findVisibleByIds(ids: string[]): Promise<Category[]> {
     if (ids.length === 0) {
       return [];
     }
-    const rows = await this.executor
+    const query = this.executor
       .current()
       .select()
       .from(categories)
       .where(and(inArray(categories.id, ids), eq(categories.isActive, true), isCurrent));
+    const rows = this.executor.hasActiveTransaction() ? await query.for("share") : await query;
     return rows.map((row) => CategoryMapper.toDomain(row));
   }
 
