@@ -1405,6 +1405,7 @@ classDiagram
         <<abstract repository>>
         +findById(id: string) Promise~Category~
         +findVisibleByIds(ids: string[]) Promise~Category[]~
+        +findCurrentIds(ids: string[]) Promise~string[]~
         +existsByName(name: string, excludeId?: string) Promise~boolean~
         +existsBySlug(slug: Slug) Promise~boolean~
         +findAncestorIds(id: string) Promise~string[]~
@@ -1469,7 +1470,7 @@ classDiagram
         +deactivate() void
         +markUpdatedBy(actorId: string) void
         +softDelete(actorId: string, now: Date) void
-        +restore(actorId: string) void
+        +restore(actorId: string, hasCurrentCategory: boolean) void
         +isSaleActive(now: Date) boolean
         +isNewActive(now: Date) boolean
         +getPrimaryCategoryId() string
@@ -1605,7 +1606,7 @@ Además, las entidades del catálogo utilizan los value objects del núcleo comp
 #### Reactivación
 
 - Una categoría no puede reactivarse si su categoría padre está dada de baja. En ese caso, debe reactivarse primero la categoría padre o moverse la categoría a la raíz de la jerarquía.
-- Al reactivar un producto, se eliminan los datos de la baja y se registra quién realizó la modificación. El producto conserva el estado activo o inactivo que tenía antes de ser dado de baja.
+- Al reactivar un producto, se eliminan los datos de la baja y se registra quién realizó la modificación. El producto conserva el estado activo o inactivo que tenía antes de ser dado de baja, y no puede reactivarse si todas sus categorías están dadas de baja: primero debe reactivarse alguna de ellas.
 
 ### Relación con el resto del sistema
 
@@ -2227,11 +2228,11 @@ La solicitud es de tipo `multipart/form-data`: los datos del producto viajan com
 4. Una vez confirmada la transacción, se publica un evento por cada imagen para iniciar su procesamiento de forma asincrónica. Si la publicación falla, se registra en el log y la respuesta no cambia: el producto ya existe y sus imágenes siguen pendientes.
 5. Si cualquier paso falla desde la primera subida hasta la confirmación, se eliminan en segundo plano los archivos que se intentaron subir —incluido el de una subida que falló, que pudo haber quedado guardada—, para no dejar archivos huérfanos en el almacenamiento, y el cliente recibe el error que detuvo el alta; si la eliminación también falla, se registra con las claves de los archivos. Una subida que falla se informa como un error del servicio de almacenamiento.
 
-**Edición de producto.** Dentro de una transacción, se obtiene el producto y se aplican únicamente los datos recibidos. Si se envían categorías o productos similares, el conjunto enviado reemplaza por completo al anterior. Por último, se registra el usuario que realizó la modificación y se guarda el producto.
+**Edición de producto.** Dentro de una transacción, se obtiene el producto bloqueado (uno dado de baja no se modifica) y se aplican únicamente los datos recibidos; el slug y el SKU no cambian, aunque cambie el título. La oferta y la novedad se editan como en el alta, como un bloque: si se activan, el bloque enviado reemplaza al anterior, y si se desactivan, se eliminan; un bloque igual al guardado no cambia nada, así que volver a enviar el formulario con un vencimiento ya pasado no falla. Si llegan juntos un precio y una oferta nuevos, la oferta anterior se cierra primero para no impedir el cambio de precio. Si se envían categorías (siempre junto con la principal) o productos similares, el conjunto enviado reemplaza por completo al anterior: las categorías nuevas deben estar visibles y los similares nuevos, vigentes, mientras que los que el producto ya tenía se aceptan tal cual, aunque hayan sido ocultados o dados de baja, para que volver a enviar el formulario nunca falle; aun así, el producto siempre conserva al menos una categoría vigente. Categorías y similares se leen con un bloqueo compartido, de modo que una baja simultánea espera y cuenta al producto. Los productos se bloquean en orden de identificador, y los similares solo se reescriben si cambiaron, para que dos operaciones sobre productos similares entre sí esperen una a la otra en lugar de bloquearse mutuamente. Si algo cambió, se registra el usuario que realizó la modificación y se guarda el producto; si no, no se guarda nada.
 
-**Baja de producto.** Se aplica la baja lógica del producto, sin modificar sus imágenes ni los archivos almacenados. Esto permite reactivarlo más adelante con todo su contenido intacto.
+**Baja de producto.** Se aplica la baja lógica del producto, con su fecha y su autor, sin modificar sus imágenes, los archivos almacenados ni sus productos similares. Esto permite reactivarlo más adelante con todo su contenido intacto. Dar de baja un producto ya dado de baja no cambia nada.
 
-**Reactivación de producto.** Dentro de una transacción, se verifica que el producto conserve al menos una categoría vigente. Si todas sus categorías fueron dadas de baja, la operación se rechaza con un mensaje que indica que debe asignársele una categoría antes de reactivarlo.
+**Reactivación de producto.** Dentro de una transacción, se verifica que el producto conserve al menos una categoría vigente, activa o no, leyéndolas con un bloqueo compartido para que una baja simultánea de esa categoría espere y cuente al producto. Como un producto dado de baja no puede editarse, si todas sus categorías fueron dadas de baja la operación se rechaza con un mensaje que pide reactivar alguna de ellas antes. El producto vuelve con el estado activo o inactivo, el slug y el SKU que tenía, y conserva sus categorías, incluidas las dadas de baja.
 
 **SKU.** El SKU no forma parte de ninguna operación de escritura: lo genera el sistema al crear el producto y solo se informa en las consultas.
 

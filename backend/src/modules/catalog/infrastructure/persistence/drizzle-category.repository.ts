@@ -53,6 +53,20 @@ export class DrizzleCategoryRepository extends CategoryRepository {
     return rows.map((row) => CategoryMapper.toDomain(row));
   }
 
+  /** Share-locked inside a transaction, like `findVisibleByIds`. */
+  async findCurrentIds(ids: string[]): Promise<string[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+    const query = this.executor
+      .current()
+      .select({ id: categories.id })
+      .from(categories)
+      .where(and(inArray(categories.id, ids), isCurrent));
+    const rows = this.executor.hasActiveTransaction() ? await query.for("share") : await query;
+    return rows.map((row) => row.id);
+  }
+
   // The same comparison as the unique name index.
   async existsByName(name: string, excludeId?: string): Promise<boolean> {
     return this.exists(

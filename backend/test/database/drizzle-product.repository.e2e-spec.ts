@@ -274,4 +274,80 @@ describe("Product persistence (e2e)", () => {
 
     expect(events).toEqual(["creation done", "deletion locked"]);
   });
+
+  it("makes a category deletion wait for a transaction that reads it as current", async () => {
+    await pool.query("UPDATE libreria.categories SET is_active = false WHERE id = $1", [primaryId]);
+    const events: string[] = [];
+    let markRead: () => void = () => undefined;
+    const read = new Promise<void>((resolve) => {
+      markRead = resolve;
+    });
+
+    const restore = transactions.run(async () => {
+      await expect(categories.findCurrentIds([primaryId])).resolves.toEqual([primaryId]);
+      markRead();
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      events.push("restore done");
+    });
+    await read;
+    const deletion = pool
+      .query("SELECT id FROM libreria.categories WHERE id = $1 FOR UPDATE", [primaryId])
+      .then(() => events.push("deletion locked"));
+    await Promise.all([restore, deletion]);
+
+    expect(events).toEqual(["restore done", "deletion locked"]);
+  });
+
+  it("saves a product without waiting for a related product locked elsewhere, if they did not change", async () => {
+    await store(await newProduct(OTHER_ID, "Lapicera"));
+    const product = await newProduct();
+    product.setRelatedProducts([OTHER_ID]);
+    await store(product);
+    const other = await pool.connect();
+    try {
+      // As a deletion of the related product would hold it.
+      await other.query("BEGIN");
+      await other.query("SELECT id FROM libreria.products WHERE id = $1 FOR UPDATE", [OTHER_ID]);
+
+      const saved = transactions.run(async () => {
+        const found = (await products.findById(PRODUCT_ID))!;
+        found.setStock(9);
+        await products.save(found);
+        return "saved";
+      });
+      const winner = await Promise.race([
+        saved,
+        new Promise((resolve) => setTimeout(() => resolve("waited"), 500)),
+      ]);
+      await other.query("COMMIT");
+      await saved;
+
+      expect(winner).toBe("saved");
+      await expect(products.findById(PRODUCT_ID)).resolves.toMatchObject({
+        stock: 9,
+        relatedProductIds: [OTHER_ID],
+      });
+    } finally {
+      other.release();
+    }
+  });
+
+  it("keeps the slug and the SKU on later saves, and stores the deletion and its author", async () => {
+    await store(await newProduct());
+    await transactions.run(async () => {
+      const found = (await products.findById(PRODUCT_ID))!;
+      found.changeTitle("Cuaderno Rayado");
+      found.softDelete(actorId, LATER);
+      await products.save(found);
+    });
+
+    const stored = await products.findById(PRODUCT_ID);
+    expect(stored).toMatchObject({
+      title: "Cuaderno Rayado",
+      deletedAt: LATER,
+      updatedBy: actorId,
+    });
+    expect(stored?.slug.toString()).toBe("cuaderno-a4");
+    expect(stored?.sku.toString()).toBe("LMS-000001");
+  });
 });

@@ -101,6 +101,10 @@ class InMemoryCategoryRepository extends CategoryRepository {
   findVisibleByIds(): Promise<Category[]> {
     return Promise.reject(new Error("Not used"));
   }
+
+  findCurrentIds(): Promise<string[]> {
+    return Promise.reject(new Error("Not used"));
+  }
 }
 
 class RepositoryBackedQueries extends CategoryQueries {

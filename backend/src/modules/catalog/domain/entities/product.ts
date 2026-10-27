@@ -13,6 +13,7 @@ import { InvalidSaleEndError } from "../errors/invalid-sale-end-error.js";
 import { InvalidStockError } from "../errors/invalid-stock-error.js";
 import { ProductDeletedError } from "../errors/product-deleted-error.js";
 import { ProductNotDeletedError } from "../errors/product-not-deleted-error.js";
+import { ProductWithoutCategoryError } from "../errors/product-without-category-error.js";
 import { SalePriceNotLowerError } from "../errors/sale-price-not-lower-error.js";
 import { SelfRelatedProductError } from "../errors/self-related-product-error.js";
 import { optionalDescription, requiredText, sortOrder } from "../text.js";
@@ -362,9 +363,16 @@ export class Product extends Entity {
     this.props.updatedBy = actorId;
   }
 
-  restore(actorId: string): void {
+  /**
+   * `hasCurrentCategory`: whether any of its categories is not deleted. A deleted product
+   * cannot be edited, so one whose categories are all gone waits for one of them to return.
+   */
+  restore(actorId: string, hasCurrentCategory: boolean): void {
     if (!this.isDeleted()) {
       throw new ProductNotDeletedError();
+    }
+    if (!hasCurrentCategory) {
+      throw new ProductWithoutCategoryError();
     }
     this.props.deletedAt = undefined;
     this.props.updatedBy = actorId;

@@ -9,9 +9,7 @@ import { Money } from "../../../../shared/domain/value-objects/money.js";
 import { Slug } from "../../../../shared/domain/value-objects/slug.js";
 import { Product } from "../../domain/entities/product.js";
 import { ProductImage } from "../../domain/entities/product-image.js";
-import { CategoryUnavailableError } from "../../domain/errors/category-unavailable-error.js";
 import { InvalidImageError } from "../../domain/errors/invalid-image-error.js";
-import { RelatedProductUnavailableError } from "../../domain/errors/related-product-unavailable-error.js";
 import type { CategoryRepository } from "../../domain/repositories/category.repository.js";
 import type { ProductImageRepository } from "../../domain/repositories/product-image.repository.js";
 import type { ProductRepository } from "../../domain/repositories/product.repository.js";
@@ -20,7 +18,6 @@ import { CategoryAssignment } from "../../domain/value-objects/category-assignme
 import { Sku } from "../../domain/value-objects/sku.js";
 import type { AdminProductDetailResult } from "../dto/admin-product-detail.result.js";
 import type { CreateProductCommand } from "../dto/create-product.command.js";
-import { ProductNotFoundError } from "../errors/product-not-found-error.js";
 import { ProductImageUploadedEvent } from "../events/product-image-uploaded.event.js";
 import type { AdminProductQueries } from "../ports/admin-product-queries.js";
 import type { SkuGenerator } from "../ports/sku-generator.js";
@@ -28,6 +25,11 @@ import type { ImageSettings } from "../settings/image-settings.js";
 import type { ImageKeyFactory } from "../services/image-key-factory.js";
 import type { ProductImageUploader } from "../services/product-image-uploader.js";
 import { detectImageType } from "../services/image-type.js";
+import {
+  assertCategoriesVisible,
+  assertRelatedExist,
+  detailOf,
+} from "../services/product-loading.js";
 
 interface Identity {
   sku: Sku;
@@ -81,13 +83,14 @@ export class CreateProductUseCase implements UseCase<
     const checkedAt = clock.now();
     const productId = ids.next();
     const categories = CategoryAssignment.fromIds(command.categoryIds, command.primaryCategoryId);
+    const categoryIds = categories.map((assignment) => assignment.categoryId);
     // Once each, so the count of existing ones can be compared.
     const relatedIds = [...new Set(command.relatedProductIds ?? [])];
     // Checks the product data with the same rules the stored one will follow.
     buildProduct(command, productId, categories, relatedIds, PREVIEW_IDENTITY, checkedAt);
     const pending = this.pendingImages(command, productId, checkedAt);
-    await this.assertCategoriesVisible(categories);
-    await this.assertRelatedExist(relatedIds);
+    await assertCategoriesVisible(this.deps.categories, categoryIds);
+    await assertRelatedExist(this.deps.products, relatedIds);
 
     const uploaded: string[] = [];
     try {
@@ -104,8 +107,8 @@ export class CreateProductUseCase implements UseCase<
       await this.deps.transaction.run(async () => {
         // Read again, now locked: a category or related product deleted meanwhile is seen, and
         // one being deleted waits for this product.
-        await this.assertCategoriesVisible(categories);
-        await this.assertRelatedExist(relatedIds);
+        await assertCategoriesVisible(this.deps.categories, categoryIds);
+        await assertRelatedExist(this.deps.products, relatedIds);
         // The uploads may have taken a while: dates are checked and stamped from now on.
         const now = clock.now();
         const identity = await this.identityFor(command.title);
@@ -120,11 +123,7 @@ export class CreateProductUseCase implements UseCase<
     }
 
     this.publishUploaded(pending.map(({ image }) => image.getId()));
-    const created = await this.deps.queries.findById(productId);
-    if (!created) {
-      throw new ProductNotFoundError();
-    }
-    return created;
+    return detailOf(this.deps.queries, productId);
   }
 
   /** The images in the order received, each with its format read from its bytes. */
@@ -153,24 +152,6 @@ export class CreateProductUseCase implements UseCase<
       });
       return { image, bytes };
     });
-  }
-
-  private async assertCategoriesVisible(categories: CategoryAssignment[]): Promise<void> {
-    const ids = categories.map((assignment) => assignment.categoryId);
-    const visible = await this.deps.categories.findVisibleByIds(ids);
-    if (visible.length !== ids.length) {
-      throw new CategoryUnavailableError();
-    }
-  }
-
-  private async assertRelatedExist(relatedIds: string[]): Promise<void> {
-    if (relatedIds.length === 0) {
-      return;
-    }
-    const existing = await this.deps.products.findExistingIds(relatedIds);
-    if (existing.length !== relatedIds.length) {
-      throw new RelatedProductUnavailableError();
-    }
   }
 
   private async identityFor(title: string): Promise<Identity> {
