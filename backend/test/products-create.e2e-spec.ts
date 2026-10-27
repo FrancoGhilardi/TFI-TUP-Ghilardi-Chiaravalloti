@@ -316,6 +316,12 @@ describe("POST /admin/products (e2e)", () => {
     expect(bodies.map((body) => body.sku).sort()).toEqual(["LMS-000001", "LMS-000002"]);
   });
 
+  it("never gives a product a slug a store route uses", async () => {
+    const response = await post(data({ title: "New" })).expect(201);
+
+    expect((response.body as ProductBody).slug).toBe("new-2");
+  });
+
   it("cuts the slug of a long title whose letters grow", async () => {
     const response = await post(data({ title: "ß".repeat(200) })).expect(201);
 

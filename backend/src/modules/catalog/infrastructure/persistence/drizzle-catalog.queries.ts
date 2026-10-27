@@ -198,6 +198,21 @@ export class DrizzleCatalogQueries extends CatalogQueries {
     );
   }
 
+  findFeatured(limit: number, now: Date): Promise<ProductCardResult[]> {
+    return this.highlights(sql`p.is_featured`, limit, now);
+  }
+
+  findNew(limit: number, now: Date): Promise<ProductCardResult[]> {
+    // The same rule as `runsAt`, at the milliseconds a JavaScript date keeps, so every card
+    // listed here also says it is new.
+    return this.highlights(
+      sql`p.is_new AND (p.new_until IS NULL
+        OR date_trunc('milliseconds', p.new_until) > ${now.toISOString()}::timestamptz)`,
+      limit,
+      now,
+    );
+  }
+
   async findPageBySlug(slug: string, now: Date): Promise<ProductPage | null> {
     const [row] = await rowsOf(
       this.executor.current().execute<PageRow>(sql`
@@ -295,6 +310,17 @@ export class DrizzleCatalogQueries extends CatalogQueries {
         SELECT 1 FROM libreria.product_categories same
         WHERE same.product_id = p.id AND same.is_primary AND same.category_id = ${categoryId}
       )`,
+      sql`${STORE_ORDER} LIMIT ${limit}`,
+    );
+    return rows.map((row) => this.cardOf(row, now));
+  }
+
+  /** The first visible products that match `mark`, in the store order. */
+  private async highlights(mark: SQL, limit: number, now: Date): Promise<ProductCardResult[]> {
+    const rows = await this.cardRows(
+      sql`WITH RECURSIVE ${VISIBLE_CATEGORIES}`,
+      sql`libreria.products p`,
+      sql`${IS_LISTED} AND ${mark}`,
       sql`${STORE_ORDER} LIMIT ${limit}`,
     );
     return rows.map((row) => this.cardOf(row, now));
