@@ -1929,11 +1929,15 @@ classDiagram
         -categories: CategoryRepository
         -images: ProductImageRepository
         -imagePolicy: ProductImagePolicy
+        -imageSettings: ImageSettings
+        -keys: ImageKeyFactory
         -uploader: ProductImageUploader
         -skus: SkuGenerator
         -slugs: UniqueSlugGenerator
+        -ids: IdGenerator
         -transaction: TransactionManager
         -events: EventPublisher
+        -background: BackgroundTasks
         -queries: AdminProductQueries
         -clock: Clock
         +execute(command: CreateProductCommand) Promise~AdminProductDetailResult~
@@ -2005,23 +2009,25 @@ classDiagram
         +limit: number
     }
     class ImageUploadInput {
-        +buffer: Buffer
-        +mimeType: string
-        +sizeBytes: number
+        +bytes: Uint8Array
         +altText?: string
+    }
+    class SaleInput {
+        +price: string
+        +endsAt?: Date
+    }
+    class NewMarkInput {
+        +until?: Date
     }
     class CreateProductCommand {
         +actorId: string
         +title: string
         +description?: string
-        +price: number
-        +salePrice?: number
-        +isOnSale: boolean
-        +saleEndsAt?: Date
+        +price: string
+        +sale?: SaleInput
         +stock: number
         +isFeatured: boolean
-        +isNew: boolean
-        +newUntil?: Date
+        +newMark?: NewMarkInput
         +sortOrder?: number
         +isActive: boolean
         +categoryIds: string[]
@@ -2213,11 +2219,13 @@ classDiagram
 
 **Alta de producto.** Se ejecuta en los siguientes pasos:
 
-1. Se valida que las categorías indicadas estén visibles, que haya al menos una y que la categoría principal esté entre ellas; que los productos similares existan; y que se reciban entre 1 y 5 imágenes, de acuerdo con `ProductImagePolicy`.
-2. Se suben los archivos originales al almacenamiento privado, antes de iniciar la transacción, para no mantener abierta una transacción de base de datos durante una operación de red que puede demorar.
-3. Dentro de la transacción, se obtiene el SKU, se genera el slug, se crea y guarda el producto, y se registra cada imagen en estado pendiente.
-4. Una vez confirmada la transacción, se publica un evento por cada imagen para iniciar su procesamiento de forma asincrónica.
-5. Si cualquier paso falla, se eliminan los archivos ya subidos, para no dejar archivos huérfanos en el almacenamiento.
+La solicitud es de tipo `multipart/form-data`: los datos del producto viajan como JSON en el campo `data` y las imágenes, de 1 a 5, en el campo `images`, en el orden en que se muestran. Los precios se envían y se informan como texto decimal (`"1500.50"`), para no perder centavos en el camino. El precio de oferta y su vencimiento solo pueden indicarse si el producto está en oferta, y el vencimiento de la novedad, si está marcado como nuevo.
+
+1. Antes de subir ningún archivo, se validan todos los datos con las mismas reglas que aplicará el producto guardado; que las categorías no estén repetidas, que la principal esté entre ellas y que todas estén visibles; que los productos similares existan y no estén dados de baja; y que se reciban entre 1 y 5 imágenes, de acuerdo con `ProductImagePolicy`, de hasta 10 MB cada una y en formato JPEG, PNG o WebP. El formato se determina por los primeros bytes del archivo y no por el tipo que declara el cliente. Así, un pedido inválido nunca llega a subir archivos. La respuesta incluye un enlace temporal a cada original, firmados todos en una sola llamada; si el almacenamiento no puede firmarlos, el producto se informa igual como creado, sin esos enlaces.
+2. Se suben los archivos originales al almacenamiento privado, de a uno, antes de iniciar la transacción, para no mantener abierta una transacción de base de datos durante una operación de red que puede demorar.
+3. Dentro de la transacción, se vuelven a leer las categorías y los productos similares, con un bloqueo compartido que hace esperar a una baja simultánea, y se toma de nuevo la fecha actual, con la que se registran el alta y se validan los vencimientos, ya que las subidas pudieron demorar; se obtiene el SKU, se genera el slug, se crea y guarda el producto, y se registra cada imagen en estado pendiente.
+4. Una vez confirmada la transacción, se publica un evento por cada imagen para iniciar su procesamiento de forma asincrónica. Si la publicación falla, se registra en el log y la respuesta no cambia: el producto ya existe y sus imágenes siguen pendientes.
+5. Si cualquier paso falla desde la primera subida hasta la confirmación, se eliminan en segundo plano los archivos que se intentaron subir —incluido el de una subida que falló, que pudo haber quedado guardada—, para no dejar archivos huérfanos en el almacenamiento, y el cliente recibe el error que detuvo el alta; si la eliminación también falla, se registra con las claves de los archivos. Una subida que falla se informa como un error del servicio de almacenamiento.
 
 **Edición de producto.** Dentro de una transacción, se obtiene el producto y se aplican únicamente los datos recibidos. Si se envían categorías o productos similares, el conjunto enviado reemplaza por completo al anterior. Por último, se registra el usuario que realizó la modificación y se guarda el producto.
 
@@ -2407,8 +2415,7 @@ classDiagram
     class AdminProductImageResult {
         +id: string
         +position: number
-        +url?: string
-        +previewUrl?: string
+        +previewUrl: string
         +altText?: string
         +mimeType: string
         +sizeBytes?: number
@@ -2447,7 +2454,7 @@ classDiagram
 #### Servicios de aplicación
 
 - **`ImageKeyFactory`**: centraliza la construcción de las claves con las que se almacena cada archivo, tanto del original como de sus variantes, de modo que la estructura de nombres se defina en un único lugar.
-- **`ProductImageUploader`**: centraliza la carga de archivos originales y la eliminación de originales y variantes. Lo utilizan el alta de producto y los casos de uso de imágenes, lo que evita duplicar esta lógica.
+- **`ProductImageUploader`**: centraliza la carga de archivos originales y la eliminación de originales y variantes. Lo utilizan el alta de producto y los casos de uso de imágenes, lo que evita duplicar esta lógica. Sube cada original con la clave que le asignó `ImageKeyFactory` al registrar la imagen, y nunca sobrescribe un archivo existente.
 
 #### Evento
 
@@ -2740,7 +2747,7 @@ classDiagram
 #### Infraestructura: adaptadores de servicios externos
 
 - **`DrizzleSkuGenerator`**: implementa `SkuGenerator` invocando la función `libreria.next_product_sku()`, que obtiene el siguiente valor de la secuencia de la base de datos. Al delegar la numeración en una secuencia, se garantiza que no se generen SKU repetidos aun ante altas simultáneas.
-- **`SupabaseFileStorage`**: implementa `FileStorage` sobre Supabase Storage, con un bucket privado para los archivos originales y uno público para las variantes.
+- **`SupabaseFileStorage`**: implementa `FileStorage` sobre Supabase Storage, con un bucket privado para los archivos originales (`product-originals`) y uno público para las variantes (`product-images`). Nunca sobrescribe un archivo y cada llamada tiene un tope de 30 segundos. En el entorno local los buckets los crea `pnpm db:start`, a partir de `supabase/config.toml`; en Supabase se crean una vez desde el panel.
 - **`SharpImageProcessor`**: implementa `ImageProcessor` con la librería Sharp, encargada de generar las variantes WebP de cada imagen.
 
 #### Presentación
@@ -3049,7 +3056,7 @@ El endpoint de restablecimiento de contraseña no recibe datos: el sistema gener
 | DELETE | `/admin/products/:id`         | ADMIN, SELLER | `DeleteProductUseCase`        |
 | POST   | `/admin/products/:id/restore` | ADMIN, SELLER | `RestoreProductUseCase`       |
 
-El alta de producto recibe los datos y las imágenes en una única solicitud de tipo `multipart/form-data`, con un mínimo de 1 y un máximo de 5 imágenes. Los endpoints públicos identifican al producto por su slug, para generar URL legibles y favorables al posicionamiento en buscadores; los del panel, por su identificador interno.
+El alta de producto recibe los datos y las imágenes en una única solicitud de tipo `multipart/form-data`: los datos como JSON en el campo `data` y las imágenes, con un mínimo de 1 y un máximo de 5, en el campo `images`. Los endpoints públicos identifican al producto por su slug, para generar URL legibles y favorables al posicionamiento en buscadores; los del panel, por su identificador interno.
 
 ### Imágenes de producto
 

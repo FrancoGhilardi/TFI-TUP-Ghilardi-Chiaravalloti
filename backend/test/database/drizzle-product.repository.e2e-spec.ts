@@ -1,0 +1,277 @@
+import type { ConfigService } from "@nestjs/config";
+import type { Pool } from "pg";
+import type { Env } from "../../src/config/env.js";
+import { ImageSettings } from "../../src/modules/catalog/application/settings/image-settings.js";
+import { Product } from "../../src/modules/catalog/domain/entities/product.js";
+import { ProductImage } from "../../src/modules/catalog/domain/entities/product-image.js";
+import { ImageStatus } from "../../src/modules/catalog/domain/image-status.js";
+import { CategoryAssignment } from "../../src/modules/catalog/domain/value-objects/category-assignment.js";
+import { DrizzleAdminProductQueries } from "../../src/modules/catalog/infrastructure/persistence/drizzle-admin-product.queries.js";
+import { DrizzleCategoryRepository } from "../../src/modules/catalog/infrastructure/persistence/drizzle-category.repository.js";
+import { DrizzleProductImageRepository } from "../../src/modules/catalog/infrastructure/persistence/drizzle-product-image.repository.js";
+import { DrizzleProductRepository } from "../../src/modules/catalog/infrastructure/persistence/drizzle-product.repository.js";
+import { DrizzleSkuGenerator } from "../../src/modules/catalog/infrastructure/persistence/drizzle-sku.generator.js";
+import { FileStorage } from "../../src/shared/application/file-storage.js";
+import { Money } from "../../src/shared/domain/value-objects/money.js";
+import { Slug } from "../../src/shared/domain/value-objects/slug.js";
+import { DrizzleClient } from "../../src/shared/infrastructure/database/drizzle.client.js";
+import { DrizzleExecutor } from "../../src/shared/infrastructure/database/drizzle.executor.js";
+import { DrizzleTransactionManager } from "../../src/shared/infrastructure/database/drizzle-transaction-manager.js";
+import { adminPool, insertCategory, insertUser, truncateAll } from "./db-test-utils.js";
+
+try {
+  process.loadEnvFile(process.env.ENV_FILE ?? ".env");
+} catch {
+  // Variables come from the environment.
+}
+
+const PRODUCT_ID = "4f9c1f43-6f4b-4d5c-9a3e-0000000000b1";
+const OTHER_ID = "4f9c1f43-6f4b-4d5c-9a3e-0000000000b2";
+const IMAGE_ID = "4f9c1f43-6f4b-4d5c-9a3e-0000000000c1";
+const NOW = new Date("2026-10-22T12:00:00.000Z");
+const LATER = new Date("2099-01-01T00:00:00.000Z");
+
+/** Signs nothing for real: the queries only need some link per original. */
+class LinkingStorage extends FileStorage {
+  upload(): Promise<void> {
+    return Promise.reject(new Error("Not used"));
+  }
+  remove(): Promise<void> {
+    return Promise.reject(new Error("Not used"));
+  }
+  failing = false;
+
+  signedUrls(keys: string[], expiresInSeconds: number): Promise<(string | null)[]> {
+    if (this.failing) {
+      return Promise.reject(new Error("storage down"));
+    }
+    return Promise.resolve(keys.map((key) => `signed://${key}?ttl=${expiresInSeconds}`));
+  }
+}
+
+describe("Product persistence (e2e)", () => {
+  let pool: Pool;
+  let client: DrizzleClient;
+  let products: DrizzleProductRepository;
+  let images: DrizzleProductImageRepository;
+  let categories: DrizzleCategoryRepository;
+  let skus: DrizzleSkuGenerator;
+  let queries: DrizzleAdminProductQueries;
+  let linking: LinkingStorage;
+  let transactions: DrizzleTransactionManager;
+  let actorId: string;
+  let primaryId: string;
+  let secondId: string;
+
+  beforeAll(() => {
+    pool = adminPool();
+    // Runs with the runtime role, so it also checks that role can use the tables.
+    const values: Record<string, unknown> = {
+      DATABASE_URL: process.env.DATABASE_URL,
+      DATABASE_SSL_MODE: process.env.DATABASE_SSL_MODE ?? "disable",
+      DATABASE_SSL_CA: process.env.DATABASE_SSL_CA,
+      DATABASE_POOL_MAX: 3,
+    };
+    client = new DrizzleClient({ get: (key: string) => values[key] } as ConfigService<Env, true>);
+    const executor = new DrizzleExecutor(client);
+    products = new DrizzleProductRepository(executor);
+    images = new DrizzleProductImageRepository(executor);
+    categories = new DrizzleCategoryRepository(executor);
+    skus = new DrizzleSkuGenerator(executor);
+    linking = new LinkingStorage();
+    queries = new DrizzleAdminProductQueries(executor, linking, new ImageSettings());
+    transactions = new DrizzleTransactionManager(client, executor);
+  });
+
+  beforeEach(async () => {
+    await truncateAll(pool);
+    actorId = await insertUser(pool, { mustChangePassword: false });
+    primaryId = await insertCategory(pool, "Cuadernos");
+    secondId = await insertCategory(pool, "Escolar");
+  });
+
+  afterAll(async () => {
+    await truncateAll(pool);
+    await client.onApplicationShutdown();
+    await pool.end();
+  });
+
+  async function newProduct(id = PRODUCT_ID, title = "Cuaderno A4"): Promise<Product> {
+    return Product.create({
+      id,
+      sku: await skus.next(),
+      title,
+      slug: Slug.fromText(title),
+      price: Money.fromDecimal("1500.50"),
+      stock: 3,
+      categories: CategoryAssignment.fromIds([primaryId, secondId], primaryId),
+      createdBy: actorId,
+      now: NOW,
+    });
+  }
+
+  const imageOf = (productId: string, id = IMAGE_ID) =>
+    ProductImage.register({
+      id,
+      productId,
+      position: 1,
+      originalKey: `products/${productId}/${id}.jpg`,
+      altText: "Tapa",
+      mimeType: "image/jpeg",
+      sizeBytes: 2048,
+      now: NOW,
+    });
+
+  async function store(product: Product): Promise<void> {
+    await transactions.run(async () => {
+      await products.save(product);
+      await images.saveAll([imageOf(product.getId(), product.getId().replace("b", "c"))]);
+    });
+  }
+
+  it("generates consecutive SKUs from the sequence", async () => {
+    const first = await skus.next();
+    const second = await skus.next();
+
+    expect(first.toString()).toBe("LMS-000001");
+    expect(second.toString()).toBe("LMS-000002");
+  });
+
+  it("stores a product with its categories, related products and image, read back the same", async () => {
+    await store(await newProduct(OTHER_ID, "Lapicera"));
+    const product = await newProduct();
+    product.startSale(Money.fromDecimal("999.99"), LATER, NOW);
+    product.markAsNew(LATER, NOW);
+    product.setFeatured(true);
+    product.setRelatedProducts([OTHER_ID]);
+    product.deactivate();
+
+    await store(product);
+
+    const stored = await products.findById(PRODUCT_ID);
+    expect(stored).toMatchObject({
+      title: "Cuaderno A4",
+      stock: 3,
+      onSale: true,
+      saleEndsAt: LATER,
+      featured: true,
+      isNewFlag: true,
+      newUntil: LATER,
+      active: false,
+      relatedProductIds: [OTHER_ID],
+      createdBy: actorId,
+      updatedBy: actorId,
+      createdAt: NOW,
+    });
+    expect(stored?.price.toDecimalString()).toBe("1500.50");
+    expect(stored?.salePrice?.toDecimalString()).toBe("999.99");
+    // The other product took the first SKU.
+    expect(stored?.sku.toString()).toBe("LMS-000002");
+    expect(stored?.getPrimaryCategoryId()).toBe(primaryId);
+    expect(stored?.categories.map((assignment) => assignment.categoryId).sort()).toEqual(
+      [primaryId, secondId].sort(),
+    );
+  });
+
+  it("lets the database refuse a product without an image at commit", async () => {
+    const product = await newProduct();
+
+    await expect(transactions.run(() => products.save(product))).rejects.toMatchObject({
+      cause: expect.objectContaining({ code: "23514" }) as unknown,
+    });
+    await expect(products.findById(PRODUCT_ID)).resolves.toBeNull();
+  });
+
+  it("finds the slugs of every product and only the current ids", async () => {
+    await store(await newProduct());
+    await store(await newProduct(OTHER_ID, "Lapicera"));
+    await pool.query("UPDATE libreria.products SET deleted_at = now() WHERE id = $1", [OTHER_ID]);
+
+    await expect(products.existsBySlug(Slug.fromValue("lapicera"))).resolves.toBe(true);
+    await expect(products.existsBySlug(Slug.fromValue("goma"))).resolves.toBe(false);
+    await expect(products.findExistingIds([PRODUCT_ID, OTHER_ID])).resolves.toEqual([PRODUCT_ID]);
+    await expect(products.findExistingIds([])).resolves.toEqual([]);
+  });
+
+  it("gives the panel the whole product, with names, links and amounts as text", async () => {
+    const product = await newProduct();
+    product.startSale(Money.fromDecimal("999"), undefined, NOW);
+    await store(product);
+
+    const result = await queries.findById(PRODUCT_ID);
+
+    expect(result).toEqual({
+      id: PRODUCT_ID,
+      sku: "LMS-000001",
+      title: "Cuaderno A4",
+      slug: "cuaderno-a4",
+      description: null,
+      price: "1500.50",
+      salePrice: "999.00",
+      isOnSale: true,
+      saleEndsAt: null,
+      stock: 3,
+      isFeatured: false,
+      isNew: false,
+      newUntil: null,
+      sortOrder: 0,
+      isActive: true,
+      primaryCategoryId: primaryId,
+      categories: [
+        { id: primaryId, name: "Cuadernos", slug: "cuadernos" },
+        { id: secondId, name: "Escolar", slug: "escolar" },
+      ],
+      images: [
+        {
+          id: PRODUCT_ID.replace("b", "c"),
+          position: 1,
+          previewUrl: `signed://products/${PRODUCT_ID}/${PRODUCT_ID.replace("b", "c")}.jpg?ttl=600`,
+          altText: "Tapa",
+          mimeType: "image/jpeg",
+          sizeBytes: 2048,
+          status: ImageStatus.PENDING,
+          createdAt: NOW,
+        },
+      ],
+      relatedProducts: [],
+      createdBy: { id: actorId, name: "Test user" },
+      updatedBy: { id: actorId, name: "Test user" },
+      createdAt: NOW,
+      updatedAt: expect.any(Date) as Date,
+      deletedAt: null,
+    });
+    await expect(queries.findById(OTHER_ID)).resolves.toBeNull();
+  });
+
+  it("still gives the product, without links, when the storage cannot sign them", async () => {
+    await store(await newProduct());
+    linking.failing = true;
+
+    const result = await queries.findById(PRODUCT_ID);
+    linking.failing = false;
+
+    expect(result?.images.map((image) => image.previewUrl)).toEqual([null]);
+  });
+
+  it("makes a category deletion wait for a transaction that reads it as visible", async () => {
+    const events: string[] = [];
+    let markRead: () => void = () => undefined;
+    const read = new Promise<void>((resolve) => {
+      markRead = resolve;
+    });
+
+    const creation = transactions.run(async () => {
+      await categories.findVisibleByIds([primaryId]);
+      markRead();
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      events.push("creation done");
+    });
+    await read;
+    const deletion = pool
+      .query("SELECT id FROM libreria.categories WHERE id = $1 FOR UPDATE", [primaryId])
+      .then(() => events.push("deletion locked"));
+    await Promise.all([creation, deletion]);
+
+    expect(events).toEqual(["creation done", "deletion locked"]);
+  });
+});

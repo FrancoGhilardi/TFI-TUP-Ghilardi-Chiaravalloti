@@ -8,3 +8,9 @@ export const STOCK_MAX = 2_147_483_647;
 export const SORT_ORDER_MAX = 2_147_483_647;
 // The slug column of categories; the one of products is the general slug limit.
 export const CATEGORY_SLUG_MAX_LENGTH = 120;
+// Images of a product: how many, and the alt text column.
+export const PRODUCT_IMAGES_MIN = 1;
+export const PRODUCT_IMAGES_MAX = 5;
+export const IMAGE_ALT_TEXT_MAX_LENGTH = 255;
+// The heaviest image file accepted: 10 MB, as the panel checks it before uploading.
+export const PRODUCT_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
