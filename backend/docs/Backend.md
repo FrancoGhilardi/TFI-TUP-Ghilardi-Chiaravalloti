@@ -213,7 +213,7 @@ classDiagram
     }
     class UniqueSlugGenerator {
         <<service application>>
-        +generate(text: string, exists: SlugExistsFn) Promise~Slug~
+        +generate(text: string, store: SlugStore, maxLength: number) Promise~Slug~
     }
     class PageRequest {
         <<application>>
@@ -357,7 +357,7 @@ classDiagram
 
 - **`Money`**: value object que representa montos en pesos. Internamente trabaja con centavos enteros para evitar los errores de redondeo propios de los números decimales, y ofrece operaciones de comparación, como verificar que el precio de oferta sea menor al precio regular. Admite montos de 0 a 9.999.999.999,99, el rango de la columna de la base de datos, y se construye a partir de un texto con hasta dos decimales separados por un punto.
 
-- **`Slug`**: value object que representa el identificador legible de un producto o categoría en la URL (por ejemplo, `cuaderno-rayado-a4`). Se genera a partir de un texto y garantiza un formato válido: minúsculas, sin tildes ni espacios, con las palabras separadas por un único guion. Un texto que no contiene ninguna letra ni número se rechaza.
+- **`Slug`**: value object que representa el identificador legible de un producto o categoría en la URL (por ejemplo, `cuaderno-rayado-a4`). Se genera a partir de un texto y garantiza un formato válido: minúsculas, sin tildes ni espacios, con las palabras separadas por un único guion. Un texto que no contiene ninguna letra ni número se rechaza, y uno que supera el largo máximo (220 caracteres, o 120 en categorías) se recorta después de la última palabra que entra (o justo en el límite, si así se perdería más de la mitad del texto), de modo que un título válido nunca falla por su slug.
 
 #### Aplicación
 
@@ -373,7 +373,7 @@ classDiagram
 
 - **`EventPublisher`**: contrato para publicar eventos del sistema. Permite desacoplar acciones secundarias de la operación principal; por ejemplo, al subir una imagen se publica un evento y su procesamiento se realiza de forma asincrónica.
 
-- **`UniqueSlugGenerator`**: servicio que genera un slug único; si ya existe uno igual, le agrega un sufijo numérico (`cuaderno-rayado-a4-2`).
+- **`UniqueSlugGenerator`**: servicio que genera un slug único; si ya existe uno igual, le agrega un sufijo numérico (`cuaderno-rayado-a4-2`), recortando el slug para que el sufijo entre. Corre dentro de la transacción del alta y bloquea cada candidato antes de consultarlo, con un bloqueo de la base que dura hasta la confirmación: si dos altas simultáneas buscan el mismo slug, la segunda espera, ve el de la primera y toma el siguiente sufijo, sin que ninguna falle.
 
 - **`Page` y `PageRequest`**: estructuras de paginación. `PageRequest` indica la página y la cantidad de elementos solicitados, y `Page` devuelve los resultados junto con el total de elementos y de páginas.
 

@@ -27,6 +27,12 @@ export abstract class CategoryRepository {
   /** Whether any category, deleted or not, has that slug. */
   abstract existsBySlug(slug: Slug): Promise<boolean>;
 
+  /**
+   * Makes another transaction that locks the same slug wait until this one ends, so two
+   * creations never pick the same slug. Only inside a transaction.
+   */
+  abstract lockSlug(slug: Slug): Promise<void>;
+
   /** The ids above the category, from its parent up to the root. */
   abstract findAncestorIds(id: string): Promise<string[]>;
 

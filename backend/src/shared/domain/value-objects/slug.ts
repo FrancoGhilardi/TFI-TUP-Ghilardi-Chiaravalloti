@@ -25,8 +25,12 @@ export class Slug {
 
   private constructor(private readonly value: string) {}
 
-  /** "Cuaderno Rayado A4 (ñandú)" becomes "cuaderno-rayado-a4-nandu". */
-  static fromText(text: string): Slug {
+  /**
+   * "Cuaderno Rayado A4 (ñandú)" becomes "cuaderno-rayado-a4-nandu". A longer one than
+   * `maxLength` (up to the 220 of the column) is cut at the last hyphen that fits, so a valid
+   * title never fails over its slug.
+   */
+  static fromText(text: string, maxLength = Slug.MAX_LENGTH): Slug {
     const value = text
       .normalize("NFD")
       .replace(COMBINING_MARKS, "")
@@ -37,7 +41,7 @@ export class Slug {
     if (!value) {
       throw new InvalidSlugError("empty");
     }
-    return Slug.within(value);
+    return Slug.within(shortened(value, maxLength));
   }
 
   /** A slug already in the right format, such as one stored before. */
@@ -59,12 +63,16 @@ export class Slug {
     return this.value.length;
   }
 
-  /** The next candidate when the slug is taken: "cuaderno-2", "cuaderno-3". */
-  withSuffix(n: number): Slug {
+  /**
+   * The next candidate when the slug is taken: "cuaderno-2", "cuaderno-3". The slug is cut
+   * like in `fromText` so that the suffix fits within `maxLength`.
+   */
+  withSuffix(n: number, maxLength = Slug.MAX_LENGTH): Slug {
     if (!Number.isInteger(n) || n < 2) {
       throw new RangeError("A slug suffix starts at 2");
     }
-    return Slug.within(`${this.value}-${n}`);
+    const suffix = `-${n}`;
+    return Slug.within(`${shortened(this.value, maxLength - suffix.length)}${suffix}`);
   }
 
   equals(other: Slug): boolean {
@@ -74,4 +82,21 @@ export class Slug {
   toString(): string {
     return this.value;
   }
+}
+
+/**
+ * At most `maxLength` characters: cut after the last whole word that fits, or right at the
+ * limit when that would throw away more than half of it ("a-" and a very long word keeps
+ * part of the word, not just "a"). It never ends in a hyphen.
+ */
+function shortened(value: string, maxLength: number): string {
+  if (value.length <= maxLength) {
+    return value;
+  }
+  const cut = value.slice(0, maxLength);
+  if (value[maxLength] === "-") {
+    return cut;
+  }
+  const lastHyphen = cut.lastIndexOf("-");
+  return lastHyphen >= maxLength / 2 ? cut.slice(0, lastHyphen) : cut;
 }

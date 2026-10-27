@@ -4,6 +4,7 @@ import type { Env } from "../../src/config/env.js";
 import { Category } from "../../src/modules/catalog/domain/entities/category.js";
 import { CategoryNameInUseError } from "../../src/modules/catalog/domain/errors/category-name-in-use-error.js";
 import { DrizzleCategoryRepository } from "../../src/modules/catalog/infrastructure/persistence/drizzle-category.repository.js";
+import { DrizzleProductRepository } from "../../src/modules/catalog/infrastructure/persistence/drizzle-product.repository.js";
 import { Slug } from "../../src/shared/domain/value-objects/slug.js";
 import { DrizzleClient } from "../../src/shared/infrastructure/database/drizzle.client.js";
 import { DrizzleExecutor } from "../../src/shared/infrastructure/database/drizzle.executor.js";
@@ -33,6 +34,7 @@ describe("DrizzleCategoryRepository (e2e)", () => {
   let client: DrizzleClient;
   let repository: DrizzleCategoryRepository;
   let transactions: DrizzleTransactionManager;
+  let products: DrizzleProductRepository;
 
   beforeAll(() => {
     pool = adminPool();
@@ -46,6 +48,7 @@ describe("DrizzleCategoryRepository (e2e)", () => {
     client = new DrizzleClient({ get: (key: string) => values[key] } as ConfigService<Env, true>);
     const executor = new DrizzleExecutor(client);
     repository = new DrizzleCategoryRepository(executor);
+    products = new DrizzleProductRepository(executor);
     transactions = new DrizzleTransactionManager(client, executor);
   });
 
@@ -323,6 +326,65 @@ describe("DrizzleCategoryRepository (e2e)", () => {
 
     it("refuses to run outside a transaction", async () => {
       await expect(repository.lockHierarchy()).rejects.toThrow(/transaction/);
+    });
+  });
+
+  describe("lockSlug", () => {
+    it("makes a transaction locking the same slug wait, and not one locking another", async () => {
+      const events: string[] = [];
+      let markLocked: () => void = () => undefined;
+      const locked = new Promise<void>((resolve) => {
+        markLocked = resolve;
+      });
+      const lockIn = (slug: string, name: string) =>
+        transactions.run(async () => {
+          await repository.lockSlug(Slug.fromValue(slug));
+          events.push(name);
+        });
+
+      const first = transactions.run(async () => {
+        await repository.lockSlug(Slug.fromValue("cuadernos"));
+        markLocked();
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        events.push("first done");
+      });
+      await locked;
+      const same = lockIn("cuadernos", "same slug locked");
+      await lockIn("lapices", "other slug locked");
+      await Promise.all([first, same]);
+
+      expect(events).toEqual(["other slug locked", "first done", "same slug locked"]);
+    });
+
+    it("never waits for the hierarchy lock nor for a product slug with the same text", async () => {
+      let markLocked: () => void = () => undefined;
+      const locked = new Promise<void>((resolve) => {
+        markLocked = resolve;
+      });
+      let release: () => void = () => undefined;
+      const released = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const holder = transactions.run(async () => {
+        await repository.lockHierarchy();
+        await products.lockSlug(Slug.fromValue("cuadernos"));
+        markLocked();
+        await released;
+      });
+      await locked;
+
+      const free = await Promise.race([
+        transactions.run(() => repository.lockSlug(Slug.fromValue("cuadernos"))).then(() => "free"),
+        new Promise((resolve) => setTimeout(() => resolve("waited"), 500)),
+      ]);
+      release();
+      await holder;
+
+      expect(free).toBe("free");
+    });
+
+    it("refuses to run outside a transaction", async () => {
+      await expect(repository.lockSlug(Slug.fromValue("cuadernos"))).rejects.toThrow(/transaction/);
     });
   });
 });
