@@ -71,7 +71,8 @@ export class DrizzleProductRepository extends ProductRepository {
   }
 
   /**
-   * Writes the row and replaces its categories and related products. The database checks at
+   * Writes the row and replaces its categories and its related products, these only if they
+   * changed. The database checks at
    * commit that a product keeps a category and an image, so it runs inside a transaction.
    */
   async save(product: Product): Promise<void> {
@@ -98,6 +99,19 @@ export class DrizzleProductRepository extends ProductRepository {
       })),
     );
 
+    // Rewritten only when they changed: each inserted row key-share-locks the related product,
+    // so two saves of products related to each other (a deletion, a restore) would deadlock.
+    const stored = await db
+      .select({ id: relatedProducts.relatedProductId })
+      .from(relatedProducts)
+      .where(eq(relatedProducts.productId, id))
+      .orderBy(asc(relatedProducts.sortOrder));
+    if (
+      stored.length === product.relatedProductIds.length &&
+      stored.every((related, index) => related.id === product.relatedProductIds[index])
+    ) {
+      return;
+    }
     await db.delete(relatedProducts).where(eq(relatedProducts.productId, id));
     if (product.relatedProductIds.length > 0) {
       await db.insert(relatedProducts).values(

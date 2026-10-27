@@ -26,6 +26,7 @@ import { InvalidStockError } from "./invalid-stock-error.js";
 import { ParentCategoryUnavailableError } from "./parent-category-unavailable-error.js";
 import { ProductDeletedError } from "./product-deleted-error.js";
 import { ProductNotDeletedError } from "./product-not-deleted-error.js";
+import { ProductWithoutCategoryError } from "./product-without-category-error.js";
 import { RelatedProductUnavailableError } from "./related-product-unavailable-error.js";
 import { SalePriceNotLowerError } from "./sale-price-not-lower-error.js";
 import { SelfRelatedProductError } from "./self-related-product-error.js";
@@ -212,6 +213,12 @@ const CASES: [DomainError, Base, string, string][] = [
     BusinessRuleViolationError,
     "PRODUCT_NOT_DELETED",
     "El producto no está dado de baja.",
+  ],
+  [
+    new ProductWithoutCategoryError(),
+    BusinessRuleViolationError,
+    "PRODUCT_WITHOUT_CATEGORY",
+    "El producto no tiene ninguna categoría vigente. Reactivá alguna de sus categorías antes de reactivarlo.",
   ],
 ];
 

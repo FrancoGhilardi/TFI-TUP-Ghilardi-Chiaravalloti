@@ -125,6 +125,9 @@ class FakeCategories extends CategoryRepository {
   findById(): Promise<never> {
     return Promise.reject(new Error("Not used"));
   }
+  findCurrentIds(): Promise<never> {
+    return Promise.reject(new Error("Not used"));
+  }
   existsByName(): Promise<never> {
     return Promise.reject(new Error("Not used"));
   }
