@@ -21,4 +21,7 @@ export abstract class FileStorage {
    * be signed, such as a missing file, gets `null`.
    */
   abstract signedUrls(keys: string[], expiresInSeconds: number): Promise<(string | null)[]>;
+
+  /** The lasting address of a file in the public space; it is not checked to exist. */
+  abstract publicUrl(key: string): string;
 }

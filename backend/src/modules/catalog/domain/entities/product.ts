@@ -16,6 +16,7 @@ import { ProductNotDeletedError } from "../errors/product-not-deleted-error.js";
 import { ProductWithoutCategoryError } from "../errors/product-without-category-error.js";
 import { SalePriceNotLowerError } from "../errors/sale-price-not-lower-error.js";
 import { SelfRelatedProductError } from "../errors/self-related-product-error.js";
+import { runsAt } from "../runs-at.js";
 import { optionalDescription, requiredText, sortOrder } from "../text.js";
 import { CategoryAssignment } from "../value-objects/category-assignment.js";
 import type { Sku } from "../value-objects/sku.js";
@@ -219,18 +220,13 @@ export class Product extends Entity {
   /** On sale, with a sale price, and before the end of the sale if it has one. */
   isSaleActive(now: Date): boolean {
     return (
-      this.props.onSale &&
-      this.props.salePrice !== undefined &&
-      (this.props.saleEndsAt === undefined || now.getTime() < this.props.saleEndsAt.getTime())
+      this.props.onSale && this.props.salePrice !== undefined && runsAt(this.props.saleEndsAt, now)
     );
   }
 
   /** Marked as new, and before the end of the mark if it has one. */
   isNewActive(now: Date): boolean {
-    return (
-      this.props.isNewFlag &&
-      (this.props.newUntil === undefined || now.getTime() < this.props.newUntil.getTime())
-    );
+    return this.props.isNewFlag && runsAt(this.props.newUntil, now);
   }
 
   getPrimaryCategoryId(): string {

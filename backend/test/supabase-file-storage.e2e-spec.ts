@@ -13,6 +13,8 @@ try {
 }
 
 const JPEG = Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4]);
+// The public bucket only takes the processed WebP versions.
+const WEBP = Uint8Array.from([0x52, 0x49, 0x46, 0x46, 4, 0, 0, 0, 0x57, 0x45, 0x42, 0x50]);
 
 function clientFor(key: string) {
   const url = new URL("/storage/v1", process.env.SUPABASE_URL);
@@ -87,6 +89,20 @@ describe("SupabaseFileStorage (e2e)", () => {
     expect(links[0]).toContain(second);
     expect(links[1]).toContain(first);
     await expect(storage.signedUrls([], 60)).resolves.toEqual([]);
+  });
+
+  it("gives the lasting address of a public file, which serves it to anyone", async () => {
+    const key = `test/${randomUUID()}.webp`;
+    await storage.upload(StorageBucket.PUBLIC, key, WEBP, "image/webp");
+
+    try {
+      const response = await fetch(storage.publicUrl(key));
+
+      expect(response.status).toBe(200);
+      expect(new Uint8Array(await response.arrayBuffer())).toEqual(WEBP);
+    } finally {
+      await storage.remove(StorageBucket.PUBLIC, [key]);
+    }
   });
 
   it("rejects every call with a wrong key", async () => {

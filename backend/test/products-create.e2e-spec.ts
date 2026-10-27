@@ -68,6 +68,10 @@ class RecordingStorage extends FileStorage {
       ? Promise.reject(new Error("storage down"))
       : this.real.signedUrls(keys, expiresInSeconds);
   }
+
+  publicUrl(key: string) {
+    return this.real.publicUrl(key);
+  }
 }
 
 interface ProductBody {

@@ -61,4 +61,9 @@ export class SupabaseFileStorage extends FileStorage {
     const byKey = new Map(data.map((entry) => [entry.path, entry.error ? null : entry.signedUrl]));
     return keys.map((key) => byKey.get(key) ?? null);
   }
+
+  /** Built by the client, with no call to Storage. */
+  publicUrl(key: string): string {
+    return this.client.from(STORAGE_BUCKETS[StorageBucket.PUBLIC]).getPublicUrl(key).data.publicUrl;
+  }
 }

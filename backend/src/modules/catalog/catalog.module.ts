@@ -7,20 +7,24 @@ import { IdGenerator } from "../../shared/application/id-generator.js";
 import { TransactionManager } from "../../shared/application/transaction-manager.js";
 import { UniqueSlugGenerator } from "../../shared/application/unique-slug-generator.js";
 import { AdminProductQueries } from "./application/ports/admin-product-queries.js";
+import { CatalogQueries } from "./application/ports/catalog-queries.js";
 import { CategoryQueries } from "./application/ports/category-queries.js";
 import { SkuGenerator } from "./application/ports/sku-generator.js";
 import { ImageKeyFactory } from "./application/services/image-key-factory.js";
 import { ProductImageUploader } from "./application/services/product-image-uploader.js";
+import { CatalogSettings } from "./application/settings/catalog-settings.js";
 import { ImageSettings } from "./application/settings/image-settings.js";
 import { CreateCategoryUseCase } from "./application/use-cases/create-category.use-case.js";
 import { CreateProductUseCase } from "./application/use-cases/create-product.use-case.js";
 import { DeleteCategoryUseCase } from "./application/use-cases/delete-category.use-case.js";
 import { DeleteProductUseCase } from "./application/use-cases/delete-product.use-case.js";
 import { GetAdminCategoryUseCase } from "./application/use-cases/get-admin-category.use-case.js";
+import { GetProductDetailUseCase } from "./application/use-cases/get-product-detail.use-case.js";
 import { ListAdminCategoriesUseCase } from "./application/use-cases/list-admin-categories.use-case.js";
 import { ListCategoryTreeUseCase } from "./application/use-cases/list-category-tree.use-case.js";
 import { RestoreCategoryUseCase } from "./application/use-cases/restore-category.use-case.js";
 import { RestoreProductUseCase } from "./application/use-cases/restore-product.use-case.js";
+import { SearchCatalogUseCase } from "./application/use-cases/search-catalog.use-case.js";
 import { UpdateCategoryUseCase } from "./application/use-cases/update-category.use-case.js";
 import { UpdateProductUseCase } from "./application/use-cases/update-product.use-case.js";
 import { CategoryRepository } from "./domain/repositories/category.repository.js";
@@ -29,6 +33,7 @@ import { ProductRepository } from "./domain/repositories/product.repository.js";
 import { CategoryDeletionPolicy } from "./domain/services/category-deletion.policy.js";
 import { ProductImagePolicy } from "./domain/services/product-image.policy.js";
 import { DrizzleAdminProductQueries } from "./infrastructure/persistence/drizzle-admin-product.queries.js";
+import { DrizzleCatalogQueries } from "./infrastructure/persistence/drizzle-catalog.queries.js";
 import { DrizzleCategoryQueries } from "./infrastructure/persistence/drizzle-category.queries.js";
 import { DrizzleCategoryRepository } from "./infrastructure/persistence/drizzle-category.repository.js";
 import { DrizzleProductImageRepository } from "./infrastructure/persistence/drizzle-product-image.repository.js";
@@ -36,10 +41,16 @@ import { DrizzleProductRepository } from "./infrastructure/persistence/drizzle-p
 import { DrizzleSkuGenerator } from "./infrastructure/persistence/drizzle-sku.generator.js";
 import { AdminCategoriesController } from "./presentation/http/admin-categories.controller.js";
 import { AdminProductsController } from "./presentation/http/admin-products.controller.js";
+import { CatalogController } from "./presentation/http/catalog.controller.js";
 import { CategoriesController } from "./presentation/http/categories.controller.js";
 
 @Module({
-  controllers: [CategoriesController, AdminCategoriesController, AdminProductsController],
+  controllers: [
+    CategoriesController,
+    AdminCategoriesController,
+    CatalogController,
+    AdminProductsController,
+  ],
   providers: [
     { provide: CategoryQueries, useClass: DrizzleCategoryQueries },
     { provide: CategoryRepository, useClass: DrizzleCategoryRepository },
@@ -49,6 +60,20 @@ import { CategoriesController } from "./presentation/http/categories.controller.
     { provide: ProductImageRepository, useClass: DrizzleProductImageRepository },
     { provide: SkuGenerator, useClass: DrizzleSkuGenerator },
     { provide: AdminProductQueries, useClass: DrizzleAdminProductQueries },
+    { provide: CatalogQueries, useClass: DrizzleCatalogQueries },
+    { provide: CatalogSettings, useValue: new CatalogSettings() },
+    {
+      provide: SearchCatalogUseCase,
+      useFactory: (queries: CatalogQueries, clock: Clock) =>
+        new SearchCatalogUseCase(queries, clock),
+      inject: [CatalogQueries, Clock],
+    },
+    {
+      provide: GetProductDetailUseCase,
+      useFactory: (queries: CatalogQueries, settings: CatalogSettings, clock: Clock) =>
+        new GetProductDetailUseCase(queries, settings, clock),
+      inject: [CatalogQueries, CatalogSettings, Clock],
+    },
     { provide: ProductImagePolicy, useValue: new ProductImagePolicy() },
     { provide: ImageSettings, useValue: new ImageSettings() },
     { provide: ImageKeyFactory, useValue: new ImageKeyFactory() },
