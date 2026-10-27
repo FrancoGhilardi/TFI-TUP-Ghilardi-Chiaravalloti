@@ -130,6 +130,66 @@ describe("GET /products and /products/:slug (e2e)", () => {
     );
   });
 
+  describe("GET /products/featured and /products/new", () => {
+    /** Six products in a known order: by position, then the newest first. */
+    async function six(mark: string): Promise<string[]> {
+      const ids: string[] = [];
+      for (const [title, sortOrder, createdAt] of [
+        ["Uno", 0, "2026-10-05"],
+        ["Dos", 0, "2026-10-01"],
+        ["Tres", 1, "2026-10-09"],
+        ["Cuatro", 1, "2026-10-02"],
+        ["Cinco", 2, "2026-10-01"],
+        ["Seis", 3, "2026-10-01"],
+      ] as const) {
+        const id = await shown(title, sortOrder);
+        await pool.query(`UPDATE libreria.products SET ${mark}, created_at = $2 WHERE id = $1`, [
+          id,
+          createdAt,
+        ]);
+        ids.push(id);
+      }
+      return ids;
+    }
+
+    it.each([
+      ["featured", "is_featured = true"],
+      ["new", "is_new = true"],
+    ])("gives five %s products by position and creation date, cacheable", async (route, mark) => {
+      const ids = await six(mark);
+      // Not marked, so never listed.
+      await shown("Sin marca");
+
+      const response = await http.get(`/api/v1/products/${route}`).expect(200);
+
+      expect(response.headers["cache-control"]).toBe("public, max-age=60");
+      expect((response.body as ProductCardResult[]).map((card) => card.id)).toEqual(
+        ids.slice(0, 5),
+      );
+    });
+
+    it("leaves out a product whose new mark ended, and hidden ones", async () => {
+      const running = await shown("Vigente");
+      const ended = await shown("Vencida", 1);
+      const inactive = await shown("Inactiva", 2);
+      await set(running, "is_new = true, new_until = now() + interval '1 day'");
+      await set(ended, "is_new = true, new_until = now() - interval '1 day'");
+      await set(inactive, "is_new = true, is_active = false");
+
+      const response = await http.get("/api/v1/products/new").expect(200);
+
+      expect(response.body).toEqual([expect.objectContaining({ id: running, isNew: true })]);
+    });
+
+    it("answers an empty list when there are none", async () => {
+      await shown("Cuaderno");
+
+      await expect(http.get("/api/v1/products/featured").expect(200)).resolves.toMatchObject({
+        body: [],
+      });
+    });
+  });
+
   describe("GET /products/:slug", () => {
     it("gives the product with its processed images, its categories and its related products", async () => {
       const id = await shown("Cuaderno A4");

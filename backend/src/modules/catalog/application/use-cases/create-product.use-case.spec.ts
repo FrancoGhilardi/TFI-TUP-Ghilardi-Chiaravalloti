@@ -408,6 +408,17 @@ describe("CreateProductUseCase", () => {
     expect(products.saved?.slug.toString()).toBe("cuaderno-rayado-a4-2");
   });
 
+  it.each([
+    ["New", "new-2"],
+    ["Featured", "featured-2"],
+  ])("never gives %o a slug a store route uses", async (title, slug) => {
+    const { products, useCase } = setUp();
+
+    await useCase.execute(command({ title }));
+
+    expect(products.saved?.slug.toString()).toBe(slug);
+  });
+
   it("cuts the slug of a long valid title instead of failing", async () => {
     const { products, useCase } = setUp();
 

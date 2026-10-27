@@ -1,0 +1,1 @@
+ALTER TABLE "libreria"."products" ADD CONSTRAINT "chk_products_slug_not_reserved" CHECK (slug NOT IN ('featured', 'new'));

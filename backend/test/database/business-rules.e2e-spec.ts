@@ -66,6 +66,17 @@ describe("business rules in the database (e2e)", () => {
       );
     });
 
+    it.each(["featured", "new"])("rejects the slug %o, which a store route uses", async (slug) => {
+      await expect(
+        pool.query("INSERT INTO libreria.products (title, slug, price) VALUES ('P', $1, 10)", [
+          slug,
+        ]),
+      ).rejects.toMatchObject({
+        code: CHECK_VIOLATION,
+        constraint: "chk_products_slug_not_reserved",
+      });
+    });
+
     it("allows updating other columns when the slug does not change", async () => {
       await insertProductWithDeps(pool);
 
