@@ -72,6 +72,10 @@ class RecordingStorage extends FileStorage {
   signedUrls(): Promise<(string | null)[]> {
     return Promise.reject(new Error("Not used"));
   }
+
+  publicUrl(): string {
+    throw new Error("Not used");
+  }
 }
 
 class FakeProducts extends ProductRepository {

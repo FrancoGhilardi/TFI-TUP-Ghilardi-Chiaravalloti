@@ -34,6 +34,10 @@ class SigningStorage extends FileStorage {
   signedUrls(keys: string[]): Promise<(string | null)[]> {
     return Promise.resolve(keys.map((key) => `signed://${key}`));
   }
+
+  publicUrl(key: string): string {
+    return `public://${key}`;
+  }
 }
 
 interface ProductRow {

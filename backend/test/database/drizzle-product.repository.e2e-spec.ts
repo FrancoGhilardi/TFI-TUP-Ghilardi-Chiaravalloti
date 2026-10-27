@@ -51,6 +51,10 @@ class LinkingStorage extends FileStorage {
     }
     return Promise.resolve(keys.map((key) => `signed://${key}?ttl=${expiresInSeconds}`));
   }
+
+  publicUrl(key: string): string {
+    return `public://${key}`;
+  }
 }
 
 describe("Product persistence (e2e)", () => {
