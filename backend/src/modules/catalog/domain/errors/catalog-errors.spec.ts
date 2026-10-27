@@ -1,5 +1,6 @@
 import {
   BusinessRuleViolationError,
+  ConflictError,
   type DomainError,
   InvalidValueError,
 } from "../../../../shared/domain/errors/index.js";
@@ -7,6 +8,7 @@ import { CategoryCycleError } from "./category-cycle-error.js";
 import { CategoryDeletedError } from "./category-deleted-error.js";
 import { CategoryHasActiveChildrenError } from "./category-has-active-children-error.js";
 import { CategoryInUseError } from "./category-in-use-error.js";
+import { CategoryNameInUseError } from "./category-name-in-use-error.js";
 import { CategoryNotDeletedError } from "./category-not-deleted-error.js";
 import { InvalidCategoryAssignmentError } from "./invalid-category-assignment-error.js";
 import { InvalidCategoryNameError } from "./invalid-category-name-error.js";
@@ -24,7 +26,7 @@ import { ProductNotDeletedError } from "./product-not-deleted-error.js";
 import { SalePriceNotLowerError } from "./sale-price-not-lower-error.js";
 import { SelfRelatedProductError } from "./self-related-product-error.js";
 
-type Base = typeof InvalidValueError | typeof BusinessRuleViolationError;
+type Base = typeof InvalidValueError | typeof BusinessRuleViolationError | typeof ConflictError;
 
 const CASES: [DomainError, Base, string, string][] = [
   [
@@ -73,19 +75,25 @@ const CASES: [DomainError, Base, string, string][] = [
     new ParentCategoryUnavailableError(),
     BusinessRuleViolationError,
     "PARENT_CATEGORY_UNAVAILABLE",
-    "La categoría padre está dada de baja. Reactivala primero o mové esta categoría a la raíz.",
+    "La categoría padre no existe o está dada de baja.",
   ],
   [
-    new CategoryHasActiveChildrenError(),
+    new CategoryHasActiveChildrenError(2),
     BusinessRuleViolationError,
     "CATEGORY_HAS_ACTIVE_CHILDREN",
-    "La categoría tiene subcategorías activas. Dalas de baja o movelas primero.",
+    "La categoría tiene subcategorías. Dalas de baja o movelas a otra categoría primero.",
   ],
   [
-    new CategoryInUseError(),
+    new CategoryInUseError(3),
     BusinessRuleViolationError,
     "CATEGORY_IN_USE",
     "La categoría es la única de algunos productos. Asignales otra categoría primero.",
+  ],
+  [
+    new CategoryNameInUseError(),
+    ConflictError,
+    "CATEGORY_NAME_IN_USE",
+    "Ya existe una categoría con ese nombre.",
   ],
   [
     new InvalidSkuError(),
@@ -175,4 +183,11 @@ describe("catalog errors", () => {
       expect(error).toMatchObject({ code, message });
     },
   );
+
+  it.each([
+    [new CategoryHasActiveChildrenError(2), 2],
+    [new CategoryInUseError(3), 3],
+  ])("%o tells how many records block the deletion", (error, count) => {
+    expect(error.publicDetails).toEqual({ count });
+  });
 });

@@ -77,6 +77,11 @@ export class Category extends Entity {
     return new Category({ ...props });
   }
 
+  /** The name as a category keeps it, so it can be checked before anything is read. */
+  static validName(name: string): string {
+    return checkedName(name);
+  }
+
   get parentId(): string | undefined {
     return this.props.parentId;
   }

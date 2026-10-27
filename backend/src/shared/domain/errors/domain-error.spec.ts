@@ -45,6 +45,11 @@ class ProviderDownError extends ExternalServiceError {
     super("PROVIDER_DOWN", "Provider down", { cause });
   }
 }
+class BlockedError extends BusinessRuleViolationError {
+  constructor(count: number) {
+    super("BLOCKED", "Blocked", { details: { count } });
+  }
+}
 
 const cases = [
   [new ProductNotFoundError(), EntityNotFoundError, "ProductNotFoundError", "PRODUCT_NOT_FOUND"],
@@ -69,6 +74,11 @@ describe("DomainError hierarchy", () => {
     const cause = new Error("socket hang up");
 
     expect(new ProviderDownError(cause).cause).toBe(cause);
+  });
+
+  it("carries the details a client can show, only when given", () => {
+    expect(new BlockedError(3).publicDetails).toEqual({ count: 3 });
+    expect(new RuleBrokenError().publicDetails).toBeUndefined();
   });
 
   it("discriminates between the seven branches", () => {

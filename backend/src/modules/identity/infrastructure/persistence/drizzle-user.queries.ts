@@ -19,6 +19,7 @@ import {
   RecordStatusFilter,
   SortDirection,
 } from "../../../../shared/application/pagination.js";
+import { containsPattern } from "../../../../shared/infrastructure/database/like-pattern.js";
 import { DrizzleExecutor } from "../../../../shared/infrastructure/database/drizzle.executor.js";
 import { users } from "../../../../shared/infrastructure/database/schema/index.js";
 import type { ListUsersQuery } from "../../application/dto/list-users.query.js";
@@ -105,8 +106,7 @@ function searchCondition(text: string | undefined): SQL | undefined {
   if (!text) {
     return undefined;
   }
-  // Typed text is searched as is: its wildcards match themselves.
-  const pattern = `%${text.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
+  const pattern = containsPattern(text);
   return or(ilike(users.name, pattern), ilike(users.email, pattern));
 }
 
