@@ -3,7 +3,10 @@ import type { Clock } from "../../../../shared/application/clock.js";
 import type { EventPublisher } from "../../../../shared/application/event-publisher.js";
 import type { IdGenerator } from "../../../../shared/application/id-generator.js";
 import type { TransactionManager } from "../../../../shared/application/transaction-manager.js";
-import type { UniqueSlugGenerator } from "../../../../shared/application/unique-slug-generator.js";
+import {
+  slugStoreOf,
+  type UniqueSlugGenerator,
+} from "../../../../shared/application/unique-slug-generator.js";
 import type { UseCase } from "../../../../shared/application/use-case.js";
 import { Money } from "../../../../shared/domain/value-objects/money.js";
 import { Slug } from "../../../../shared/domain/value-objects/slug.js";
@@ -88,6 +91,9 @@ export class CreateProductUseCase implements UseCase<
     const relatedIds = [...new Set(command.relatedProductIds ?? [])];
     // Checks the product data with the same rules the stored one will follow.
     buildProduct(command, productId, categories, relatedIds, PREVIEW_IDENTITY, checkedAt);
+    // The free slug is picked inside the transaction; a title it cannot be made from, such as
+    // one of symbols only, fails here instead, before any upload.
+    Slug.fromText(command.title);
     const pending = this.pendingImages(command, productId, checkedAt);
     await assertCategoriesVisible(this.deps.categories, categoryIds);
     await assertRelatedExist(this.deps.products, relatedIds);
@@ -158,7 +164,7 @@ export class CreateProductUseCase implements UseCase<
     const { skus, slugs, products } = this.deps;
     return {
       sku: await skus.next(),
-      slug: await slugs.generate(title, (slug) => products.existsBySlug(slug)),
+      slug: await slugs.generate(title, slugStoreOf(products), Slug.MAX_LENGTH),
     };
   }
 

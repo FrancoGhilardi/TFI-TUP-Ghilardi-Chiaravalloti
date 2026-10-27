@@ -9,6 +9,12 @@ export abstract class ProductRepository {
   abstract existsBySlug(slug: Slug): Promise<boolean>;
 
   /**
+   * Makes another transaction that locks the same slug wait until this one ends, so two
+   * creations never pick the same slug. Only inside a transaction.
+   */
+  abstract lockSlug(slug: Slug): Promise<void>;
+
+  /**
    * The ids among `ids` that belong to current products. Inside a transaction they cannot be
    * deleted until it ends.
    */

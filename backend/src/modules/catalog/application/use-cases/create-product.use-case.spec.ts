@@ -9,6 +9,7 @@ import { IdGenerator } from "../../../../shared/application/id-generator.js";
 import { TransactionManager } from "../../../../shared/application/transaction-manager.js";
 import { UniqueSlugGenerator } from "../../../../shared/application/unique-slug-generator.js";
 import { InvalidMoneyError } from "../../../../shared/domain/errors/invalid-money-error.js";
+import { InvalidSlugError } from "../../../../shared/domain/errors/invalid-slug-error.js";
 import type { Slug } from "../../../../shared/domain/value-objects/slug.js";
 import { Slug as SlugValue } from "../../../../shared/domain/value-objects/slug.js";
 import { Category } from "../../domain/entities/category.js";
@@ -87,6 +88,11 @@ class FakeProducts extends ProductRepository {
     return Promise.resolve(this.slugs.includes(slug.toString()));
   }
 
+  lockSlug(slug: Slug): Promise<void> {
+    this.events.push(`lock slug ${slug.toString()}`);
+    return Promise.resolve();
+  }
+
   findExistingIds(ids: string[]): Promise<string[]> {
     this.events.push(`check related ${ids.join(",")}`);
     return Promise.resolve(ids.filter((id) => this.existing.includes(id)));
@@ -144,6 +150,9 @@ class FakeCategories extends CategoryRepository {
     return Promise.reject(new Error("Not used"));
   }
   lockHierarchy(): Promise<never> {
+    return Promise.reject(new Error("Not used"));
+  }
+  lockSlug(): Promise<never> {
     return Promise.reject(new Error("Not used"));
   }
   save(): Promise<never> {
@@ -307,6 +316,7 @@ describe("CreateProductUseCase", () => {
       "begin",
       "check categories cat-1,cat-2",
       "next sku",
+      "lock slug cuaderno-rayado-a4",
       "save product LMS-000042 cuaderno-rayado-a4",
       "save images 2",
       "commit",
@@ -394,6 +404,14 @@ describe("CreateProductUseCase", () => {
     expect(products.saved?.slug.toString()).toBe("cuaderno-rayado-a4-2");
   });
 
+  it("cuts the slug of a long valid title instead of failing", async () => {
+    const { products, useCase } = setUp();
+
+    await useCase.execute(command({ title: "ß".repeat(200) }));
+
+    expect(products.saved?.slug.toString()).toBe("s".repeat(220));
+  });
+
   it("keeps the related products once each, checked again inside the transaction", async () => {
     const { events, products, useCase } = setUp();
     products.existing = ["other-1", "other-2"];
@@ -427,6 +445,7 @@ describe("CreateProductUseCase", () => {
         RelatedProductUnavailableError,
       ],
       ["a blank title", { title: "  " }, InvalidProductTitleError],
+      ["a title without letters or digits", { title: "★★★" }, InvalidSlugError],
       ["a malformed price", { price: "15,50" }, InvalidMoneyError],
       ["a sale price not lower", { sale: { price: "1500.50" } }, SalePriceNotLowerError],
       ["a sale that already ended", { sale: { price: "100", endsAt: NOW } }, InvalidSaleEndError],

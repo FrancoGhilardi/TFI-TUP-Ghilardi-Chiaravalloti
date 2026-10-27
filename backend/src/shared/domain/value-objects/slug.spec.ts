@@ -46,13 +46,55 @@ describe("Slug", () => {
     expect(Slug.fromText("A b").equals(Slug.fromValue("a-b"))).toBe(true);
   });
 
-  it("accepts up to 220 characters, the longest slug column", () => {
-    expect(Slug.fromText("a".repeat(220)).length).toBe(220);
-    expect(() => Slug.fromText("a".repeat(221))).toThrow(new InvalidSlugError("tooLong"));
-    expect(() => Slug.fromValue("a".repeat(221))).toThrow(new InvalidSlugError("tooLong"));
-    expect(() => Slug.fromText("a".repeat(219)).withSuffix(2)).toThrow(
-      new InvalidSlugError("tooLong"),
-    );
+  describe("length", () => {
+    it("keeps up to 220 characters, the longest slug column, and refuses a longer stored one", () => {
+      expect(Slug.fromText("a".repeat(220)).length).toBe(220);
+      expect(() => Slug.fromValue("a".repeat(221))).toThrow(new InvalidSlugError("tooLong"));
+    });
+
+    it("cuts a longer text after the last whole word that fits", () => {
+      const slug = Slug.fromText(`${"a".repeat(215)} bbbbbbbbbb`);
+
+      expect(slug.toString()).toBe("a".repeat(215));
+    });
+
+    it("keeps the last word when the cut falls right before a hyphen", () => {
+      expect(Slug.fromText("cuaderno rayado", 8).toString()).toBe("cuaderno");
+      expect(Slug.fromText("cuaderno rayado", 9).toString()).toBe("cuaderno");
+    });
+
+    it("cuts right at the limit when the first word alone is longer", () => {
+      expect(Slug.fromText("a".repeat(300)).toString()).toBe("a".repeat(220));
+      expect(Slug.fromText("abcdefghij klm", 5).toString()).toBe("abcde");
+    });
+
+    it("cuts right at the limit when the whole words would leave less than half", () => {
+      expect(Slug.fromText(`El ${"b".repeat(300)}`).toString()).toBe(`el-${"b".repeat(217)}`);
+      expect(Slug.fromText("ab cdefghij", 8).toString()).toBe("ab-cdefg");
+    });
+
+    it("cuts letters that grow, such as ß, that a valid title may have", () => {
+      const slug = Slug.fromText("ß".repeat(200));
+
+      expect(slug.toString()).toBe("s".repeat(220));
+    });
+
+    it("takes a shorter limit, as categories do", () => {
+      expect(Slug.fromText(`${"a".repeat(100)} ${"b".repeat(30)}`, 120).toString()).toBe(
+        "a".repeat(100),
+      );
+    });
+
+    it("makes room for the suffix, cutting the slug like the text", () => {
+      const long = Slug.fromText(`${"a".repeat(200)} ${"b".repeat(19)}`);
+
+      expect(long.length).toBe(220);
+      expect(long.withSuffix(2).toString()).toBe(`${"a".repeat(200)}-2`);
+      expect(Slug.fromText("a".repeat(220)).withSuffix(12).toString()).toBe(
+        `${"a".repeat(217)}-12`,
+      );
+      expect(Slug.fromText("cuaderno-rayado").withSuffix(2, 12).toString()).toBe("cuaderno-2");
+    });
   });
 
   it.each([

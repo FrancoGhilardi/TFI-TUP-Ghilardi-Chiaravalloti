@@ -12,6 +12,10 @@ import { DrizzleProductImageRepository } from "../../src/modules/catalog/infrast
 import { DrizzleProductRepository } from "../../src/modules/catalog/infrastructure/persistence/drizzle-product.repository.js";
 import { DrizzleSkuGenerator } from "../../src/modules/catalog/infrastructure/persistence/drizzle-sku.generator.js";
 import { FileStorage } from "../../src/shared/application/file-storage.js";
+import {
+  slugStoreOf,
+  UniqueSlugGenerator,
+} from "../../src/shared/application/unique-slug-generator.js";
 import { Money } from "../../src/shared/domain/value-objects/money.js";
 import { Slug } from "../../src/shared/domain/value-objects/slug.js";
 import { DrizzleClient } from "../../src/shared/infrastructure/database/drizzle.client.js";
@@ -128,6 +132,48 @@ describe("Product persistence (e2e)", () => {
       await images.saveAll([imageOf(product.getId(), product.getId().replace("b", "c"))]);
     });
   }
+
+  it("gives two creations at once with the same title different slugs", async () => {
+    const generator = new UniqueSlugGenerator();
+    const slugStore = slugStoreOf(products);
+    let markPicked: () => void = () => undefined;
+    const picked = new Promise<void>((resolve) => {
+      markPicked = resolve;
+    });
+
+    const create = (id: string, afterPicking: () => Promise<void>) =>
+      transactions.run(async () => {
+        const slug = await generator.generate("Cuaderno A4", slugStore, Slug.MAX_LENGTH);
+        await afterPicking();
+        const product = Product.create({
+          id,
+          sku: await skus.next(),
+          title: "Cuaderno A4",
+          slug,
+          price: Money.fromDecimal("10"),
+          categories: CategoryAssignment.fromIds([primaryId], primaryId),
+          createdBy: actorId,
+          now: NOW,
+        });
+        await products.save(product);
+        await images.saveAll([imageOf(id, id.replace("b", "c"))]);
+        return slug.toString();
+      });
+
+    // The first one saves a while after picking its slug, while the second one picks.
+    const first = create(PRODUCT_ID, async () => {
+      markPicked();
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    });
+    await picked;
+    const second = create(OTHER_ID, () => Promise.resolve());
+
+    await expect(Promise.all([first, second])).resolves.toEqual(["cuaderno-a4", "cuaderno-a4-2"]);
+  });
+
+  it("refuses to lock a slug outside a transaction", async () => {
+    await expect(products.lockSlug(Slug.fromValue("cuaderno"))).rejects.toThrow(/transaction/);
+  });
 
   it("generates consecutive SKUs from the sequence", async () => {
     const first = await skus.next();
@@ -330,6 +376,19 @@ describe("Product persistence (e2e)", () => {
     } finally {
       other.release();
     }
+  });
+
+  it("never writes another slug or SKU over the stored ones, whatever the copy saved holds", async () => {
+    await store(await newProduct());
+    // The same id with another title, slug and SKU (LMS-000002).
+    const altered = await newProduct(PRODUCT_ID, "Otro Cuaderno");
+
+    await transactions.run(() => products.save(altered));
+
+    const stored = await products.findById(PRODUCT_ID);
+    expect(stored?.title).toBe("Otro Cuaderno");
+    expect(stored?.slug.toString()).toBe("cuaderno-a4");
+    expect(stored?.sku.toString()).toBe("LMS-000001");
   });
 
   it("keeps the slug and the SKU on later saves, and stores the deletion and its author", async () => {

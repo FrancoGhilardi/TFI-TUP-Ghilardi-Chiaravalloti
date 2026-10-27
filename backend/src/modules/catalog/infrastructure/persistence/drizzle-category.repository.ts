@@ -1,6 +1,10 @@
 import { Injectable } from "@nestjs/common";
 import { and, count, eq, inArray, isNull, ne, type SQL, sql } from "drizzle-orm";
 import type { Slug } from "../../../../shared/domain/value-objects/slug.js";
+import {
+  LockSpace,
+  lockForTransaction,
+} from "../../../../shared/infrastructure/database/advisory-lock.js";
 import { isUniqueViolation } from "../../../../shared/infrastructure/database/constraint-violation.js";
 import { DrizzleExecutor } from "../../../../shared/infrastructure/database/drizzle.executor.js";
 import { categories } from "../../../../shared/infrastructure/database/schema/index.js";
@@ -132,14 +136,12 @@ export class DrizzleCategoryRepository extends CategoryRepository {
     return rows[0]?.total ?? 0;
   }
 
-  async lockHierarchy(): Promise<void> {
-    if (!this.executor.hasActiveTransaction()) {
-      throw new Error("lockHierarchy needs an active transaction");
-    }
-    // Released by the commit or the rollback.
-    await this.executor
-      .current()
-      .execute(sql`SELECT pg_advisory_xact_lock(hashtext('libreria.categories.hierarchy'))`);
+  lockHierarchy(): Promise<void> {
+    return lockForTransaction(this.executor, LockSpace.CATEGORY_HIERARCHY, "hierarchy");
+  }
+
+  lockSlug(slug: Slug): Promise<void> {
+    return lockForTransaction(this.executor, LockSpace.CATEGORY_SLUG, slug.toString());
   }
 
   async save(category: Category): Promise<void> {

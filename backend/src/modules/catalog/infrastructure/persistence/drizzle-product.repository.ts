@@ -1,6 +1,10 @@
 import { Injectable } from "@nestjs/common";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import type { Slug } from "../../../../shared/domain/value-objects/slug.js";
+import {
+  LockSpace,
+  lockForTransaction,
+} from "../../../../shared/infrastructure/database/advisory-lock.js";
 import { DrizzleExecutor } from "../../../../shared/infrastructure/database/drizzle.executor.js";
 import {
   productCategories,
@@ -54,6 +58,10 @@ export class DrizzleProductRepository extends ProductRepository {
       .where(eq(products.slug, slug.toString()))
       .limit(1);
     return row !== undefined;
+  }
+
+  lockSlug(slug: Slug): Promise<void> {
+    return lockForTransaction(this.executor, LockSpace.PRODUCT_SLUG, slug.toString());
   }
 
   /** Inside a transaction the rows found are share-locked, so none is deleted until it ends. */
