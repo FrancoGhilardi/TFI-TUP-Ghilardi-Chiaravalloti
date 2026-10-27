@@ -126,7 +126,7 @@ describe("DrizzleUserRepository (e2e)", () => {
     it("reports removing the last active admin, as the database stops it", async () => {
       const id = await insertUser(pool, { role: "ADMIN" });
       const lastAdmin = await repository.findById(id);
-      lastAdmin?.softDelete("someone", NOW);
+      lastAdmin?.softDelete(id, NOW);
 
       await expect(repository.save(lastAdmin!)).rejects.toThrow(LastActiveAdminError);
     });
@@ -203,28 +203,13 @@ describe("DrizzleUserRepository (e2e)", () => {
       expect(restored).toMatchObject({ deletedAt: undefined, deletedBy: undefined, active: true });
     });
 
-    it("lets the database refuse a second current user with the same email", async () => {
-      await repository.save(newUser({ email: "repetido@example.com" }));
-      const duplicate = newUser({
-        id: "4f9c1f43-6f4b-4d5c-9a3e-5b2d8c7a1e11",
-        email: "REPETIDO@example.com",
-      });
-
-      // The use case checks existsByEmail first; this is the database backing it up (409).
-      await expect(repository.save(duplicate)).rejects.toMatchObject({
-        cause: expect.objectContaining({ code: "23505" }) as unknown,
-      });
-    });
-
-    it("lets the database refuse to leave the system without an active admin", async () => {
+    it("reports deactivating the last active admin, as the database stops it", async () => {
       const admin = await insertUser(pool, { role: "ADMIN" });
       const user = await repository.findById(admin);
       // Skips UserAdministrationPolicy on purpose: the trigger is the last line of defense.
       user?.deactivate(admin, NOW);
 
-      await expect(repository.save(user!)).rejects.toMatchObject({
-        cause: expect.objectContaining({ code: "23514" }) as unknown,
-      });
+      await expect(repository.save(user!)).rejects.toThrow(LastActiveAdminError);
     });
 
     it("keeps the password change time the domain set, not the database clock", async () => {

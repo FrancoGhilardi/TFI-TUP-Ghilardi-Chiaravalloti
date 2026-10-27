@@ -67,6 +67,11 @@ class TestUnmappedDomainError extends DomainError {
     super("UNMAPPED", "secret unmapped failure");
   }
 }
+class TestPublicDetailsError extends BusinessRuleViolationError {
+  constructor() {
+    super("BLOCKED", "Blocked", { details: { count: 2 } });
+  }
+}
 class TestUnrelatedDetailsError extends ConflictError {
   readonly details = [{ field: "secret", messages: ["internal"] }];
   constructor() {
@@ -153,6 +158,13 @@ describe("ErrorResponseFilter", () => {
       const { body } = setup().run(new TestUnrelatedDetailsError());
 
       expect(body.details).toBeUndefined();
+    });
+
+    it("includes the details a domain error declares for the client", () => {
+      const { body, status } = setup().run(new TestPublicDetailsError());
+
+      expect(status).toBe(422);
+      expect(body).toMatchObject({ code: "BLOCKED", details: { count: 2 } });
     });
   });
 
