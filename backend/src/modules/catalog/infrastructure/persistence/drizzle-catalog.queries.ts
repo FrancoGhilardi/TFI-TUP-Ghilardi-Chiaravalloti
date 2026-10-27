@@ -1,0 +1,374 @@
+import { Injectable } from "@nestjs/common";
+import { type SQL, sql } from "drizzle-orm";
+import { FileStorage } from "../../../../shared/application/file-storage.js";
+import { offsetOf, type Page, pageOf } from "../../../../shared/application/pagination.js";
+import { DrizzleExecutor } from "../../../../shared/infrastructure/database/drizzle.executor.js";
+import type { CategorySummaryResult } from "../../application/dto/admin-category.result.js";
+import type {
+  ProductCardResult,
+  ProductImageResult,
+} from "../../application/dto/product-card.result.js";
+import type { ProductPage } from "../../application/dto/product-detail.result.js";
+import type { SearchCatalogQuery } from "../../application/dto/search-catalog.query.js";
+import { CatalogQueries } from "../../application/ports/catalog-queries.js";
+import { runsAt } from "../../domain/runs-at.js";
+
+/**
+ * The categories the store shows: reached from a root through active, current categories
+ * only, so a hidden one hides its whole branch and one in a loop is never reached.
+ */
+const VISIBLE_CATEGORIES = sql`
+  visible_categories AS (
+    SELECT id, parent_id FROM libreria.categories
+    WHERE parent_id IS NULL AND is_active AND deleted_at IS NULL
+    UNION
+    SELECT child.id, child.parent_id
+    FROM libreria.categories child
+    JOIN visible_categories parent ON child.parent_id = parent.id
+    WHERE child.is_active AND child.deleted_at IS NULL
+  )`;
+
+// Active and not deleted; `p` is the product. The card queries need nothing else, since their
+// join on the first processed image already leaves out a product without one.
+const IS_LISTED = sql`p.is_active AND p.deleted_at IS NULL`;
+
+// Listed and with a processed image.
+const IS_VISIBLE = sql`
+  ${IS_LISTED}
+  AND EXISTS (
+    SELECT 1 FROM libreria.product_images processed
+    WHERE processed.product_id = p.id AND processed.status = 'PROCESSED'
+  )`;
+
+const STORE_ORDER = sql`p.sort_order ASC, p.created_at DESC, p.id ASC`;
+
+// A card: the product, its first processed image and its primary category if visible.
+const CARD_COLUMNS = sql`
+  p.id, p.slug, p.title, p.price, p.sale_price, p.is_on_sale, p.sale_ends_at,
+  p.is_new, p.new_until, p.is_featured,
+  image.id AS image_id, image.position AS image_position, image.public_key AS image_key,
+  image.alt_text AS image_alt_text, image.width AS image_width, image.height AS image_height,
+  category.id AS category_id, category.name AS category_name, category.slug AS category_slug`;
+
+const CARD_JOINS = sql`
+  JOIN LATERAL (
+    SELECT id, position, public_key, alt_text, width, height
+    FROM libreria.product_images
+    WHERE product_id = p.id AND status = 'PROCESSED'
+    ORDER BY position
+    LIMIT 1
+  ) image ON true
+  LEFT JOIN libreria.product_categories primary_assignment
+    ON primary_assignment.product_id = p.id AND primary_assignment.is_primary
+  LEFT JOIN libreria.categories category
+    ON category.id = primary_assignment.category_id
+    AND category.id IN (SELECT id FROM visible_categories)`;
+
+interface MarkColumns {
+  sale_price: string | null;
+  is_on_sale: boolean;
+  sale_ends_at: Date | string | null;
+  is_new: boolean;
+  new_until: Date | string | null;
+}
+
+interface CardRow extends MarkColumns {
+  [column: string]: unknown;
+  id: string;
+  slug: string;
+  title: string;
+  price: string;
+  is_featured: boolean;
+  image_id: string;
+  image_position: number;
+  image_key: string;
+  image_alt_text: string | null;
+  image_width: number | null;
+  image_height: number | null;
+  category_id: string | null;
+  category_name: string | null;
+  category_slug: string | null;
+  /** Only in a listing page: how many match, counted with the same filter. */
+  total_items?: number;
+}
+
+interface PageRow extends MarkColumns {
+  [column: string]: unknown;
+  id: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  price: string;
+  stock: number;
+  is_featured: boolean;
+}
+
+interface ImageRow {
+  [column: string]: unknown;
+  id: string;
+  position: number;
+  public_key: string;
+  alt_text: string | null;
+  width: number | null;
+  height: number | null;
+}
+
+interface AssignedCategoryRow {
+  [column: string]: unknown;
+  id: string;
+  name: string;
+  slug: string;
+  is_primary: boolean;
+  is_visible: boolean;
+}
+
+// Raw queries give timestamps as text.
+const dateOf = (value: Date | string | null) =>
+  value === null ? undefined : value instanceof Date ? value : new Date(value);
+
+/** The sale and the "new" mark as they stand at `now`: one that ended does not count. */
+function marksAt(row: MarkColumns, now: Date) {
+  const saleEndsAt = dateOf(row.sale_ends_at);
+  // The same rule as `Product.isSaleActive` and `isNewActive`.
+  const isOnSale = row.is_on_sale && row.sale_price !== null && runsAt(saleEndsAt, now);
+  return {
+    isOnSale,
+    salePrice: isOnSale ? row.sale_price : null,
+    saleEndsAt: isOnSale ? (saleEndsAt ?? null) : null,
+    isNew: row.is_new && runsAt(dateOf(row.new_until), now),
+  };
+}
+
+async function rowsOf<T>(result: Promise<{ rows: T[] }>): Promise<T[]> {
+  return (await result).rows;
+}
+
+const summaryOf = (category: AssignedCategoryRow): CategorySummaryResult => ({
+  id: category.id,
+  name: category.name,
+  slug: category.slug,
+});
+
+@Injectable()
+export class DrizzleCatalogQueries extends CatalogQueries {
+  constructor(
+    private readonly executor: DrizzleExecutor,
+    private readonly storage: FileStorage,
+  ) {
+    super();
+  }
+
+  async findPage(query: SearchCatalogQuery, now: Date): Promise<Page<ProductCardResult>> {
+    // The category and every visible one below it.
+    const ctes =
+      query.categorySlug === undefined
+        ? sql`WITH RECURSIVE ${VISIBLE_CATEGORIES}`
+        : sql`WITH RECURSIVE ${VISIBLE_CATEGORIES},
+          branch AS (
+            SELECT visible.id FROM visible_categories visible
+            JOIN libreria.categories named ON named.id = visible.id
+            WHERE named.slug = ${query.categorySlug}
+            UNION
+            SELECT visible.id FROM visible_categories visible
+            JOIN branch ON visible.parent_id = branch.id
+          )`;
+    const inCategory =
+      query.categorySlug === undefined
+        ? sql`true`
+        : sql`EXISTS (
+            SELECT 1 FROM libreria.product_categories assigned
+            WHERE assigned.product_id = p.id AND assigned.category_id IN (SELECT id FROM branch)
+          )`;
+
+    // One query, so the page and its total come from the same snapshot and connection.
+    const rows = await this.cardRows(
+      ctes,
+      sql`libreria.products p`,
+      sql`${IS_LISTED} AND ${inCategory}`,
+      sql`${STORE_ORDER} LIMIT ${query.limit} OFFSET ${offsetOf(query)}`,
+      sql`, count(*) OVER ()::int AS total_items`,
+    );
+    // Past the last page there is no row to carry the total, so it is counted apart.
+    const totalItems =
+      rows[0]?.total_items ?? (query.page === 1 ? 0 : await this.countVisible(ctes, inCategory));
+    return pageOf(
+      rows.map((row) => this.cardOf(row, now)),
+      totalItems,
+      query,
+    );
+  }
+
+  async findPageBySlug(slug: string, now: Date): Promise<ProductPage | null> {
+    const [row] = await rowsOf(
+      this.executor.current().execute<PageRow>(sql`
+        SELECT p.id, p.slug, p.title, p.description, p.price, p.sale_price, p.is_on_sale,
+          p.sale_ends_at, p.stock, p.is_featured, p.is_new, p.new_until
+        FROM libreria.products p
+        WHERE p.slug = ${slug} AND ${IS_VISIBLE}`),
+    );
+    if (!row) {
+      return null;
+    }
+
+    const [images, assigned] = await Promise.all([
+      rowsOf(
+        this.executor.current().execute<ImageRow>(sql`
+          SELECT id, position, public_key, alt_text, width, height
+          FROM libreria.product_images
+          WHERE product_id = ${row.id} AND status = 'PROCESSED'
+          ORDER BY position`),
+      ),
+      rowsOf(
+        this.executor.current().execute<AssignedCategoryRow>(sql`
+          WITH RECURSIVE ${VISIBLE_CATEGORIES}
+          SELECT category.id, category.name, category.slug, assignment.is_primary,
+            category.id IN (SELECT id FROM visible_categories) AS is_visible
+          FROM libreria.product_categories assignment
+          JOIN libreria.categories category ON category.id = assignment.category_id
+          WHERE assignment.product_id = ${row.id}
+          -- Like the category tree: ignoring case and accents.
+          ORDER BY assignment.is_primary DESC,
+            lower(libreria.immutable_unaccent(category.name)), category.id`),
+      ),
+    ]);
+    const primary = assigned.find((category) => category.is_primary && category.is_visible);
+    const marks = marksAt(row, now);
+
+    return {
+      id: row.id,
+      slug: row.slug,
+      title: row.title,
+      description: row.description,
+      price: row.price,
+      salePrice: marks.salePrice,
+      isOnSale: marks.isOnSale,
+      saleEndsAt: marks.saleEndsAt,
+      stock: row.stock,
+      isFeatured: row.is_featured,
+      isNew: marks.isNew,
+      images: images.map((image) =>
+        this.imageOf({
+          id: image.id,
+          position: image.position,
+          key: image.public_key,
+          altText: image.alt_text,
+          width: image.width,
+          height: image.height,
+        }),
+      ),
+      primaryCategory: primary ? summaryOf(primary) : null,
+      categories: assigned.filter((category) => category.is_visible).map(summaryOf),
+    };
+  }
+
+  async findManualRelated(
+    productId: string,
+    limit: number,
+    now: Date,
+  ): Promise<ProductCardResult[]> {
+    const rows = await this.cardRows(
+      sql`WITH RECURSIVE ${VISIBLE_CATEGORIES}`,
+      sql`libreria.related_products manual JOIN libreria.products p ON p.id = manual.related_product_id`,
+      sql`manual.product_id = ${productId} AND ${IS_LISTED}`,
+      sql`manual.sort_order ASC, p.id ASC LIMIT ${limit}`,
+    );
+    return rows.map((row) => this.cardOf(row, now));
+  }
+
+  async findByPrimaryCategory(
+    categoryId: string,
+    excludeIds: string[],
+    limit: number,
+    now: Date,
+  ): Promise<ProductCardResult[]> {
+    const excluded =
+      excludeIds.length === 0
+        ? sql`true`
+        : sql`p.id NOT IN (${sql.join(
+            excludeIds.map((id) => sql`${id}`),
+            sql`, `,
+          )})`;
+    const rows = await this.cardRows(
+      sql`WITH RECURSIVE ${VISIBLE_CATEGORIES}`,
+      sql`libreria.products p`,
+      sql`${IS_LISTED} AND ${excluded} AND EXISTS (
+        SELECT 1 FROM libreria.product_categories same
+        WHERE same.product_id = p.id AND same.is_primary AND same.category_id = ${categoryId}
+      )`,
+      sql`${STORE_ORDER} LIMIT ${limit}`,
+    );
+    return rows.map((row) => this.cardOf(row, now));
+  }
+
+  private cardRows(
+    ctes: SQL,
+    from: SQL,
+    filter: SQL,
+    orderAndLimit: SQL,
+    extraColumns: SQL = sql``,
+  ): Promise<CardRow[]> {
+    return rowsOf(
+      this.executor.current().execute<CardRow>(sql`
+        ${ctes}
+        SELECT ${CARD_COLUMNS} ${extraColumns}
+        FROM ${from}
+        ${CARD_JOINS}
+        WHERE ${filter}
+        ORDER BY ${orderAndLimit}`),
+    );
+  }
+
+  private async countVisible(ctes: SQL, inCategory: SQL): Promise<number> {
+    const [row] = await rowsOf(
+      this.executor.current().execute<{ [column: string]: unknown; total: number }>(sql`
+        ${ctes}
+        SELECT count(*)::int AS total FROM libreria.products p
+        WHERE ${IS_VISIBLE} AND ${inCategory}`),
+    );
+    return row.total;
+  }
+
+  private cardOf(row: CardRow, now: Date): ProductCardResult {
+    const marks = marksAt(row, now);
+    return {
+      id: row.id,
+      slug: row.slug,
+      title: row.title,
+      price: row.price,
+      salePrice: marks.salePrice,
+      isOnSale: marks.isOnSale,
+      isNew: marks.isNew,
+      isFeatured: row.is_featured,
+      image: this.imageOf({
+        id: row.image_id,
+        position: row.image_position,
+        key: row.image_key,
+        altText: row.image_alt_text,
+        width: row.image_width,
+        height: row.image_height,
+      }),
+      category:
+        row.category_id === null
+          ? null
+          : { id: row.category_id, name: row.category_name ?? "", slug: row.category_slug ?? "" },
+    };
+  }
+
+  private imageOf(image: {
+    id: string;
+    position: number;
+    key: string;
+    altText: string | null;
+    width: number | null;
+    height: number | null;
+  }): ProductImageResult {
+    return {
+      id: image.id,
+      position: image.position,
+      url: this.storage.publicUrl(image.key),
+      altText: image.altText,
+      width: image.width,
+      height: image.height,
+    };
+  }
+}

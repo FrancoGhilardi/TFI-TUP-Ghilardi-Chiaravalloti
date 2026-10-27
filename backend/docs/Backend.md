@@ -1865,10 +1865,10 @@ Al igual que en el resto del backend, las operaciones de escritura trabajan sobr
 classDiagram
     class CatalogQueries {
         <<abstract port>>
-        +searchPage(query: SearchCatalogQuery, now: Date) Promise~Page~ProductCardResult~~
+        +findPage(query: SearchCatalogQuery, now: Date) Promise~Page~ProductCardResult~~
         +findFeatured(limit: number, now: Date) Promise~ProductCardResult[]~
         +findNew(limit: number, now: Date) Promise~ProductCardResult[]~
-        +findDetailBySlug(slug: string, now: Date) Promise~ProductDetailResult~
+        +findPageBySlug(slug: string, now: Date) Promise~ProductPage~
         +findManualRelated(productId: string, limit: number, now: Date) Promise~ProductCardResult[]~
         +findByPrimaryCategory(categoryId: string, excludeIds: string[], limit: number, now: Date) Promise~ProductCardResult[]~
         +searchCards(q: string, limit: number, now: Date) Promise~ProductCardResult[]~
@@ -2210,11 +2210,11 @@ classDiagram
 
 **Tarjetas de producto.** Cada tarjeta muestra como imagen la primera en orden entre las ya procesadas, y como categoría, la categoría principal del producto.
 
-**Catálogo y buscador.** Una misma operación resuelve tanto el listado general del catálogo como la búsqueda con filtros. Devuelve 20 productos por página por defecto, con un máximo de 50. El orden por relevancia solo se aplica cuando se ingresa un texto de búsqueda; en caso contrario, los productos se ordenan por posición y fecha de creación.
+**Catálogo y buscador.** Una misma operación resuelve tanto el listado general del catálogo como la búsqueda con filtros. Hoy filtra por categoría, incluyendo las subcategorías visibles; una categoría oculta o inexistente da una página vacía. La búsqueda por texto, el rango de precio, las marcas y los demás órdenes se suman con el buscador. Devuelve 20 productos por página por defecto, con un máximo de 50. El orden por relevancia solo se aplica cuando se ingresa un texto de búsqueda; en caso contrario, los productos se ordenan por posición y fecha de creación.
 
 **Destacados y novedades.** Cada consulta devuelve como máximo 5 productos, ordenados por posición y, ante igual posición, del más reciente al más antiguo. No existe un límite para la cantidad de productos que pueden marcarse como destacados o novedades: el límite se aplica solo a la cantidad que se muestra.
 
-**Ficha de producto.** Los productos similares se obtienen en dos pasos: primero se toman los cargados manualmente desde el panel y, si no alcanzan la cantidad configurada (4), se completan con otros productos visibles de la misma categoría principal, excluyendo el propio producto y los ya incluidos. Así, la ficha siempre ofrece sugerencias, aunque no se hayan cargado productos similares.
+**Ficha de producto.** Se busca por slug; si el producto no está visible, o el texto no puede ser un slug, se responde que no existe. Solo se muestran sus imágenes procesadas, con la dirección pública de su versión optimizada, y las categorías visibles en el árbol; si la principal está oculta, se informa sin ella. Los precios se informan como texto decimal, y la oferta y la novedad solo si siguen vigentes. Las respuestas públicas pueden guardarse en caché 60 segundos. Los productos similares se obtienen en dos pasos: primero se toman los cargados manualmente desde el panel y, si no alcanzan la cantidad configurada (4), se completan con otros productos visibles de la misma categoría principal, siempre que esa categoría esté visible, excluyendo el propio producto y los ya incluidos. Así, la ficha siempre ofrece sugerencias, aunque no se hayan cargado productos similares.
 
 #### Panel de administración
 

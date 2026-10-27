@@ -2,6 +2,7 @@ import { Controller, Get, Header } from "@nestjs/common";
 import { Public } from "../../../identity/presentation/decorators/public.decorator.js";
 import type { CategoryTreeResult } from "../../application/dto/category-tree.result.js";
 import { ListCategoryTreeUseCase } from "../../application/use-cases/list-category-tree.use-case.js";
+import { STORE_CACHE_CONTROL } from "./store-cache.js";
 
 /** Public categories of the store. */
 @Controller("categories")
@@ -9,9 +10,9 @@ import { ListCategoryTreeUseCase } from "../../application/use-cases/list-catego
 export class CategoriesController {
   constructor(private readonly listCategoryTree: ListCategoryTreeUseCase) {}
 
-  // Changes rarely; the store revalidates it every 60 seconds too.
+  // Changes rarely, like the rest of the store.
   @Get()
-  @Header("Cache-Control", "public, max-age=60")
+  @Header("Cache-Control", STORE_CACHE_CONTROL)
   findAll(): Promise<CategoryTreeResult[]> {
     return this.listCategoryTree.execute();
   }
