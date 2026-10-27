@@ -15,11 +15,14 @@ import { ImageSettings } from "./application/settings/image-settings.js";
 import { CreateCategoryUseCase } from "./application/use-cases/create-category.use-case.js";
 import { CreateProductUseCase } from "./application/use-cases/create-product.use-case.js";
 import { DeleteCategoryUseCase } from "./application/use-cases/delete-category.use-case.js";
+import { DeleteProductUseCase } from "./application/use-cases/delete-product.use-case.js";
 import { GetAdminCategoryUseCase } from "./application/use-cases/get-admin-category.use-case.js";
 import { ListAdminCategoriesUseCase } from "./application/use-cases/list-admin-categories.use-case.js";
 import { ListCategoryTreeUseCase } from "./application/use-cases/list-category-tree.use-case.js";
 import { RestoreCategoryUseCase } from "./application/use-cases/restore-category.use-case.js";
+import { RestoreProductUseCase } from "./application/use-cases/restore-product.use-case.js";
 import { UpdateCategoryUseCase } from "./application/use-cases/update-category.use-case.js";
+import { UpdateProductUseCase } from "./application/use-cases/update-product.use-case.js";
 import { CategoryRepository } from "./domain/repositories/category.repository.js";
 import { ProductImageRepository } from "./domain/repositories/product-image.repository.js";
 import { ProductRepository } from "./domain/repositories/product.repository.js";
@@ -169,6 +172,39 @@ import { CategoriesController } from "./presentation/http/categories.controller.
         AdminProductQueries,
         Clock,
       ],
+    },
+    {
+      provide: UpdateProductUseCase,
+      useFactory: (
+        products: ProductRepository,
+        categories: CategoryRepository,
+        transaction: TransactionManager,
+        queries: AdminProductQueries,
+        clock: Clock,
+      ) => new UpdateProductUseCase(products, categories, transaction, queries, clock),
+      inject: [
+        ProductRepository,
+        CategoryRepository,
+        TransactionManager,
+        AdminProductQueries,
+        Clock,
+      ],
+    },
+    {
+      provide: DeleteProductUseCase,
+      useFactory: (products: ProductRepository, transaction: TransactionManager, clock: Clock) =>
+        new DeleteProductUseCase(products, transaction, clock),
+      inject: [ProductRepository, TransactionManager, Clock],
+    },
+    {
+      provide: RestoreProductUseCase,
+      useFactory: (
+        products: ProductRepository,
+        categories: CategoryRepository,
+        transaction: TransactionManager,
+        queries: AdminProductQueries,
+      ) => new RestoreProductUseCase(products, categories, transaction, queries),
+      inject: [ProductRepository, CategoryRepository, TransactionManager, AdminProductQueries],
     },
   ],
 })
