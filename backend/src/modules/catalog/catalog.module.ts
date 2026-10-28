@@ -18,6 +18,7 @@ import { CreateCategoryUseCase } from "./application/use-cases/create-category.u
 import { CreateProductUseCase } from "./application/use-cases/create-product.use-case.js";
 import { DeleteCategoryUseCase } from "./application/use-cases/delete-category.use-case.js";
 import { DeleteProductUseCase } from "./application/use-cases/delete-product.use-case.js";
+import { ExpireProductMarksUseCase } from "./application/use-cases/expire-product-marks.use-case.js";
 import { GetAdminCategoryUseCase } from "./application/use-cases/get-admin-category.use-case.js";
 import { GetProductDetailUseCase } from "./application/use-cases/get-product-detail.use-case.js";
 import { GlobalSearchUseCase } from "./application/use-cases/global-search.use-case.js";
@@ -47,6 +48,7 @@ import { AdminProductsController } from "./presentation/http/admin-products.cont
 import { CatalogController } from "./presentation/http/catalog.controller.js";
 import { CategoriesController } from "./presentation/http/categories.controller.js";
 import { SearchController } from "./presentation/http/search.controller.js";
+import { ProductMarksExpiryScheduler } from "./presentation/schedulers/product-marks-expiry.scheduler.js";
 
 @Module({
   controllers: [
@@ -248,6 +250,13 @@ import { SearchController } from "./presentation/http/search.controller.js";
         new DeleteProductUseCase(products, transaction, clock),
       inject: [ProductRepository, TransactionManager, Clock],
     },
+    {
+      provide: ExpireProductMarksUseCase,
+      useFactory: (products: ProductRepository, clock: Clock) =>
+        new ExpireProductMarksUseCase(products, clock),
+      inject: [ProductRepository, Clock],
+    },
+    ProductMarksExpiryScheduler,
     {
       provide: RestoreProductUseCase,
       useFactory: (
