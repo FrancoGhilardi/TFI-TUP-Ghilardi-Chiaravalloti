@@ -4,9 +4,10 @@ import type { ProductPage } from "../dto/product-detail.result.js";
 import type { SearchCatalogQuery } from "../dto/search-catalog.query.js";
 
 /**
- * Reads the store. Every operation only sees visible products: active, not deleted and with a
- * processed image. `now` tells which sales and "new" marks still run. Listings follow the
- * store order: position, then the newest first.
+ * Reads the store. Every operation only sees visible products: active, not deleted and with an
+ * image that has a public version, which a processed image has and one being processed again
+ * keeps. `now` tells which sales and "new" marks still run. Listings follow the store order:
+ * position, then the newest first.
  */
 export abstract class CatalogQueries {
   abstract findPage(query: SearchCatalogQuery, now: Date): Promise<Page<ProductCardResult>>;

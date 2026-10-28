@@ -29,10 +29,14 @@ import { ListCategoryTreeUseCase } from "./application/use-cases/list-category-t
 import { ListFeaturedProductsUseCase } from "./application/use-cases/list-featured-products.use-case.js";
 import { ListNewProductsUseCase } from "./application/use-cases/list-new-products.use-case.js";
 import { ProcessProductImageUseCase } from "./application/use-cases/process-product-image.use-case.js";
+import { ReorderProductImagesUseCase } from "./application/use-cases/reorder-product-images.use-case.js";
+import { ReplaceProductImageFileUseCase } from "./application/use-cases/replace-product-image-file.use-case.js";
 import { RestoreCategoryUseCase } from "./application/use-cases/restore-category.use-case.js";
 import { RestoreProductUseCase } from "./application/use-cases/restore-product.use-case.js";
+import { RetryProductImageProcessingUseCase } from "./application/use-cases/retry-product-image-processing.use-case.js";
 import { SearchCatalogUseCase } from "./application/use-cases/search-catalog.use-case.js";
 import { UpdateCategoryUseCase } from "./application/use-cases/update-category.use-case.js";
+import { UpdateProductImageUseCase } from "./application/use-cases/update-product-image.use-case.js";
 import { UpdateProductUseCase } from "./application/use-cases/update-product.use-case.js";
 import { CategoryRepository } from "./domain/repositories/category.repository.js";
 import { ProductImageRepository } from "./domain/repositories/product-image.repository.js";
@@ -325,6 +329,99 @@ import { ProductMarksExpiryScheduler } from "./presentation/schedulers/product-m
         BackgroundTasks,
         AdminProductQueries,
         Clock,
+      ],
+    },
+    {
+      provide: ReorderProductImagesUseCase,
+      useFactory: (
+        products: ProductRepository,
+        images: ProductImageRepository,
+        policy: ProductImagePolicy,
+        transaction: TransactionManager,
+        queries: AdminProductQueries,
+      ) => new ReorderProductImagesUseCase(products, images, policy, transaction, queries),
+      inject: [
+        ProductRepository,
+        ProductImageRepository,
+        ProductImagePolicy,
+        TransactionManager,
+        AdminProductQueries,
+      ],
+    },
+    {
+      provide: UpdateProductImageUseCase,
+      useFactory: (
+        products: ProductRepository,
+        images: ProductImageRepository,
+        transaction: TransactionManager,
+        queries: AdminProductQueries,
+      ) => new UpdateProductImageUseCase(products, images, transaction, queries),
+      inject: [ProductRepository, ProductImageRepository, TransactionManager, AdminProductQueries],
+    },
+    {
+      provide: ReplaceProductImageFileUseCase,
+      useFactory: (
+        products: ProductRepository,
+        images: ProductImageRepository,
+        uploader: ProductImageUploader,
+        keys: ImageKeyFactory,
+        ids: IdGenerator,
+        settings: ImageSettings,
+        transaction: TransactionManager,
+        events: EventPublisher,
+        background: BackgroundTasks,
+        queries: AdminProductQueries,
+      ) =>
+        new ReplaceProductImageFileUseCase({
+          products,
+          images,
+          uploader,
+          keys,
+          ids,
+          settings,
+          transaction,
+          events,
+          background,
+          queries,
+        }),
+      inject: [
+        ProductRepository,
+        ProductImageRepository,
+        ProductImageUploader,
+        ImageKeyFactory,
+        IdGenerator,
+        ImageSettings,
+        TransactionManager,
+        EventPublisher,
+        BackgroundTasks,
+        AdminProductQueries,
+      ],
+    },
+    {
+      provide: RetryProductImageProcessingUseCase,
+      useFactory: (
+        products: ProductRepository,
+        images: ProductImageRepository,
+        transaction: TransactionManager,
+        events: EventPublisher,
+        background: BackgroundTasks,
+        queries: AdminProductQueries,
+      ) =>
+        new RetryProductImageProcessingUseCase(
+          products,
+          images,
+          transaction,
+          events,
+          background,
+          queries,
+        ),
+      inject: [
+        ProductRepository,
+        ProductImageRepository,
+        TransactionManager,
+        EventPublisher,
+        BackgroundTasks,
+        AdminProductQueries,
       ],
     },
     {

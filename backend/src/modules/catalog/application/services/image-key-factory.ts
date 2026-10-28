@@ -14,6 +14,19 @@ export class ImageKeyFactory {
   }
 
   /**
+   * A file that replaces the original of an image, under its own `version` since no file is
+   * ever overwritten: `products/{productId}/{imageId}-{version}.{ext}`.
+   */
+  replacementOriginalKey(
+    productId: string,
+    imageId: string,
+    mimeType: ProductImageMimeType,
+    version: string,
+  ): string {
+    return `products/${productId}/${imageId}-${version}.${EXTENSIONS[mimeType]}`;
+  }
+
+  /**
    * The public version, in the public storage: `products/{productId}/{imageId}-v{version}.webp`.
    * Each processing names a new version, so no cache keeps showing the one it replaced and no
    * run ever touches another's file.

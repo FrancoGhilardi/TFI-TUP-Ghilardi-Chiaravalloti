@@ -6,7 +6,6 @@ import type { TransactionManager } from "../../../../shared/application/transact
 import type { UseCase } from "../../../../shared/application/use-case.js";
 import { ProductImage, type ProductImageMimeType } from "../../domain/entities/product-image.js";
 import { InvalidImageError } from "../../domain/errors/invalid-image-error.js";
-import { ProductDeletedError } from "../../domain/errors/product-deleted-error.js";
 import type { ProductImageRepository } from "../../domain/repositories/product-image.repository.js";
 import type { ProductRepository } from "../../domain/repositories/product.repository.js";
 import type { ProductImagePolicy } from "../../domain/services/product-image.policy.js";
@@ -16,7 +15,7 @@ import { ProductImageUploadedEvent } from "../events/product-image-uploaded.even
 import type { AdminProductQueries } from "../ports/admin-product-queries.js";
 import { checkedImageType } from "../services/image-type.js";
 import type { ImageKeyFactory } from "../services/image-key-factory.js";
-import { loadProduct } from "../services/product-loading.js";
+import { loadEditableProduct } from "../services/product-loading.js";
 import type { ProductImageUploader } from "../services/product-image-uploader.js";
 import type { ImageSettings } from "../settings/image-settings.js";
 
@@ -91,10 +90,7 @@ export class AddProductImageUseCase implements UseCase<
    * from 1 with no gaps. Inside a transaction the product is locked first.
    */
   private async placeFor(id: string): Promise<{ productId: string; position: number }> {
-    const product = await loadProduct(this.deps.products, id);
-    if (product.isDeleted()) {
-      throw new ProductDeletedError();
-    }
+    const product = await loadEditableProduct(this.deps.products, id);
     const count = await this.deps.images.countByProduct(product.getId());
     this.deps.policy.assertRoomForOne(count);
     return { productId: product.getId(), position: count + 1 };

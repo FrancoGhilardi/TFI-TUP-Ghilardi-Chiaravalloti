@@ -1882,6 +1882,7 @@ classDiagram
         +findPage(query: ListAdminProductsQuery, now: Date) Promise~Page~AdminProductListItemResult~~
         +findById(id: string, now: Date) Promise~AdminProductDetailResult~
         +findImageById(id: string) Promise~AdminProductImageResult~
+        +findImagesByProduct(productId: string) Promise~AdminProductImageResult[]~
     }
     class CatalogSettings {
         <<settings>>
@@ -2217,7 +2218,7 @@ classDiagram
 
 #### Tienda pública
 
-**Visibilidad.** La tienda solo muestra los productos que están activos, no fueron dados de baja y tienen al menos una imagen procesada. De esta forma, un producto recién creado no aparece en el sitio hasta que sus imágenes estén listas. Las marcas de oferta y novedad se informan como vigentes únicamente si no tienen fecha de vencimiento o si esta todavía no llegó.
+**Visibilidad.** La tienda solo muestra los productos que están activos, no fueron dados de baja y tienen al menos una imagen con versión pública. De esta forma, un producto recién creado no aparece en el sitio hasta que sus imágenes estén listas. Una imagen que se está reprocesando tras un reemplazo, o cuyo nuevo procesamiento falló, sigue mostrándose con su versión pública anterior, que siempre es un archivo válido. Las marcas de oferta y novedad se informan como vigentes únicamente si no tienen fecha de vencimiento o si esta todavía no llegó.
 
 **Tarjetas de producto.** Cada tarjeta muestra como imagen la primera en orden entre las ya procesadas, y como categoría, la categoría principal del producto.
 
@@ -2355,19 +2356,31 @@ classDiagram
         +execute(command: AddProductImageCommand) Promise~AdminProductImageResult~
     }
     class UpdateProductImageUseCase {
+        -products: ProductRepository
         -images: ProductImageRepository
+        -transaction: TransactionManager
+        -queries: AdminProductQueries
         +execute(command: UpdateProductImageCommand) Promise~AdminProductImageResult~
     }
     class ReplaceProductImageFileUseCase {
+        -products: ProductRepository
         -images: ProductImageRepository
         -uploader: ProductImageUploader
+        -keys: ImageKeyFactory
+        -ids: IdGenerator
+        -settings: ImageSettings
+        -transaction: TransactionManager
         -events: EventPublisher
+        -background: BackgroundTasks
+        -queries: AdminProductQueries
         +execute(command: ReplaceProductImageFileCommand) Promise~AdminProductImageResult~
     }
     class ReorderProductImagesUseCase {
+        -products: ProductRepository
         -images: ProductImageRepository
         -policy: ProductImagePolicy
         -transaction: TransactionManager
+        -queries: AdminProductQueries
         +execute(command: ReorderProductImagesCommand) Promise~AdminProductImageResult[]~
     }
     class DeleteProductImageUseCase {
@@ -2378,8 +2391,12 @@ classDiagram
         +execute(command: DeleteProductImageCommand) Promise~void~
     }
     class RetryProductImageProcessingUseCase {
+        -products: ProductRepository
         -images: ProductImageRepository
+        -transaction: TransactionManager
         -events: EventPublisher
+        -background: BackgroundTasks
+        -queries: AdminProductQueries
         +execute(command: RetryProductImageProcessingCommand) Promise~AdminProductImageResult~
     }
     class ProcessProductImageUseCase {
@@ -2501,13 +2518,17 @@ En la base de datos se almacenan únicamente estas claves, y no las URL completa
 
 **Alta de imagen.** La solicitud es de tipo `multipart/form-data`, con un único archivo en el campo `image` y un texto alternativo opcional en `altText`. Antes de subir nada, se verifica que el producto exista y no esté dado de baja (un producto inactivo se acepta), que no tenga ya 5 imágenes (`ProductImageLimitReachedError`, 422) y que el archivo sea JPEG, PNG o WebP según sus primeros bytes, sin superar los 10 MB, con un texto alternativo de hasta 255 caracteres; la validación del formato y el tamaño es la misma del alta de producto. Luego se sube el archivo original, fuera de la transacción. Dentro de ella se bloquea el producto, se vuelven a contar sus imágenes, de modo que dos subidas simultáneas nunca superen el máximo, y se registra la nueva imagen, pendiente, en la posición siguiente a la última. Si algo falla después de la subida, el archivo se elimina en segundo plano. Una vez confirmada la transacción se publica el evento para iniciar su procesamiento, y se responde la imagen tal como la muestra el panel, con su URL firmada.
 
-**Reemplazo de imagen.** Se sube el nuevo archivo original, la imagen vuelve al estado pendiente, se guardan los cambios, se elimina el archivo original anterior y se publica el evento de procesamiento. Las variantes anteriores permanecen publicadas hasta que finaliza el nuevo procesamiento, de modo que el producto no queda sin imagen en la tienda durante ese lapso.
+Todas las operaciones sobre una imagen existente verifican que el producto exista y no esté dado de baja (`ProductDeletedError`), y que la imagen exista y pertenezca a ese producto (`ProductImageNotFoundError`); dentro de la transacción se bloquea primero el producto y después sus imágenes, como en el alta.
 
-**Reordenamiento.** Dentro de una transacción, se aplica el nuevo orden mediante `ProductImagePolicy` y se guardan todas las imágenes. Como durante el intercambio de posiciones dos imágenes podrían ocupar temporalmente la misma posición, antes de actualizar se difiere la validación de la restricción de posición única (`libreria.uq_product_images_position`) hasta el final de la transacción.
+**Texto alternativo.** Se reemplaza por el texto enviado, recortado y de hasta 255 caracteres; un texto vacío lo elimina. Si es el mismo, no se guarda nada.
+
+**Reemplazo de imagen.** La solicitud lleva solo el archivo nuevo, validado como en el alta. Se sube con una clave propia (`products/{productId}/{imageId}-{versión}.{ext}`), ya que ningún archivo se sobrescribe; luego, dentro de una transacción, la imagen toma el nuevo original y vuelve al estado pendiente. Si algo falla después de la subida, el archivo nuevo se elimina; si lo que falló fue el guardado, antes se vuelve a leer la imagen, porque la confirmación pudo llegar a la base aunque se perdiera la respuesta. Una vez confirmada la transacción, se elimina el archivo original anterior y se publica el evento de procesamiento. La versión pública anterior, con sus dimensiones, permanece publicada hasta que finaliza el nuevo procesamiento, que la elimina, de modo que el producto no queda sin imagen en la tienda durante ese lapso. Un procesamiento del original anterior que termine después detecta el cambio y descarta su resultado, sin registrarlo como error.
+
+**Reordenamiento.** Se recibe la lista de imágenes en el nuevo orden, que pasan a ocupar las posiciones consecutivas desde 1; la lista debe contener exactamente las imágenes del producto, cada una una sola vez (`InvalidImageOrderError`). Dentro de una transacción, con el producto y sus imágenes bloqueados, se aplica el nuevo orden mediante `ProductImagePolicy` y se guardan todas las imágenes en una sola sentencia; como la restricción de posición única (`libreria.uq_product_images_position`) es diferible, se valida al final de esa sentencia y no imagen por imagen. Si el orden no cambia, no se guarda nada.
 
 **Eliminación.** Dentro de una transacción, se verifica que no se trate de la última imagen del producto, se elimina el registro y se reacomodan las posiciones de las imágenes restantes. Solo una vez confirmada la transacción se eliminan el archivo original y sus variantes, para no perder archivos si la operación en la base de datos falla.
 
-**Reintento de procesamiento.** Se vuelve a publicar el evento de procesamiento para una imagen cuyo procesamiento falló, lo que permite recuperarla sin necesidad de volver a cargar el archivo.
+**Reintento de procesamiento.** Solo para una imagen cuyo procesamiento falló (si no, `ImageNotFailedError`): vuelve al estado pendiente y, una vez confirmado, se publica de nuevo el evento de procesamiento, lo que permite recuperarla sin necesidad de volver a cargar el archivo.
 
 **Visualización en el panel.** Cuando la imagen ya está procesada, se muestra su variante de 800 px. Mientras está pendiente o si su procesamiento falló, se muestra el archivo original mediante una URL firmada, de validez limitada, ya que el original se encuentra en el almacenamiento privado. De esta forma, el usuario puede ver la imagen cargada aun antes de que esté disponible en la tienda.
 

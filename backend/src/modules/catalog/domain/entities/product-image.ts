@@ -4,7 +4,8 @@ import {
   PRODUCT_IMAGES_MAX,
   PRODUCT_IMAGES_MIN,
 } from "../catalog-limits.js";
-import { InvalidImageError } from "../errors/invalid-image-error.js";
+import { ImageNotFailedError } from "../errors/image-not-failed-error.js";
+import { type ImageNaming, InvalidImageError } from "../errors/invalid-image-error.js";
 import { ImageStatus } from "../image-status.js";
 
 /** The formats an image is accepted in, as the database checks them. */
@@ -36,6 +37,13 @@ export interface ProcessedImageInfo {
   height: number;
 }
 
+/** A new original for an existing image. */
+export interface ReplacementOriginal {
+  originalKey: string;
+  mimeType: ProductImageMimeType;
+  sizeBytes: number;
+}
+
 export interface NewProductImageProps {
   id: string;
   productId: string;
@@ -58,17 +66,7 @@ export class ProductImage extends Entity {
 
   /** A new image waits to be processed. */
   static register(input: NewProductImageProps): ProductImage {
-    const { position } = input;
-    if (
-      !Number.isInteger(position) ||
-      position < PRODUCT_IMAGES_MIN ||
-      position > PRODUCT_IMAGES_MAX
-    ) {
-      throw new RangeError(`An image position goes from 1 to ${PRODUCT_IMAGES_MAX}`);
-    }
-    if (!Number.isInteger(input.sizeBytes) || input.sizeBytes <= 0) {
-      throw new RangeError("An image has at least one byte");
-    }
+    const position = checkedPosition(input.position);
     return new ProductImage({
       id: input.id,
       productId: input.productId,
@@ -76,7 +74,7 @@ export class ProductImage extends Entity {
       originalKey: input.originalKey,
       altText: checkedAltText(input.altText, position),
       mimeType: input.mimeType,
-      sizeBytes: input.sizeBytes,
+      sizeBytes: checkedSize(input.sizeBytes),
       status: ImageStatus.PENDING,
       createdAt: input.now,
     });
@@ -162,6 +160,43 @@ export class ProductImage extends Entity {
     this.props.status = ImageStatus.FAILED;
   }
 
+  /** Whether the alt text changed; a long one is told as the only image edited. */
+  changeAltText(altText: string | undefined): boolean {
+    const checked = checkedAltText(altText, "single");
+    if (checked === this.props.altText) {
+      return false;
+    }
+    this.props.altText = checked;
+    return true;
+  }
+
+  /** The policy keeps the positions of a product from 1 with no gaps. */
+  moveTo(position: number): void {
+    this.props.position = checkedPosition(position);
+  }
+
+  /**
+   * A new original, waiting to be processed. The public version, with its size, stays until
+   * that processing replaces it, so the store keeps showing the image meanwhile. Gives the
+   * original it replaced, to be removed.
+   */
+  replaceOriginal(original: ReplacementOriginal): string {
+    const previous = this.props.originalKey;
+    this.props.originalKey = original.originalKey;
+    this.props.mimeType = original.mimeType;
+    this.props.sizeBytes = checkedSize(original.sizeBytes);
+    this.props.status = ImageStatus.PENDING;
+    return previous;
+  }
+
+  /** Only a failed image goes back to wait for processing. */
+  retryProcessing(): void {
+    if (this.props.status !== ImageStatus.FAILED) {
+      throw new ImageNotFailedError();
+    }
+    this.props.status = ImageStatus.PENDING;
+  }
+
   private assertPending(): void {
     if (!this.isPending()) {
       throw new Error(`Image ${this.id} is ${this.props.status}, not pending`);
@@ -169,14 +204,32 @@ export class ProductImage extends Entity {
   }
 }
 
+function checkedPosition(position: number): number {
+  if (
+    !Number.isInteger(position) ||
+    position < PRODUCT_IMAGES_MIN ||
+    position > PRODUCT_IMAGES_MAX
+  ) {
+    throw new RangeError(`An image position goes from 1 to ${PRODUCT_IMAGES_MAX}`);
+  }
+  return position;
+}
+
+function checkedSize(sizeBytes: number): number {
+  if (!Number.isInteger(sizeBytes) || sizeBytes <= 0) {
+    throw new RangeError("An image has at least one byte");
+  }
+  return sizeBytes;
+}
+
 /** Trimmed; blank means none. Counted in code points, like the varchar column. */
-function checkedAltText(altText: string | undefined, position: number): string | undefined {
+function checkedAltText(altText: string | undefined, naming: ImageNaming): string | undefined {
   const trimmed = altText?.trim();
   if (!trimmed) {
     return undefined;
   }
   if ([...trimmed].length > IMAGE_ALT_TEXT_MAX_LENGTH) {
-    throw new InvalidImageError("altText", position);
+    throw new InvalidImageError("altText", naming);
   }
   return trimmed;
 }
