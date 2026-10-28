@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Slug } from "../../../../shared/domain/value-objects/slug.js";
 import {
   LockSpace,
@@ -12,7 +12,11 @@ import {
   relatedProducts,
 } from "../../../../shared/infrastructure/database/schema/index.js";
 import type { Product } from "../../domain/entities/product.js";
-import { ProductRepository } from "../../domain/repositories/product.repository.js";
+import {
+  type ClearedMarks,
+  ProductRepository,
+} from "../../domain/repositories/product.repository.js";
+import { endedBy } from "./catalog-sql.js";
 import { ProductMapper } from "./product.mapper.js";
 
 @Injectable()
@@ -130,5 +134,42 @@ export class DrizzleProductRepository extends ProductRepository {
         })),
       );
     }
+  }
+
+  /**
+   * Locks the rows in id order, as edits lock products, so the two never deadlock. An edit
+   * holding a row makes this wait and then check its dates again, so a sale just set with a
+   * future end is never cleared. One statement: all of it is cleared, or none.
+   */
+  async clearExpiredMarks(now: Date): Promise<ClearedMarks> {
+    const saleEnded = sql`is_on_sale AND ${endedBy(sql`sale_ends_at`, now)}`;
+    const newEnded = sql`is_new AND ${endedBy(sql`new_until`, now)}`;
+    const { rows } = await this.executor.current().execute<{
+      [column: string]: unknown;
+      sales: number;
+      new_marks: number;
+    }>(sql`
+      WITH ended AS (
+        SELECT id, ${saleEnded} AS sale_ended, ${newEnded} AS new_ended
+        FROM libreria.products
+        WHERE (${saleEnded}) OR (${newEnded})
+        ORDER BY id
+        FOR NO KEY UPDATE
+      ),
+      cleared AS (
+        UPDATE libreria.products product
+        SET is_on_sale = product.is_on_sale AND NOT ended.sale_ended,
+          sale_price = CASE WHEN ended.sale_ended THEN NULL ELSE product.sale_price END,
+          sale_ends_at = CASE WHEN ended.sale_ended THEN NULL ELSE product.sale_ends_at END,
+          is_new = product.is_new AND NOT ended.new_ended,
+          new_until = CASE WHEN ended.new_ended THEN NULL ELSE product.new_until END
+        FROM ended
+        WHERE product.id = ended.id
+        RETURNING ended.sale_ended, ended.new_ended
+      )
+      SELECT count(*) FILTER (WHERE sale_ended)::int AS sales,
+        count(*) FILTER (WHERE new_ended)::int AS new_marks
+      FROM cleared`);
+    return { sales: rows[0].sales, newMarks: rows[0].new_marks };
   }
 }

@@ -19,6 +19,14 @@ export const VISIBLE_CATEGORIES = sql`
     WHERE child.is_active AND child.deleted_at IS NULL
   )`;
 
+/**
+ * Whether an end date such as a sale's came by `now`, by the same rule as `runsAt` at the
+ * milliseconds a JavaScript date keeps; never true without an end. What the store stops
+ * showing and what the cleanup clears follow this one rule.
+ */
+export const endedBy = (column: SQL, now: Date): SQL =>
+  sql`date_trunc('milliseconds', ${column}) <= ${now.toISOString()}::timestamptz`;
+
 /** Case and accents never change a match, so "lapiz" finds "Lápiz". */
 export const unaccentedLike = (column: SQL, pattern: string): SQL =>
   sql`libreria.immutable_unaccent(${column}) ILIKE libreria.immutable_unaccent(${pattern})`;

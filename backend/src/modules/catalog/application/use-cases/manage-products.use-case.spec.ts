@@ -65,6 +65,10 @@ class InMemoryProducts extends ProductRepository {
   lockSlug(): Promise<never> {
     return Promise.reject(new Error("Not used"));
   }
+
+  clearExpiredMarks(): Promise<never> {
+    return Promise.reject(new Error("Not used"));
+  }
 }
 
 class FakeCategories extends CategoryRepository {
@@ -342,13 +346,26 @@ describe("UpdateProductUseCase", () => {
       expect(products.saves).toBe(0);
     });
 
+    it("accepts the sale and mark sent back after the cleanup removed them, changing nothing", async () => {
+      const { clock, products, update } = setUp();
+      clock.time = new Date(LATER.getTime() + 1000);
+
+      await update.execute(
+        edit({ sale: { price: "800", endsAt: LATER }, newMark: { until: LATER } }),
+      );
+
+      expect(products.saves).toBe(0);
+    });
+
     it.each([
       ["a sale", { sale: { price: "500", endsAt: NOW } }, InvalidSaleEndError],
       ["a new mark", { newMark: { until: NOW } }, InvalidNewUntilError],
     ] as const)(
-      "refuses %s ending by the time the product is locked",
+      "refuses %s ending by the time the product is locked, replacing a running one",
       async (_l, changes, error) => {
-        const { update } = setUp();
+        const { product, update } = setUp();
+        product.startSale(pesos("800"), LATER, NOW);
+        product.markAsNew(LATER, NOW);
 
         await expect(update.execute(edit(changes))).rejects.toThrow(error);
       },

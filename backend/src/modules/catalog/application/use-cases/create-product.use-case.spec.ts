@@ -115,6 +115,10 @@ class FakeProducts extends ProductRepository {
   findById(): Promise<Product | null> {
     return Promise.reject(new Error("Not used"));
   }
+
+  clearExpiredMarks(): Promise<never> {
+    return Promise.reject(new Error("Not used"));
+  }
 }
 
 class FakeCategories extends CategoryRepository {
