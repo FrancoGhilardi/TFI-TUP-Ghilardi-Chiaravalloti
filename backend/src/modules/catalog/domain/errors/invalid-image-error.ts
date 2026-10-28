@@ -17,18 +17,30 @@ const FOR_ALL: Record<InvalidImageReason, string> = {
   altText: `Los textos alternativos no pueden tener más de ${IMAGE_ALT_TEXT_MAX_LENGTH} caracteres.`,
 };
 
+/** The image a message names: by its position, the only one sent, or every image. */
+export type ImageNaming = number | "single" | undefined;
+
+function messageOf(reason: InvalidImageReason, naming: ImageNaming): string {
+  if (naming === undefined) {
+    return FOR_ALL[reason];
+  }
+  return naming === "single"
+    ? `La imagen ${FOR_ONE[reason]}.`
+    : `La imagen ${naming} ${FOR_ONE[reason]}.`;
+}
+
 /**
- * Same code for every reason. `position` names the image, counted from 1 as the panel shows
- * them; without it the message speaks of every image.
+ * Same code for every reason. A number names the image by its position, counted from 1 as the
+ * panel shows them; "single", the only image of an upload; nothing, every image.
  */
 export class InvalidImageError extends InvalidValueError {
+  readonly position?: number;
+
   constructor(
     readonly reason: InvalidImageReason,
-    readonly position?: number,
+    naming?: ImageNaming,
   ) {
-    super(
-      "INVALID_IMAGE",
-      position === undefined ? FOR_ALL[reason] : `La imagen ${position} ${FOR_ONE[reason]}.`,
-    );
+    super("INVALID_IMAGE", messageOf(reason, naming));
+    this.position = typeof naming === "number" ? naming : undefined;
   }
 }

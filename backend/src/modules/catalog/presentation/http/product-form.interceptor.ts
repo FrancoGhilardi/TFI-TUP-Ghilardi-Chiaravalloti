@@ -4,13 +4,13 @@ import {
   Injectable,
   type NestInterceptor,
 } from "@nestjs/common";
-import type { Request, Response } from "express";
-import multer, { MulterError } from "multer";
+import multer, { type MulterError } from "multer";
 import type { Observable } from "rxjs";
 import { RequestValidationError } from "../../../../shared/presentation/http/request-validation-error.js";
 import { PRODUCT_IMAGE_MAX_BYTES, PRODUCT_IMAGES_MAX } from "../../domain/catalog-limits.js";
 import { InvalidImageCountError } from "../../domain/errors/invalid-image-count-error.js";
 import { InvalidImageError } from "../../domain/errors/invalid-image-error.js";
+import { formError, readMultipart } from "./multipart-form.js";
 
 export const IMAGES_FIELD = "images";
 export const DATA_FIELD = "data";
@@ -29,14 +29,10 @@ const parse = multer({
   },
 }).array(IMAGES_FIELD, PRODUCT_IMAGES_MAX);
 
-const invalidData = (message: string) =>
-  new RequestValidationError([{ field: DATA_FIELD, messages: [message] }]);
+const invalidData = (message: string) => formError(DATA_FIELD, message);
 
 /** Every way the form can break, told as the errors the panel already knows. */
-function translated(error: unknown): Error {
-  if (!(error instanceof MulterError)) {
-    return invalidData("No pudimos leer el formulario. Probá de nuevo.");
-  }
+function translated(error: MulterError): Error {
   switch (error.code) {
     case "LIMIT_FILE_SIZE":
       return new InvalidImageError("size");
@@ -56,13 +52,7 @@ function translated(error: unknown): Error {
 @Injectable()
 export class ProductFormInterceptor implements NestInterceptor {
   async intercept(context: ExecutionContext, next: CallHandler): Promise<Observable<unknown>> {
-    const http = context.switchToHttp();
-    const request = http.getRequest<Request>();
-    await new Promise<void>((resolve, reject) => {
-      parse(request, http.getResponse<Response>(), (error: unknown) =>
-        error ? reject(translated(error)) : resolve(),
-      );
-    });
+    const request = await readMultipart(context, parse, DATA_FIELD, translated);
     const files = (request.files as Express.Multer.File[] | undefined) ?? [];
     request.files = files;
     request.body = productData(

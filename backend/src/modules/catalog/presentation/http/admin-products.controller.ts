@@ -5,7 +5,6 @@ import {
   HttpCode,
   HttpStatus,
   Param,
-  ParseUUIDPipe,
   Patch,
   Post,
   UploadedFiles,
@@ -15,17 +14,14 @@ import type { AuthUser } from "../../../identity/presentation/auth-user.js";
 import { CurrentUser } from "../../../identity/presentation/decorators/current-user.decorator.js";
 import { AnyPanelRole } from "../../../identity/presentation/decorators/roles.decorator.js";
 import type { AdminProductDetailResult } from "../../application/dto/admin-product-detail.result.js";
-import { ProductNotFoundError } from "../../application/errors/product-not-found-error.js";
 import { CreateProductUseCase } from "../../application/use-cases/create-product.use-case.js";
 import { DeleteProductUseCase } from "../../application/use-cases/delete-product.use-case.js";
 import { RestoreProductUseCase } from "../../application/use-cases/restore-product.use-case.js";
 import { UpdateProductUseCase } from "../../application/use-cases/update-product.use-case.js";
 import { CreateProductRequestDto } from "./create-product.request.dto.js";
 import { ProductFormInterceptor } from "./product-form.interceptor.js";
+import { PRODUCT_ID } from "./product-id.pipe.js";
 import { UpdateProductRequestDto } from "./update-product.request.dto.js";
-
-// An id that is not a UUID cannot name any product; it never reaches the database.
-const PRODUCT_ID = new ParseUUIDPipe({ exceptionFactory: () => new ProductNotFoundError() });
 
 const optionalDate = (value: string | undefined) =>
   value === undefined ? undefined : new Date(value);

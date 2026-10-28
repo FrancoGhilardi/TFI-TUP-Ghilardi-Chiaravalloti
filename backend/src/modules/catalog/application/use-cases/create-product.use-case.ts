@@ -9,7 +9,6 @@ import { Money } from "../../../../shared/domain/value-objects/money.js";
 import { Slug } from "../../../../shared/domain/value-objects/slug.js";
 import { Product } from "../../domain/entities/product.js";
 import { ProductImage } from "../../domain/entities/product-image.js";
-import { InvalidImageError } from "../../domain/errors/invalid-image-error.js";
 import type { CategoryRepository } from "../../domain/repositories/category.repository.js";
 import type { ProductImageRepository } from "../../domain/repositories/product-image.repository.js";
 import type { ProductRepository } from "../../domain/repositories/product.repository.js";
@@ -24,7 +23,7 @@ import type { SkuGenerator } from "../ports/sku-generator.js";
 import type { ImageSettings } from "../settings/image-settings.js";
 import type { ImageKeyFactory } from "../services/image-key-factory.js";
 import type { ProductImageUploader } from "../services/product-image-uploader.js";
-import { detectImageType } from "../services/image-type.js";
+import { checkedImageType } from "../services/image-type.js";
 import { productSlugStore } from "../services/product-slug-store.js";
 import {
   assertCategoriesVisible,
@@ -135,13 +134,7 @@ export class CreateProductUseCase implements UseCase<
     imagePolicy.assertCanAdd(0, command.images.length);
     return command.images.map(({ bytes, altText }, index): PendingImage => {
       const position = index + 1;
-      if (bytes.length > imageSettings.maxSizeBytes) {
-        throw new InvalidImageError("size", position);
-      }
-      const mimeType = detectImageType(bytes);
-      if (mimeType === undefined) {
-        throw new InvalidImageError("type", position);
-      }
+      const mimeType = checkedImageType(bytes, imageSettings.maxSizeBytes, position);
       const imageId = ids.next();
       const image = ProductImage.register({
         id: imageId,

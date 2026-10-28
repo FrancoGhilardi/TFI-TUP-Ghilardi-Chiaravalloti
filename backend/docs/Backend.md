@@ -1881,6 +1881,7 @@ classDiagram
         <<abstract port>>
         +findPage(query: ListAdminProductsQuery, now: Date) Promise~Page~AdminProductListItemResult~~
         +findById(id: string, now: Date) Promise~AdminProductDetailResult~
+        +findImageById(id: string) Promise~AdminProductImageResult~
     }
     class CatalogSettings {
         <<settings>>
@@ -2346,10 +2347,14 @@ classDiagram
     class AddProductImageUseCase {
         -products: ProductRepository
         -images: ProductImageRepository
-        -policy: ProductImagePolicy
         -uploader: ProductImageUploader
+        -keys: ImageKeyFactory
+        -ids: IdGenerator
+        -settings: ImageSettings
         -transaction: TransactionManager
         -events: EventPublisher
+        -background: BackgroundTasks
+        -queries: AdminProductQueries
         -clock: Clock
         +execute(command: AddProductImageCommand) Promise~AdminProductImageResult~
     }
@@ -2498,7 +2503,7 @@ En la base de datos se almacenan únicamente estas claves, y no las URL completa
 
 #### Gestión desde el panel
 
-**Alta de imagen.** Se verifica que el producto exista y no esté dado de baja, y se sube el archivo original. Luego, dentro de una transacción, se verifica que el producto no supere el máximo de 5 imágenes y se registra la nueva imagen en la posición siguiente a la última. Por último, se publica el evento para iniciar su procesamiento.
+**Alta de imagen.** La solicitud es de tipo `multipart/form-data`, con un único archivo en el campo `image` y un texto alternativo opcional en `altText`. Antes de subir nada, se verifica que el producto exista y no esté dado de baja (un producto inactivo se acepta), que no tenga ya 5 imágenes (`ProductImageLimitReachedError`, 422) y que el archivo sea JPEG, PNG o WebP según sus primeros bytes, sin superar los 10 MB, con un texto alternativo de hasta 255 caracteres; la validación del formato y el tamaño es la misma del alta de producto. Luego se sube el archivo original, fuera de la transacción. Dentro de ella se bloquea el producto, se vuelven a contar sus imágenes, de modo que dos subidas simultáneas nunca superen el máximo, y se registra la nueva imagen, pendiente, en la posición siguiente a la última. Si algo falla después de la subida, el archivo se elimina en segundo plano. Una vez confirmada la transacción se publica el evento para iniciar su procesamiento, y se responde la imagen tal como la muestra el panel, con su URL firmada.
 
 **Reemplazo de imagen.** Se sube el nuevo archivo original, la imagen vuelve al estado pendiente, se guardan los cambios, se elimina el archivo original anterior y se publica el evento de procesamiento. Las variantes anteriores permanecen publicadas hasta que finaliza el nuevo procesamiento, de modo que el producto no queda sin imagen en la tienda durante ese lapso.
 

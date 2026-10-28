@@ -26,6 +26,7 @@ import { InvalidSortOrderError } from "./invalid-sort-order-error.js";
 import { InvalidStockError } from "./invalid-stock-error.js";
 import { ParentCategoryUnavailableError } from "./parent-category-unavailable-error.js";
 import { ProductDeletedError } from "./product-deleted-error.js";
+import { ProductImageLimitReachedError } from "./product-image-limit-reached-error.js";
 import { ProductNotDeletedError } from "./product-not-deleted-error.js";
 import { ProductWithoutCategoryError } from "./product-without-category-error.js";
 import { RelatedProductUnavailableError } from "./related-product-unavailable-error.js";
@@ -76,6 +77,12 @@ const CASES: [DomainError, Base, string, string][] = [
     InvalidValueError,
     "INVALID_IMAGE",
     "La imagen 1 no puede pesar más de 10 MB.",
+  ],
+  [
+    new InvalidImageError("type", "single"),
+    InvalidValueError,
+    "INVALID_IMAGE",
+    "La imagen tiene que ser JPEG, PNG o WebP.",
   ],
   [
     new InvalidImageError("size"),
@@ -214,6 +221,12 @@ const CASES: [DomainError, Base, string, string][] = [
     BusinessRuleViolationError,
     "SELF_RELATED_PRODUCT",
     "Un producto no puede figurar como similar de sí mismo.",
+  ],
+  [
+    new ProductImageLimitReachedError(),
+    BusinessRuleViolationError,
+    "PRODUCT_IMAGE_LIMIT_REACHED",
+    "El producto ya tiene 5 imágenes. Borrá una para subir otra.",
   ],
   [
     new ProductDeletedError(),
