@@ -33,7 +33,9 @@
     "db:check": "drizzle-kit check",
     "db:studio": "drizzle-kit studio",
     "db:seed-admin": "node --env-file-if-exists=${ENV_FILE:-.env} dist/cli/seed-admin.js",
-    "db:smoke": "node --env-file-if-exists=${ENV_FILE:-.env} dist/cli/db-smoke.js"
+    "db:smoke": "node --env-file-if-exists=${ENV_FILE:-.env} dist/cli/db-smoke.js",
+    "storage:setup": "pnpm build && pnpm storage:setup:deploy",
+    "storage:setup:deploy": "node --env-file-if-exists=${ENV_FILE:-.env} dist/cli/setup-storage.js"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

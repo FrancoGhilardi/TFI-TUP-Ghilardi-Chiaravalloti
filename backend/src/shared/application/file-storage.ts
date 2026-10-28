@@ -13,6 +13,9 @@ export abstract class FileStorage {
     contentType: string,
   ): Promise<void>;
 
+  /** The file's content; a key that is not there is a failure. */
+  abstract download(bucket: StorageBucket, key: string): Promise<Uint8Array>;
+
   /** Removing a key that is not there is not a failure. */
   abstract remove(bucket: StorageBucket, keys: string[]): Promise<void>;
 
