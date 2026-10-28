@@ -7,6 +7,7 @@ import { Product } from "../../domain/entities/product.js";
 import { CategoryUnavailableError } from "../../domain/errors/category-unavailable-error.js";
 import { InvalidCategoryAssignmentError } from "../../domain/errors/invalid-category-assignment-error.js";
 import { InvalidNewUntilError } from "../../domain/errors/invalid-new-until-error.js";
+import { InvalidRelatedProductsError } from "../../domain/errors/invalid-related-products-error.js";
 import { InvalidSaleEndError } from "../../domain/errors/invalid-sale-end-error.js";
 import { ProductDeletedError } from "../../domain/errors/product-deleted-error.js";
 import { ProductNotDeletedError } from "../../domain/errors/product-not-deleted-error.js";
@@ -403,10 +404,10 @@ describe("UpdateProductUseCase", () => {
   });
 
   describe("related products", () => {
-    it("replaces them, once each and in order, checked inside the transaction", async () => {
+    it("replaces them in order, checked inside the transaction", async () => {
       const { events, product, update } = setUp();
 
-      await update.execute(edit({ relatedProductIds: ["other-2", "other-1", "other-2"] }));
+      await update.execute(edit({ relatedProductIds: ["other-2", "other-1"] }));
 
       expect(product.relatedProductIds).toEqual(["other-2", "other-1"]);
       // Those with a lower id are locked before the product itself.
@@ -454,6 +455,22 @@ describe("UpdateProductUseCase", () => {
       await expect(update.execute(edit({ relatedProductIds: ["gone-1"] }))).rejects.toThrow(
         RelatedProductUnavailableError,
       );
+    });
+
+    it.each([
+      ["a repeated one", ["other-1", "other-2", "other-1"], InvalidRelatedProductsError],
+      [
+        "more than 4",
+        ["other-1", "other-2", "other-3", "other-4", "other-5"],
+        InvalidRelatedProductsError,
+      ],
+      ["itself, even repeated", ["product-1", "product-1"], SelfRelatedProductError],
+    ])("refuses %s before opening the transaction", async (_label, ids, error) => {
+      const { events, products, update } = setUp();
+
+      await expect(update.execute(edit({ relatedProductIds: ids }))).rejects.toThrow(error);
+      expect(events).toEqual([]);
+      expect(products.saves).toBe(0);
     });
 
     it("refuses the product itself", async () => {

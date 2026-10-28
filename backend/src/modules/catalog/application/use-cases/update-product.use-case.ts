@@ -2,7 +2,7 @@ import type { Clock } from "../../../../shared/application/clock.js";
 import type { TransactionManager } from "../../../../shared/application/transaction-manager.js";
 import type { UseCase } from "../../../../shared/application/use-case.js";
 import { Money } from "../../../../shared/domain/value-objects/money.js";
-import type { Product } from "../../domain/entities/product.js";
+import { Product } from "../../domain/entities/product.js";
 import { ProductDeletedError } from "../../domain/errors/product-deleted-error.js";
 import type { CategoryRepository } from "../../domain/repositories/category.repository.js";
 import type { ProductRepository } from "../../domain/repositories/product.repository.js";
@@ -49,8 +49,10 @@ export class UpdateProductUseCase implements UseCase<
     const categories =
       command.categories &&
       CategoryAssignment.fromIds(command.categories.ids, command.categories.primaryId);
-    // Once each, so the count of existing ones can be compared.
-    const relatedIds = command.relatedProductIds && [...new Set(command.relatedProductIds)];
+    const relatedIds = command.relatedProductIds;
+    if (relatedIds) {
+      Product.assertValidRelatedIds(command.productId, relatedIds);
+    }
 
     await this.transaction.run(async () => {
       // Products are locked in id order: the related ones before this one share-locked first,

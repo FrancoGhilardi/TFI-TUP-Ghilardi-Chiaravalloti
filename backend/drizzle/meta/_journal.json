@@ -71,6 +71,13 @@
       "when": 1793131229809,
       "tag": "0009_reserved_product_slugs",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793197918315,
+      "tag": "0010_related_products_limit",
+      "breakpoints": true
     }
   ]
 }

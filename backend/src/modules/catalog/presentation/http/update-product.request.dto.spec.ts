@@ -4,6 +4,8 @@ import { validate } from "class-validator";
 import { UpdateProductRequestDto } from "./update-product.request.dto.js";
 
 const ID = "4f9c1f43-6f4b-4d5c-9a3e-0000000000a1";
+const relatedIds = (count: number) =>
+  Array.from({ length: count }, (_, index) => `4f9c1f43-6f4b-4d5c-9a3e-00000000000${index}`);
 
 async function messagesFor(body: Record<string, unknown>) {
   const errors = await validate(plainToInstance(UpdateProductRequestDto, body));
@@ -72,6 +74,39 @@ describe("UpdateProductRequestDto", () => {
     const messages = await messagesFor(body);
 
     expect(Object.keys(messages)).toEqual([field]);
+  });
+
+  it("takes the ids in lowercase, whatever their case", () => {
+    const dto = plainToInstance(UpdateProductRequestDto, {
+      categoryIds: [ID.toUpperCase()],
+      primaryCategoryId: ID.toUpperCase(),
+      relatedProductIds: [ID.toUpperCase()],
+    });
+
+    expect(dto).toMatchObject({
+      categoryIds: [ID],
+      primaryCategoryId: ID,
+      relatedProductIds: [ID],
+    });
+  });
+
+  it("refuses the same related product in two cases as repeated", async () => {
+    await expect(messagesFor({ relatedProductIds: [ID, ID.toUpperCase()] })).resolves.toEqual({
+      relatedProductIds: ["Los productos similares no pueden repetirse."],
+    });
+  });
+
+  it("takes up to 4 related products", async () => {
+    await expect(messagesFor({ relatedProductIds: relatedIds(4) })).resolves.toEqual({});
+  });
+
+  it.each([
+    [[ID, ID], "Los productos similares no pueden repetirse."],
+    [relatedIds(5), "Elegí hasta 4 productos similares."],
+  ])("refuses the related products %o", async (ids, message) => {
+    await expect(messagesFor({ relatedProductIds: ids })).resolves.toEqual({
+      relatedProductIds: [message],
+    });
   });
 
   it.each([
