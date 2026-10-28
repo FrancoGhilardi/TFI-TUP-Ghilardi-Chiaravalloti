@@ -120,6 +120,8 @@ enabled = true
 # The maximum file size allowed (e.g. "5MB", "500KB").
 file_size_limit = "10MiB"
 
+# The same buckets as STORAGE_BUCKET_SETTINGS (src/shared/infrastructure/storage/storage-buckets.ts),
+# which a test checks; keep them in line.
 # Uploaded originals of the product images; only the backend reads them.
 [storage.buckets.product-originals]
 public = false

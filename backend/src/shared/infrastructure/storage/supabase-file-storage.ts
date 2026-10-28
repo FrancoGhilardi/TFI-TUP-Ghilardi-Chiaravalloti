@@ -1,11 +1,6 @@
-import type { StorageClient } from "@supabase/storage-js";
+import { StorageClient } from "@supabase/storage-js";
 import { FileStorage, StorageBucket } from "../../application/file-storage.js";
-
-/** The buckets as created in Supabase; locally, in supabase/config.toml. */
-export const STORAGE_BUCKETS: Record<StorageBucket, string> = {
-  [StorageBucket.PRIVATE]: "product-originals",
-  [StorageBucket.PUBLIC]: "product-images",
-};
+import { STORAGE_BUCKETS } from "./storage-buckets.js";
 
 /** Longest wait for any Storage call, so a stalled provider never holds a request. */
 export const STORAGE_TIMEOUT_MS = 30_000;
@@ -13,6 +8,18 @@ export const STORAGE_TIMEOUT_MS = 30_000;
 /** A fetch that gives up after the Storage timeout, for the Storage client. */
 export const fetchWithTimeout: typeof fetch = (input, init) =>
   fetch(input, { ...init, signal: AbortSignal.timeout(STORAGE_TIMEOUT_MS) });
+
+/** A Storage client of the project at `url` that acts with `key`, under the Storage timeout. */
+export function createStorageClient(url: string, key: string): StorageClient {
+  const base = new URL(url);
+  // Keeps a path the project URL may have, as a self-hosted one behind a prefix.
+  base.pathname = `${base.pathname.replace(/\/$/, "")}/storage/v1`;
+  return new StorageClient(
+    base.toString(),
+    { apikey: key, Authorization: `Bearer ${key}` },
+    fetchWithTimeout,
+  );
+}
 
 /**
  * Supabase Storage. The client answers with `{ error }` instead of rejecting, so each error is
@@ -36,6 +43,14 @@ export class SupabaseFileStorage extends FileStorage {
     if (error) {
       throw new Error(`Storage upload of ${key} failed`, { cause: error });
     }
+  }
+
+  async download(bucket: StorageBucket, key: string): Promise<Uint8Array> {
+    const { data, error } = await this.client.from(STORAGE_BUCKETS[bucket]).download(key);
+    if (error) {
+      throw new Error(`Storage download of ${key} failed`, { cause: error });
+    }
+    return new Uint8Array(await data.arrayBuffer());
   }
 
   async remove(bucket: StorageBucket, keys: string[]): Promise<void> {
