@@ -80,6 +80,10 @@ class StubQueries extends CatalogQueries {
     this.calls.push(["category", categoryId, excludeIds, limit, now]);
     return Promise.resolve(this.sameCategory.slice(0, limit));
   }
+
+  searchCards(): Promise<never> {
+    return Promise.reject(new Error("Not used"));
+  }
 }
 
 function setUp() {

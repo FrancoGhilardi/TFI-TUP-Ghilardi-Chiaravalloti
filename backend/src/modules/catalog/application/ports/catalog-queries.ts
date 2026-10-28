@@ -34,4 +34,15 @@ export abstract class CatalogQueries {
     limit: number,
     now: Date,
   ): Promise<ProductCardResult[]>;
+
+  /**
+   * Visible products whose title has every word, in any order and ignoring case and accents.
+   * Those whose title starts with `text` come first, then the store order.
+   */
+  abstract searchCards(
+    words: readonly string[],
+    text: string,
+    limit: number,
+    now: Date,
+  ): Promise<ProductCardResult[]>;
 }

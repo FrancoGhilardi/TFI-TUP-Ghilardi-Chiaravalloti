@@ -27,6 +27,10 @@ class FakeCategoryQueries extends CategoryQueries {
   findAdminById(): Promise<never> {
     return Promise.reject(new Error("Not used"));
   }
+
+  searchVisible(): Promise<never> {
+    return Promise.reject(new Error("Not used"));
+  }
 }
 
 describe("ListCategoryTreeUseCase", () => {
