@@ -12,4 +12,13 @@ export class ImageKeyFactory {
   originalKey(productId: string, imageId: string, mimeType: ProductImageMimeType): string {
     return `products/${productId}/${imageId}.${EXTENSIONS[mimeType]}`;
   }
+
+  /**
+   * The public version, in the public storage: `products/{productId}/{imageId}-v{version}.webp`.
+   * Each processing names a new version, so no cache keeps showing the one it replaced and no
+   * run ever touches another's file.
+   */
+  publicKey(productId: string, imageId: string, version: string): string {
+    return `products/${productId}/${imageId}-v${version}.webp`;
+  }
 }

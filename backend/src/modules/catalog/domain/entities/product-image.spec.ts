@@ -55,4 +55,67 @@ describe("ProductImage", () => {
   it.each([0, -1, 1.5])("refuses %o bytes", (sizeBytes) => {
     expect(() => register({ sizeBytes })).toThrow(RangeError);
   });
+
+  describe("processing", () => {
+    const PROCESSED = {
+      publicKey: "products/product-1/image-1-v1.webp",
+      width: 1200,
+      height: 1500,
+    };
+
+    it("marks a pending image processed with its public version and size", () => {
+      const image = register();
+
+      expect(image.markProcessed(PROCESSED)).toBeUndefined();
+      expect(image).toMatchObject({ ...PROCESSED, status: ImageStatus.PROCESSED });
+      expect(image.isPending()).toBe(false);
+    });
+
+    it("gives the public version an image had before, to be removed", () => {
+      const image = ProductImage.reconstitute({
+        id: "image-1",
+        productId: "product-1",
+        position: 1,
+        originalKey: "products/product-1/image-1.jpg",
+        publicKey: "products/product-1/image-1-v0.webp",
+        mimeType: "image/jpeg",
+        width: 800,
+        height: 1000,
+        status: ImageStatus.PENDING,
+        createdAt: NOW,
+      });
+
+      expect(image.markProcessed(PROCESSED)).toBe("products/product-1/image-1-v0.webp");
+    });
+
+    it.each([
+      { ...PROCESSED, publicKey: " " },
+      { ...PROCESSED, width: 0 },
+      { ...PROCESSED, height: 1.5 },
+    ])("never marks it processed without a public version and a size: %o", (info) => {
+      const image = register();
+
+      expect(() => image.markProcessed(info)).toThrow(RangeError);
+      expect(image.isPending()).toBe(true);
+    });
+
+    it("marks a pending image failed", () => {
+      const image = register();
+
+      image.markFailed();
+
+      expect(image).toMatchObject({ status: ImageStatus.FAILED, publicKey: undefined });
+    });
+
+    it("processes or fails only a pending image", () => {
+      const processed = register();
+      processed.markProcessed(PROCESSED);
+      const failed = register();
+      failed.markFailed();
+
+      expect(() => processed.markProcessed(PROCESSED)).toThrow("not pending");
+      expect(() => processed.markFailed()).toThrow("not pending");
+      expect(() => failed.markProcessed(PROCESSED)).toThrow("not pending");
+    });
+  });
 });

@@ -29,6 +29,13 @@ export interface ProductImageProps {
   createdAt: Date;
 }
 
+/** What processing leaves: the public version and its size in pixels. */
+export interface ProcessedImageInfo {
+  publicKey: string;
+  width: number;
+  height: number;
+}
+
 export interface NewProductImageProps {
   id: string;
   productId: string;
@@ -121,6 +128,44 @@ export class ProductImage extends Entity {
 
   get createdAt(): Date {
     return this.props.createdAt;
+  }
+
+  isPending(): boolean {
+    return this.props.status === ImageStatus.PENDING;
+  }
+
+  /**
+   * Only a pending image is processed, and only with a public version to show: a processed
+   * image always has one. Gives the public version it had before, if any, to be removed.
+   */
+  markProcessed(info: ProcessedImageInfo): string | undefined {
+    this.assertPending();
+    if (info.publicKey.trim() === "") {
+      throw new RangeError("A processed image has a public version");
+    }
+    for (const size of [info.width, info.height]) {
+      if (!Number.isInteger(size) || size <= 0) {
+        throw new RangeError("A processed image has a size in whole pixels");
+      }
+    }
+    const previous = this.props.publicKey;
+    this.props.publicKey = info.publicKey;
+    this.props.width = info.width;
+    this.props.height = info.height;
+    this.props.status = ImageStatus.PROCESSED;
+    return previous;
+  }
+
+  /** Its public version, if an earlier processing left one, stays until it is replaced. */
+  markFailed(): void {
+    this.assertPending();
+    this.props.status = ImageStatus.FAILED;
+  }
+
+  private assertPending(): void {
+    if (!this.isPending()) {
+      throw new Error(`Image ${this.id} is ${this.props.status}, not pending`);
+    }
   }
 }
 

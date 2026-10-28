@@ -7,7 +7,10 @@ export interface OriginalImageFile {
   mimeType: ProductImageMimeType;
 }
 
-/** Uploads the original files of the images, and removes them when they are left unused. */
+/**
+ * Uploads the files of the images, the originals and their public versions, and removes them
+ * when they are left unused.
+ */
 export class ProductImageUploader {
   constructor(private readonly storage: FileStorage) {}
 
@@ -24,6 +27,23 @@ export class ProductImageUploader {
   async discardOriginals(keys: string[]): Promise<void> {
     if (keys.length > 0) {
       await this.storage.remove(StorageBucket.PRIVATE, keys);
+    }
+  }
+
+  /** The uploaded original; rejects with the storage failure, also for a missing key. */
+  downloadOriginal(key: string): Promise<Uint8Array> {
+    return this.storage.download(StorageBucket.PRIVATE, key);
+  }
+
+  /** Keeps a WebP public version in the public storage; rejects with the storage failure. */
+  uploadPublic(key: string, bytes: Uint8Array): Promise<void> {
+    return this.storage.upload(StorageBucket.PUBLIC, key, bytes, "image/webp");
+  }
+
+  /** Rejects with the storage failure, as `discardOriginals` does. */
+  async discardPublic(keys: string[]): Promise<void> {
+    if (keys.length > 0) {
+      await this.storage.remove(StorageBucket.PUBLIC, keys);
     }
   }
 }

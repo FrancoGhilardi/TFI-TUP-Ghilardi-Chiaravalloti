@@ -2297,16 +2297,12 @@ classDiagram
     }
     class ImageProcessor {
         <<abstract port>>
-        +process(original: Buffer, widths: number[]) Promise~ProcessedImage~
+        +toPublicVersion(original: Uint8Array) Promise~PublicImageVersion~
     }
-    class ProcessedImage {
+    class PublicImageVersion {
+        +bytes: Uint8Array
         +width: number
         +height: number
-        +variants: ImageVariantOutput[]
-    }
-    class ImageVariantOutput {
-        +width: number
-        +body: Buffer
     }
     class ImageSettings {
         <<settings>>
@@ -2392,9 +2388,10 @@ classDiagram
         -processor: ImageProcessor
         -keys: ImageKeyFactory
         -uploader: ProductImageUploader
-        -settings: ImageSettings
+        -transaction: TransactionManager
+        -background: BackgroundTasks
         -clock: Clock
-        +execute(imageId: string) Promise~void~
+        +execute(imageId: string) Promise~ImageProcessing~
     }
     class ReprocessStaleImagesUseCase {
         -images: ProductImageRepository
@@ -2442,8 +2439,7 @@ classDiagram
     }
 
     FileStorage ..> StorageBucket
-    ImageProcessor ..> ProcessedImage
-    ProcessedImage *-- ImageVariantOutput
+    ImageProcessor ..> PublicImageVersion
     ProductImageUploader --> FileStorage
     ProductImageUploader --> ImageKeyFactory
     AddProductImageUseCase --> ProductImageUploader
@@ -2466,7 +2462,7 @@ classDiagram
 #### Puertos y configuración
 
 - **`FileStorage`**: contrato para operar con el almacenamiento de archivos. Permite subir, descargar y eliminar archivos, obtener la URL pública de una variante y generar URL firmadas de acceso temporal a los archivos privados. Trabaja con dos espacios de almacenamiento (`StorageBucket`): uno privado, para los archivos originales, y uno público, para las versiones que se muestran en la tienda.
-- **`ImageProcessor`**: contrato para procesar una imagen. Recibe el archivo original y los anchos requeridos, y devuelve las variantes generadas (`ProcessedImage` e `ImageVariantOutput`) junto con las dimensiones de la imagen.
+- **`ImageProcessor`**: contrato para procesar una imagen. Recibe el archivo original y devuelve su versión pública (`PublicImageVersion`), con su contenido y sus dimensiones.
 - **`ImageSettings`**: agrupa los parámetros configurables del procesamiento: anchos de las variantes (400, 800 y 1200 px), tamaño máximo de archivo, formatos admitidos (JPEG, PNG y WebP), tiempo tras el cual una imagen pendiente se considera demorada y duración de las URL firmadas.
 
 #### Servicios de aplicación
@@ -2517,7 +2513,7 @@ En la base de datos se almacenan únicamente estas claves, y no las URL completa
 
 #### Procesamiento
 
-**Procesamiento de imagen.** Se descarga el archivo original, se generan las variantes en formato WebP con un recorte de proporción 4:5 en los anchos configurados (400, 800 y 1200 px), se suben al almacenamiento público y la imagen se marca como procesada. Si existían variantes de una versión anterior, se eliminan. Ante cualquier error, la imagen se marca con estado de error.
+**Procesamiento de imagen.** Por ahora se genera una única versión pública por imagen, la que guarda `public_key`: se descarga el archivo original, se lo gira según la orientación con que se tomó la foto, se lo recorta al centro con proporción 4:5 y se lo achica al mayor tamaño posible sin superar los 1200 × 1500 px y sin agrandarlo nunca, en formato WebP de calidad 80 y sin metadatos (`publicKey`, `products/{productId}/{imageId}-v{version}.webp`, con una versión única en cada procesado, de modo que una ejecución solo borra su propio archivo). Un original de más de 40 megapíxeles o que no puede leerse falla. Las descargas, el procesado y la subida ocurren fuera de la transacción; luego, con la imagen bloqueada, se la marca como procesada con el ancho y el alto de la versión pública solo si sigue pendiente y con el mismo original; si no (fue borrada, reemplazada o procesada por otro lado), la versión generada se elimina. Una versión anterior se elimina después de confirmar la nueva. Ante cualquier error, la imagen se marca con estado de error, de nuevo solo si sigue pendiente con el mismo original, y la versión se elimina solo si se intentó subirla. Si falla el guardado de la imagen procesada, se la vuelve a leer, porque la confirmación pudo llegar a la base aunque se perdiera la respuesta: si quedó procesada con esa versión, se da por hecha; si no puede leerse, no se borra ni se marca nada. Los borrados se esperan dentro del mismo procesado, que ya corre en segundo plano y que la aplicación espera antes de cerrarse. Una imagen solo queda procesada con su versión pública, regla que también exige la base de datos. Las variantes de 400, 800 y 1200 px pueden sumarse más adelante sin cambiar la base.
 
 La operación es idempotente: si la imagen ya fue procesada y no se reemplazó su archivo, no realiza ninguna acción. Esto permite que el procesamiento se ejecute más de una vez sobre la misma imagen sin efectos no deseados.
 
@@ -2616,7 +2612,7 @@ classDiagram
     }
     class SharpImageProcessor {
         <<adapter>>
-        +process(original: Buffer, widths: number[]) Promise~ProcessedImage~
+        +toPublicVersion(original: Uint8Array) Promise~PublicImageVersion~
     }
 
     class CategoriesController {
@@ -2772,7 +2768,7 @@ classDiagram
 
 - **`DrizzleSkuGenerator`**: implementa `SkuGenerator` invocando la función `libreria.next_product_sku()`, que obtiene el siguiente valor de la secuencia de la base de datos. Al delegar la numeración en una secuencia, se garantiza que no se generen SKU repetidos aun ante altas simultáneas.
 - **`SupabaseFileStorage`**: implementa `FileStorage` sobre Supabase Storage, con un bucket privado para los archivos originales (`product-originals`) y uno público para las variantes (`product-images`). Nunca sobrescribe un archivo, cada llamada tiene un tope de 30 segundos y una descarga de un archivo inexistente es una falla. Los buckets no tienen políticas de acceso: solo el backend los lee y escribe, con la clave `service_role`, y lo único abierto es la dirección pública de las variantes procesadas; los originales no pueden listarse, descargarse, firmarse, subirse ni borrarse sin esa clave. La configuración de cada bucket (visibilidad, 10 MB y formatos) se define una sola vez en el código (`STORAGE_BUCKET_SETTINGS`): en Supabase la aplica `pnpm storage:setup`, que crea los que faltan y actualiza los que difieren y, con la clave pública `anon` del proyecto, verifica con un archivo de prueba que nadie más pueda listar, descargar, subir ni borrar archivos (falla indicando qué quedó abierto, por ejemplo por una política creada desde el panel), y en el entorno local la declara `supabase/config.toml`, que `pnpm db:start` usa para crearlos y que un test compara con esa definición.
-- **`SharpImageProcessor`**: implementa `ImageProcessor` con la librería Sharp, encargada de generar las variantes WebP de cada imagen.
+- **`SharpImageProcessor`**: implementa `ImageProcessor` con la librería Sharp, encargada de generar la versión WebP pública de cada imagen, con un límite de píxeles de entrada para no agotar la memoria con un archivo enorme.
 
 #### Presentación
 

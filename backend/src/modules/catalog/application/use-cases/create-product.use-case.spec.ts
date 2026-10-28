@@ -188,6 +188,10 @@ class FakeImages extends ProductImageRepository {
   countByProduct(): Promise<never> {
     return Promise.reject(new Error("Not used"));
   }
+
+  findById(): Promise<never> {
+    return Promise.reject(new Error("Not used"));
+  }
 }
 
 class RecordingTransaction extends TransactionManager {
