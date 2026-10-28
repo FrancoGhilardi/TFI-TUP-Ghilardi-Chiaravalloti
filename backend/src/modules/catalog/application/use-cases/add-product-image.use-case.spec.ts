@@ -96,6 +96,10 @@ class CountingImages extends ProductImageRepository {
   findById(): Promise<never> {
     return Promise.reject(new Error("Not used"));
   }
+
+  findByProduct(): Promise<never> {
+    return Promise.reject(new Error("Not used"));
+  }
 }
 
 class LoggingStorage extends FileStorage {
@@ -201,6 +205,10 @@ class StubQueries extends AdminProductQueries {
 
   findImageById(id: string): Promise<AdminProductImageResult | null> {
     return Promise.resolve({ id } as AdminProductImageResult);
+  }
+
+  findImagesByProduct(): Promise<never> {
+    return Promise.reject(new Error("Not used"));
   }
 }
 

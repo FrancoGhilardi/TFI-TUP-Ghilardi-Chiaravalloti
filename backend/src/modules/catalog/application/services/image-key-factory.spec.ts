@@ -16,4 +16,15 @@ describe("ImageKeyFactory", () => {
       "products/product-1/image-1-vversion-1.webp",
     );
   });
+
+  it("names a replacing original with its version", () => {
+    expect(
+      new ImageKeyFactory().replacementOriginalKey(
+        "product-1",
+        "image-1",
+        "image/png",
+        "version-2",
+      ),
+    ).toBe("products/product-1/image-1-version-2.png");
+  });
 });

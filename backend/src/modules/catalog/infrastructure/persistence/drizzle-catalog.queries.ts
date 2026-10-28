@@ -20,21 +20,25 @@ import {
   VISIBLE_CATEGORIES,
 } from "./catalog-sql.js";
 
+// The store shows an image by its public version. One being processed again, or whose new
+// processing failed, keeps the version it had, which is always a whole file.
+const HAS_PUBLIC_VERSION = sql.raw("public_key IS NOT NULL");
+
 // Active and not deleted; `p` is the product. The card queries need nothing else, since their
-// join on the first processed image already leaves out a product without one.
+// join on the first image with a public version already leaves out a product without one.
 const IS_LISTED = sql`p.is_active AND p.deleted_at IS NULL`;
 
-// Listed and with a processed image.
+// Listed and with an image to show.
 const IS_VISIBLE = sql`
   ${IS_LISTED}
   AND EXISTS (
-    SELECT 1 FROM libreria.product_images processed
-    WHERE processed.product_id = p.id AND processed.status = 'PROCESSED'
+    SELECT 1 FROM libreria.product_images shown
+    WHERE shown.product_id = p.id AND shown.${HAS_PUBLIC_VERSION}
   )`;
 
 const STORE_ORDER = sql`p.sort_order ASC, p.created_at DESC, p.id ASC`;
 
-// A card: the product, its first processed image and its primary category if visible.
+// A card: the product, its first image to show and its primary category if visible.
 const CARD_COLUMNS = sql`
   p.id, p.slug, p.title, p.price, p.sale_price, p.is_on_sale, p.sale_ends_at,
   p.is_new, p.new_until, p.is_featured,
@@ -46,7 +50,7 @@ const CARD_JOINS = sql`
   JOIN LATERAL (
     SELECT id, position, public_key, alt_text, width, height
     FROM libreria.product_images
-    WHERE product_id = p.id AND status = 'PROCESSED'
+    WHERE product_id = p.id AND ${HAS_PUBLIC_VERSION}
     ORDER BY position
     LIMIT 1
   ) image ON true
@@ -220,7 +224,7 @@ export class DrizzleCatalogQueries extends CatalogQueries {
         this.executor.current().execute<ImageRow>(sql`
           SELECT id, position, public_key, alt_text, width, height
           FROM libreria.product_images
-          WHERE product_id = ${row.id} AND status = 'PROCESSED'
+          WHERE product_id = ${row.id} AND ${HAS_PUBLIC_VERSION}
           ORDER BY position`),
       ),
       rowsOf(

@@ -192,6 +192,10 @@ class FakeImages extends ProductImageRepository {
   findById(): Promise<never> {
     return Promise.reject(new Error("Not used"));
   }
+
+  findByProduct(): Promise<never> {
+    return Promise.reject(new Error("Not used"));
+  }
 }
 
 class RecordingTransaction extends TransactionManager {
@@ -278,6 +282,10 @@ class StubQueries extends AdminProductQueries {
     return Promise.resolve({ id } as AdminProductDetailResult);
   }
   findImageById(): Promise<never> {
+    return Promise.reject(new Error("Not used"));
+  }
+
+  findImagesByProduct(): Promise<never> {
     return Promise.reject(new Error("Not used"));
   }
 }

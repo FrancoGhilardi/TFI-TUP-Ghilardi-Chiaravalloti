@@ -1,4 +1,5 @@
 import type { Product } from "../../domain/entities/product.js";
+import { ProductDeletedError } from "../../domain/errors/product-deleted-error.js";
 import { CategoryUnavailableError } from "../../domain/errors/category-unavailable-error.js";
 import { RelatedProductUnavailableError } from "../../domain/errors/related-product-unavailable-error.js";
 import type { CategoryRepository } from "../../domain/repositories/category.repository.js";
@@ -12,6 +13,18 @@ export async function loadProduct(products: ProductRepository, id: string): Prom
   const product = await products.findById(id);
   if (!product) {
     throw new ProductNotFoundError();
+  }
+  return product;
+}
+
+/** A product that can still be changed: not deleted. Inside a transaction it is locked. */
+export async function loadEditableProduct(
+  products: ProductRepository,
+  id: string,
+): Promise<Product> {
+  const product = await loadProduct(products, id);
+  if (product.isDeleted()) {
+    throw new ProductDeletedError();
   }
   return product;
 }

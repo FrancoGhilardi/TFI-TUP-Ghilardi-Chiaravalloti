@@ -20,7 +20,8 @@ export interface ProcessProductImageDependencies {
 
 /**
  * Makes the public version of a pending image and marks it processed, with its size; any
- * failure marks it failed instead and rejects with the cause. The work on the files runs out
+ * failure marks it failed instead and rejects with the cause, unless the image changed
+ * meanwhile, which is only skipped. The work on the files runs out
  * of a transaction; the image is then read again locked and only changed if it is still the
  * same pending one, so running it twice, or along with a deletion or a replacement, never
  * leaves a wrong state. Each run names its file anew, so it only ever removes its own, and
@@ -108,15 +109,16 @@ export class ProcessProductImageUseCase implements UseCase<string, ImageProcessi
 
   /**
    * Removes this run's file, if it may exist, and marks the image failed if it is still the
-   * same pending one: one replaced meanwhile waits for its own processing. Rejects with the
-   * cause, along with any other failure on the way.
+   * same pending one. One deleted, replaced or processed meanwhile is skipped, not failed:
+   * its original may well have been removed on the way, and nothing went wrong with it.
+   * Otherwise rejects with the cause, along with any other failure on the way.
    */
   private async fail(
     imageId: string,
     originalKey: string,
     cause: unknown,
     publicKey: string | undefined,
-  ): Promise<never> {
+  ): Promise<ImageProcessing> {
     const { deps } = this;
     const failures: unknown[] = [cause];
     if (publicKey !== undefined) {
@@ -124,17 +126,23 @@ export class ProcessProductImageUseCase implements UseCase<string, ImageProcessi
         failures.push(error);
       });
     }
-    await deps.transaction
+    const marked = await deps.transaction
       .run(async () => {
         const current = await deps.images.findById(imageId);
-        if (current?.isPending() && current.originalKey === originalKey) {
-          current.markFailed();
-          await deps.images.saveAll([current]);
+        if (!current?.isPending() || current.originalKey !== originalKey) {
+          return false;
         }
+        current.markFailed();
+        await deps.images.saveAll([current]);
+        return true;
       })
       .catch((error: unknown) => {
         failures.push(error);
+        return true;
       });
+    if (!marked && failures.length === 1) {
+      return "skipped";
+    }
     const message = `Processing of image ${imageId} failed`;
     throw failures.length === 1
       ? new Error(message, { cause })
