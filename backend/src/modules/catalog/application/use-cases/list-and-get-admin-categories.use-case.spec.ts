@@ -42,6 +42,10 @@ class FakeCategoryQueries extends CategoryQueries {
   findVisibleRows(): Promise<never> {
     return Promise.reject(new Error("Not used"));
   }
+
+  searchVisible(): Promise<never> {
+    return Promise.reject(new Error("Not used"));
+  }
 }
 
 describe("ListAdminCategoriesUseCase", () => {

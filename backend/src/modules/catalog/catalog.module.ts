@@ -20,6 +20,7 @@ import { DeleteCategoryUseCase } from "./application/use-cases/delete-category.u
 import { DeleteProductUseCase } from "./application/use-cases/delete-product.use-case.js";
 import { GetAdminCategoryUseCase } from "./application/use-cases/get-admin-category.use-case.js";
 import { GetProductDetailUseCase } from "./application/use-cases/get-product-detail.use-case.js";
+import { GlobalSearchUseCase } from "./application/use-cases/global-search.use-case.js";
 import { ListAdminCategoriesUseCase } from "./application/use-cases/list-admin-categories.use-case.js";
 import { ListCategoryTreeUseCase } from "./application/use-cases/list-category-tree.use-case.js";
 import { ListFeaturedProductsUseCase } from "./application/use-cases/list-featured-products.use-case.js";
@@ -45,6 +46,7 @@ import { AdminCategoriesController } from "./presentation/http/admin-categories.
 import { AdminProductsController } from "./presentation/http/admin-products.controller.js";
 import { CatalogController } from "./presentation/http/catalog.controller.js";
 import { CategoriesController } from "./presentation/http/categories.controller.js";
+import { SearchController } from "./presentation/http/search.controller.js";
 
 @Module({
   controllers: [
@@ -52,6 +54,7 @@ import { CategoriesController } from "./presentation/http/categories.controller.
     AdminCategoriesController,
     CatalogController,
     AdminProductsController,
+    SearchController,
   ],
   providers: [
     { provide: CategoryQueries, useClass: DrizzleCategoryQueries },
@@ -87,6 +90,16 @@ import { CategoriesController } from "./presentation/http/categories.controller.
       useFactory: (queries: CatalogQueries, settings: CatalogSettings, clock: Clock) =>
         new GetProductDetailUseCase(queries, settings, clock),
       inject: [CatalogQueries, CatalogSettings, Clock],
+    },
+    {
+      provide: GlobalSearchUseCase,
+      useFactory: (
+        catalog: CatalogQueries,
+        categories: CategoryQueries,
+        settings: CatalogSettings,
+        clock: Clock,
+      ) => new GlobalSearchUseCase(catalog, categories, settings, clock),
+      inject: [CatalogQueries, CategoryQueries, CatalogSettings, Clock],
     },
     { provide: ProductImagePolicy, useValue: new ProductImagePolicy() },
     { provide: ImageSettings, useValue: new ImageSettings() },

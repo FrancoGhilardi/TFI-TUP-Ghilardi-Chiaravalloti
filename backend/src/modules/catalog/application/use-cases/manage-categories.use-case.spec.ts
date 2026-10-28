@@ -147,6 +147,10 @@ class RepositoryBackedQueries extends CategoryQueries {
   findAdminPage(): Promise<Page<AdminCategoryResult>> {
     return Promise.reject(new Error("Not used"));
   }
+
+  searchVisible(): Promise<never> {
+    return Promise.reject(new Error("Not used"));
+  }
 }
 
 class RecordingTransaction extends TransactionManager {

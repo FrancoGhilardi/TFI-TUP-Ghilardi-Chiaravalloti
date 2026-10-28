@@ -412,4 +412,62 @@ describe("DrizzleCatalogQueries (e2e)", () => {
       ).toEqual([kept]);
     });
   });
+
+  describe("searchCards", () => {
+    const search = (words: string[], text = words.join(" "), limit = 5) =>
+      queries.searchCards(words, text, limit, NOW);
+
+    it("finds every word in the title, in any order, ignoring case and accents", async () => {
+      const pencil = await visible("Lápiz negro HB", { sortOrder: 0 });
+      const pen = await visible("Lapicera negra", { sortOrder: 1 });
+      await visible("Cuaderno rayado");
+
+      expect(idsOf(await search(["NEGRO", "lapiz"]))).toEqual([pencil]);
+      expect(idsOf(await search(["lapi"]))).toEqual([pencil, pen]);
+    });
+
+    it("gives the cards of visible products only", async () => {
+      const shown = await visible("Cuaderno A4");
+      const inactive = await visible("Cuaderno inactivo");
+      await pool.query("UPDATE libreria.products SET is_active = false WHERE id = $1", [inactive]);
+      const deleted = await visible("Cuaderno borrado");
+      await pool.query("UPDATE libreria.products SET deleted_at = now() WHERE id = $1", [deleted]);
+      await insertProductWithDeps(pool, { title: "Cuaderno sin procesar", categoryId });
+
+      const cards = await search(["cuaderno"]);
+
+      expect(idsOf(cards)).toEqual([shown]);
+      expect(cards[0]).toMatchObject({
+        title: "Cuaderno A4",
+        category: { id: categoryId, name: "Cuadernos", slug: "cuadernos" },
+      });
+    });
+
+    it("lists first the titles that start with the whole text, then the store order, up to the limit", async () => {
+      const mini = await visible("Mini cuaderno A4", { sortOrder: 0 });
+      const a4 = await visible("Cuaderno A4", { sortOrder: 2 });
+      const a5 = await visible("Cuaderno A5", { sortOrder: 1 });
+
+      expect(idsOf(await search(["cuaderno"]))).toEqual([a5, a4, mini]);
+      expect(idsOf(await search(["cuaderno"], "cuaderno", 2))).toEqual([a5, a4]);
+      expect(idsOf(await search(["a4", "cuaderno"], "a4 cuaderno"))).toEqual([mini, a4]);
+    });
+
+    it("still lists first a title that starts with the text but has a doubled space", async () => {
+      const mini = await visible("Mini cuaderno rayado", { sortOrder: 0 });
+      const doubled = await visible("Cuaderno  rayado", { sortOrder: 1 });
+
+      expect(idsOf(await search(["cuaderno", "rayado"]))).toEqual([doubled, mini]);
+    });
+
+    it("takes the wildcards as text", async () => {
+      const percent = await visible("Descuento 50% extra");
+      await visible("Descuento 500 extra");
+      const underscore = await visible("Borde_fino");
+      await visible("Bordexfino");
+
+      expect(idsOf(await search(["50%"]))).toEqual([percent]);
+      expect(idsOf(await search(["e_f"]))).toEqual([underscore]);
+    });
+  });
 });
