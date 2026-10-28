@@ -217,6 +217,28 @@ describe("GET /products and /products/:slug (e2e)", () => {
       expect(body.images.every((image) => image.url.endsWith(".webp"))).toBe(true);
     });
 
+    it("gives the related products set by hand in their order first, then fills up to 4 from its category", async () => {
+      const id = await shown("Cuaderno A4");
+      const first = await shown("Manual Uno", 3);
+      const hidden = await shown("Manual Oculto", 0);
+      const second = await shown("Manual Dos", 2);
+      const byCategory = [await shown("Misma Uno", 1), await shown("Misma Dos", 4)];
+      await shown("Misma Tres", 5);
+      await set(hidden, "is_active = false");
+      for (const [sortOrder, relatedId] of [first, hidden, second].entries()) {
+        await pool.query(
+          "INSERT INTO libreria.related_products (product_id, related_product_id, sort_order) VALUES ($1, $2, $3)",
+          [id, relatedId, sortOrder],
+        );
+      }
+
+      const response = await http.get("/api/v1/products/cuaderno-a4").expect(200);
+
+      expect((response.body as ProductDetailResult).relatedProducts.map((card) => card.id)).toEqual(
+        [first, second, ...byCategory],
+      );
+    });
+
     it("completes the related products only from a primary category the store shows", async () => {
       await shown("Cuaderno A4");
       await shown("Cuaderno Rayado", 1);

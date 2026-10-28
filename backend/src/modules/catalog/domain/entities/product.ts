@@ -4,11 +4,13 @@ import type { Slug } from "../../../../shared/domain/value-objects/slug.js";
 import {
   PRODUCT_DESCRIPTION_MAX_LENGTH,
   PRODUCT_TITLE_MAX_LENGTH,
+  RELATED_PRODUCTS_MAX,
   STOCK_MAX,
 } from "../catalog-limits.js";
 import { InvalidNewUntilError } from "../errors/invalid-new-until-error.js";
 import { InvalidPriceError } from "../errors/invalid-price-error.js";
 import { InvalidProductTitleError } from "../errors/invalid-product-title-error.js";
+import { InvalidRelatedProductsError } from "../errors/invalid-related-products-error.js";
 import { InvalidSaleEndError } from "../errors/invalid-sale-end-error.js";
 import { InvalidStockError } from "../errors/invalid-stock-error.js";
 import { ProductDeletedError } from "../errors/product-deleted-error.js";
@@ -114,6 +116,23 @@ export class Product extends Entity {
       createdAt: input.now,
       updatedAt: input.now,
     });
+  }
+
+  /**
+   * The rules the related products of `productId` follow by themselves, so a caller can check
+   * them before locking anything: never the product itself, each one once and no more than a
+   * product page shows.
+   */
+  static assertValidRelatedIds(productId: string, productIds: readonly string[]): void {
+    if (productIds.includes(productId)) {
+      throw new SelfRelatedProductError();
+    }
+    if (new Set(productIds).size !== productIds.length) {
+      throw new InvalidRelatedProductsError("duplicated");
+    }
+    if (productIds.length > RELATED_PRODUCTS_MAX) {
+      throw new InvalidRelatedProductsError("tooMany");
+    }
   }
 
   static reconstitute(props: ProductProps): Product {
@@ -326,13 +345,11 @@ export class Product extends Entity {
     this.props.categories = CategoryAssignment.checked(assignments);
   }
 
-  /** Repeated ids are dropped; the caller checks the products exist. */
+  /** Kept in the order given, which the product page follows; the caller checks they exist. */
   setRelatedProducts(productIds: string[]): void {
     this.assertNotDeleted();
-    if (productIds.includes(this.id)) {
-      throw new SelfRelatedProductError();
-    }
-    this.props.relatedProductIds = [...new Set(productIds)];
+    Product.assertValidRelatedIds(this.id, productIds);
+    this.props.relatedProductIds = [...productIds];
   }
 
   activate(): void {

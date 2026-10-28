@@ -20,6 +20,7 @@ import { InvalidCategoryAssignmentError } from "../../domain/errors/invalid-cate
 import { InvalidImageCountError } from "../../domain/errors/invalid-image-count-error.js";
 import { InvalidImageError } from "../../domain/errors/invalid-image-error.js";
 import { InvalidProductTitleError } from "../../domain/errors/invalid-product-title-error.js";
+import { InvalidRelatedProductsError } from "../../domain/errors/invalid-related-products-error.js";
 import { InvalidSaleEndError } from "../../domain/errors/invalid-sale-end-error.js";
 import { RelatedProductUnavailableError } from "../../domain/errors/related-product-unavailable-error.js";
 import { SalePriceNotLowerError } from "../../domain/errors/sale-price-not-lower-error.js";
@@ -427,16 +428,16 @@ describe("CreateProductUseCase", () => {
     expect(products.saved?.slug.toString()).toBe("s".repeat(220));
   });
 
-  it("keeps the related products once each, checked again inside the transaction", async () => {
+  it("keeps the related products in order, checked again inside the transaction", async () => {
     const { events, products, useCase } = setUp();
     products.existing = ["other-1", "other-2"];
 
-    await useCase.execute(command({ relatedProductIds: ["other-1", "other-2", "other-1"] }));
+    await useCase.execute(command({ relatedProductIds: ["other-2", "other-1"] }));
 
-    expect(products.saved?.relatedProductIds).toEqual(["other-1", "other-2"]);
+    expect(products.saved?.relatedProductIds).toEqual(["other-2", "other-1"]);
     expect(events.filter((event) => event.startsWith("check related"))).toEqual([
-      "check related other-1,other-2",
-      "check related other-1,other-2",
+      "check related other-2,other-1",
+      "check related other-2,other-1",
     ]);
   });
 
@@ -458,6 +459,16 @@ describe("CreateProductUseCase", () => {
         "a related product that is gone",
         { relatedProductIds: ["gone-1"] },
         RelatedProductUnavailableError,
+      ],
+      [
+        "a repeated related product",
+        { relatedProductIds: ["other-1", "other-1"] },
+        InvalidRelatedProductsError,
+      ],
+      [
+        "more than 4 related products",
+        { relatedProductIds: ["other-1", "other-2", "other-3", "other-4", "other-5"] },
+        InvalidRelatedProductsError,
       ],
       ["a blank title", { title: "  " }, InvalidProductTitleError],
       ["a title without letters or digits", { title: "★★★" }, InvalidSlugError],

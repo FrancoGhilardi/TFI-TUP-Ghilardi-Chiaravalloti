@@ -85,8 +85,7 @@ export class CreateProductUseCase implements UseCase<
     const productId = ids.next();
     const categories = CategoryAssignment.fromIds(command.categoryIds, command.primaryCategoryId);
     const categoryIds = categories.map((assignment) => assignment.categoryId);
-    // Once each, so the count of existing ones can be compared.
-    const relatedIds = [...new Set(command.relatedProductIds ?? [])];
+    const relatedIds = command.relatedProductIds ?? [];
     // Checks the product data with the same rules the stored one will follow.
     buildProduct(command, productId, categories, relatedIds, PREVIEW_IDENTITY, checkedAt);
     // The free slug is picked inside the transaction; a title it cannot be made from, such as

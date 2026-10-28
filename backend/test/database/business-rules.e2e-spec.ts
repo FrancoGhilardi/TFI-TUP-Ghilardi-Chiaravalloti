@@ -1,4 +1,5 @@
 import type { Pool } from "pg";
+import { RELATED_PRODUCTS_MAX } from "../../src/modules/catalog/domain/catalog-limits.js";
 import {
   adminPool,
   inTransaction,
@@ -256,17 +257,71 @@ describe("business rules in the database (e2e)", () => {
         UNIQUE_VIOLATION,
       );
     });
+  });
+
+  describe("related products", () => {
+    const relate = (productId: string, relatedId: string, sortOrder: number) =>
+      pool.query(
+        "INSERT INTO libreria.related_products (product_id, related_product_id, sort_order) VALUES ($1, $2, $3)",
+        [productId, relatedId, sortOrder],
+      );
+
+    async function products(count: number): Promise<string[]> {
+      const ids: string[] = [];
+      for (let index = 1; index <= count; index++) {
+        ids.push((await insertProductWithDeps(pool, { title: `Product ${index}` })).id);
+      }
+      return ids;
+    }
+
+    // Tied to the limit the application checks, so changing one without the other fails here.
+    it("takes as many per product as the application allows, one per position from 0", async () => {
+      const [product, ...others] = await products(RELATED_PRODUCTS_MAX + 1);
+
+      for (const [index, other] of others.entries()) {
+        await relate(product, other, index);
+      }
+
+      const { rows } = await pool.query("SELECT 1 FROM libreria.related_products");
+      expect(rows).toHaveLength(RELATED_PRODUCTS_MAX);
+    });
 
     it("rejects a product related to itself", async () => {
-      const { id } = await insertProductWithDeps(pool);
+      const [product] = await products(1);
 
-      await expectPgError(
-        pool.query(
-          "INSERT INTO libreria.related_products (product_id, related_product_id) VALUES ($1, $1)",
-          [id],
-        ),
-        CHECK_VIOLATION,
-      );
+      await expect(relate(product, product, 0)).rejects.toMatchObject({
+        code: CHECK_VIOLATION,
+        constraint: "chk_related_products_not_self",
+      });
+    });
+
+    it.each([RELATED_PRODUCTS_MAX, -1])("rejects the position %o", async (sortOrder) => {
+      const [product, other] = await products(2);
+
+      await expect(relate(product, other, sortOrder)).rejects.toMatchObject({
+        code: CHECK_VIOLATION,
+        constraint: "chk_related_products_sort_order_range",
+      });
+    });
+
+    it("rejects two related products in the same position", async () => {
+      const [product, first, second] = await products(3);
+      await relate(product, first, 0);
+
+      await expect(relate(product, second, 0)).rejects.toMatchObject({
+        code: UNIQUE_VIOLATION,
+        constraint: "uq_related_products_sort_order",
+      });
+    });
+
+    it("rejects the same related product twice", async () => {
+      const [product, other] = await products(2);
+      await relate(product, other, 0);
+
+      await expect(relate(product, other, 1)).rejects.toMatchObject({
+        code: UNIQUE_VIOLATION,
+        constraint: "pk_related_products",
+      });
     });
   });
 

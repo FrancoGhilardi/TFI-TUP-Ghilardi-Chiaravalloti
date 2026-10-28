@@ -239,7 +239,54 @@ describe("PATCH, DELETE and restore of /admin/products (e2e)", () => {
       );
     });
 
+    it("reorders up to 4 related products and replaces them, row by row", async () => {
+      const others: string[] = [];
+      for (let index = 0; index < 4; index++) {
+        others.push((await insertProductWithDeps(pool, { categoryId })).id);
+      }
+      await patch({ relatedProductIds: others }).expect(200);
+      const order = [others[3], others[1], others[0], others[2]];
+
+      const response = await patch({ relatedProductIds: order }).expect(200);
+
+      expect((response.body as { relatedProducts: { id: string }[] }).relatedProducts).toEqual(
+        order.map((id) => expect.objectContaining({ id }) as unknown),
+      );
+      const { rows } = await pool.query<{ related_product_id: string; sort_order: number }>(
+        "SELECT related_product_id, sort_order FROM libreria.related_products WHERE product_id = $1 ORDER BY sort_order",
+        [productId],
+      );
+      expect(rows).toEqual(
+        order.map((id, index) => ({ related_product_id: id, sort_order: index })),
+      );
+    });
+
+    it("reads the ids in any case: itself is refused, and the same list sent back changes nothing", async () => {
+      const { id: otherId } = await insertProductWithDeps(pool, { categoryId });
+      await patch({ relatedProductIds: [otherId] }).expect(200);
+      const before = await row();
+
+      await patch({ relatedProductIds: [otherId.toUpperCase()] }).expect(200);
+
+      expect(await row()).toEqual(before);
+      await expectError(
+        patch({ relatedProductIds: [productId.toUpperCase()] }),
+        422,
+        "SELF_RELATED_PRODUCT",
+      );
+      await expectError(
+        patch({ relatedProductIds: [otherId, otherId.toUpperCase()] }),
+        400,
+        "VALIDATION_FAILED",
+      );
+    });
+
     it.each([
+      ["a repeated related product", { relatedProductIds: [UNKNOWN_ID, UNKNOWN_ID] }],
+      [
+        "more than 4 related products",
+        { relatedProductIds: [1, 2, 3, 4, 5].map((n) => `${UNKNOWN_ID.slice(0, -1)}${n}`) },
+      ],
       ["a null field", { stock: null }],
       ["an unknown field", { slug: "otro" }],
       ["a sale price without the sale", { salePrice: "10" }],

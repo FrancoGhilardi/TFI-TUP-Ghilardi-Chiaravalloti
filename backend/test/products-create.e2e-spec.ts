@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { INestApplication } from "@nestjs/common";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { StorageClient } from "@supabase/storage-js";
@@ -24,6 +25,8 @@ import {
   insertUser,
   truncateAll,
 } from "./database/db-test-utils.js";
+
+const SOME_ID = randomUUID();
 
 try {
   process.loadEnvFile(process.env.ENV_FILE ?? ".env");
@@ -258,8 +261,12 @@ describe("POST /admin/products (e2e)", () => {
     expect(published).toEqual((response.body as ProductBody).images.map((image) => image.id));
   });
 
-  it("starts it on sale and new, with the related products once each", async () => {
-    const other = await insertProductWithDeps(pool, { categoryId: primaryId });
+  it("starts it on sale and new, with up to 4 related products in the order sent", async () => {
+    const others: string[] = [];
+    for (let index = 0; index < 4; index++) {
+      others.push((await insertProductWithDeps(pool, { categoryId: primaryId })).id);
+    }
+    const order = [others[2], others[0], others[3], others[1]];
 
     const response = await post(
       data({
@@ -270,7 +277,7 @@ describe("POST /admin/products (e2e)", () => {
         isFeatured: true,
         isActive: false,
         sortOrder: 2,
-        relatedProductIds: [other.id, other.id],
+        relatedProductIds: order,
       }),
     ).expect(201);
 
@@ -283,8 +290,10 @@ describe("POST /admin/products (e2e)", () => {
       isFeatured: true,
       isActive: false,
       sortOrder: 2,
-      relatedProducts: [{ id: other.id }],
     });
+    expect((response.body as { relatedProducts: { id: string }[] }).relatedProducts).toEqual(
+      order.map((id) => expect.objectContaining({ id }) as unknown),
+    );
   });
 
   it("answers the created product when its images cannot be signed, without their links", async () => {
@@ -486,6 +495,16 @@ describe("POST /admin/products (e2e)", () => {
       ["a new mark end without the mark", { newUntil: "2099-01-01T00:00:00Z" }, "newUntil"],
       ["an unknown field", { sku: "LMS-999999" }, "sku"],
       ["a category that is not an id", { categoryIds: ["abc"] }, "categoryIds"],
+      [
+        "a repeated related product",
+        { relatedProductIds: [SOME_ID, SOME_ID] },
+        "relatedProductIds",
+      ],
+      [
+        "more than 4 related products",
+        { relatedProductIds: Array.from({ length: 5 }, () => randomUUID()) },
+        "relatedProductIds",
+      ],
     ])("refuses %s", async (_label, overrides, field) => {
       const error = await expectError(post(data(overrides)), 400, "VALIDATION_FAILED");
 
