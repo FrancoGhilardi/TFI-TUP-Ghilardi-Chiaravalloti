@@ -37,6 +37,18 @@ export class DrizzleProductImageRepository extends ProductImageRepository {
       });
   }
 
+  /** Inside a transaction the row is locked, as `saveAll` writes it whole. */
+  async findById(id: string): Promise<ProductImage | null> {
+    const query = this.executor
+      .current()
+      .select()
+      .from(productImages)
+      .where(eq(productImages.id, id))
+      .limit(1);
+    const [row] = this.executor.hasActiveTransaction() ? await query.for("update") : await query;
+    return row ? ProductImageMapper.toDomain(row) : null;
+  }
+
   async countByProduct(productId: string): Promise<number> {
     const [row] = await this.executor
       .current()

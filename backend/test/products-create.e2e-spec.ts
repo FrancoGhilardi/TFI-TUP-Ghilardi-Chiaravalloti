@@ -5,6 +5,7 @@ import type { Pool } from "pg";
 import request from "supertest";
 import type { App } from "supertest/types.js";
 import { ProductImageUploadedEvent } from "./../src/modules/catalog/application/events/product-image-uploaded.event.js";
+import { ProcessProductImageUseCase } from "./../src/modules/catalog/application/use-cases/process-product-image.use-case.js";
 import { ProductImageRepository } from "./../src/modules/catalog/domain/repositories/product-image.repository.js";
 import { AccessTokenService } from "./../src/modules/identity/application/ports/access-token-service.js";
 import { UserRepository } from "./../src/modules/identity/domain/repositories/user.repository.js";
@@ -113,6 +114,8 @@ describe("POST /admin/products (e2e)", () => {
     app = await createTestApp({
       overrides: [
         { provide: FileStorage, useValue: storage },
+        // The images stay pending: their processing is tested on its own.
+        { provide: ProcessProductImageUseCase, useValue: { execute: () => Promise.resolve() } },
         ...(overrides as { provide: typeof FileStorage; useValue: unknown }[]),
       ],
     });
