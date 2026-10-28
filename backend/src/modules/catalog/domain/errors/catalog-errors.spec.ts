@@ -15,7 +15,9 @@ import { InvalidCategoryAssignmentError } from "./invalid-category-assignment-er
 import { InvalidCategoryNameError } from "./invalid-category-name-error.js";
 import { InvalidDescriptionError } from "./invalid-description-error.js";
 import { InvalidImageCountError } from "./invalid-image-count-error.js";
+import { ImageNotFailedError } from "./image-not-failed-error.js";
 import { InvalidImageError } from "./invalid-image-error.js";
+import { InvalidImageOrderError } from "./invalid-image-order-error.js";
 import { InvalidNewUntilError } from "./invalid-new-until-error.js";
 import { InvalidPriceError } from "./invalid-price-error.js";
 import { InvalidProductTitleError } from "./invalid-product-title-error.js";
@@ -221,6 +223,18 @@ const CASES: [DomainError, Base, string, string][] = [
     BusinessRuleViolationError,
     "SELF_RELATED_PRODUCT",
     "Un producto no puede figurar como similar de sí mismo.",
+  ],
+  [
+    new InvalidImageOrderError(),
+    InvalidValueError,
+    "INVALID_IMAGE_ORDER",
+    "Mandá todas las imágenes del producto, cada una una sola vez.",
+  ],
+  [
+    new ImageNotFailedError(),
+    BusinessRuleViolationError,
+    "IMAGE_NOT_FAILED",
+    "Solo se puede reintentar una imagen cuyo procesado falló.",
   ],
   [
     new ProductImageLimitReachedError(),

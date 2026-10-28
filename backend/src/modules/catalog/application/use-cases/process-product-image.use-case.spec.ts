@@ -55,6 +55,10 @@ class InMemoryImages extends ProductImageRepository {
   countByProduct(): Promise<never> {
     return Promise.reject(new Error("Not used"));
   }
+
+  findByProduct(): Promise<never> {
+    return Promise.reject(new Error("Not used"));
+  }
 }
 
 class LoggingStorage extends FileStorage {
@@ -318,14 +322,25 @@ describe("ProcessProductImageUseCase", () => {
     ]);
   });
 
-  it("does not mark failed an image replaced while its processing failed", async () => {
+  it("skips, without failing, an image replaced while its processing failed", async () => {
     const { images, processor, run } = setUp();
     processor.fail = true;
     processor.meanwhile = () => {
       images.stored = imageWith({ originalKey: "products/product-1/image-1.png" });
     };
 
-    await expect(run()).rejects.toThrow("Processing of image image-1 failed");
+    await expect(run()).resolves.toBe("skipped");
     expect(images.saved).toEqual([]);
+  });
+
+  it("still fails when cleaning up after an image replaced meanwhile fails too", async () => {
+    const { images, storage, processor, run } = setUp();
+    storage.failUpload = true;
+    storage.failRemove = true;
+    processor.meanwhile = () => {
+      images.stored = null;
+    };
+
+    await expect(run()).rejects.toBeInstanceOf(AggregateError);
   });
 });

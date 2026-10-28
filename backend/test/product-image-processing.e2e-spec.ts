@@ -189,4 +189,44 @@ describe("Processing of product images (e2e)", () => {
 
     await expect(allImages()).resolves.toEqual([before]);
   });
+
+  it("replaces the public version after a new original, removing the old one", async () => {
+    const productId = await createProduct([photo]);
+    const [before] = await allImages();
+    const square = await sharp({
+      create: { width: 900, height: 900, channels: 3, background: { r: 200, g: 20, b: 20 } },
+    })
+      .png()
+      .toBuffer();
+
+    await http
+      .put(`/api/v1/admin/products/${productId}/images/${before.id}/file`)
+      .set("Authorization", `Bearer ${token}`)
+      .attach("image", square, { filename: "square.png", contentType: "image/png" })
+      .expect(200);
+    await idle();
+
+    const [after] = await allImages();
+    expect(after).toMatchObject({ status: "PROCESSED", width: 720, height: 900 });
+    expect(after.public_key).not.toBe(before.public_key);
+    expect((await fetch(storage.publicUrl(before.public_key ?? ""))).ok).toBe(false);
+    await expect(storage.download(StorageBucket.PRIVATE, before.original_key)).rejects.toThrow();
+    const page = await http.get("/api/v1/products/cuaderno-a4").expect(200);
+    expect((page.body as { images: unknown[] }).images).toEqual([
+      expect.objectContaining({ width: 720, height: 900 }),
+    ]);
+  });
+
+  it("processes a failed image again on retry, failing again while its original is broken", async () => {
+    const productId = await createProduct([BROKEN_JPEG, photo]);
+    const [broken] = await allImages();
+
+    await http
+      .post(`/api/v1/admin/products/${productId}/images/${broken.id}/retry`)
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+    await idle();
+
+    expect((await allImages())[0]).toMatchObject({ id: broken.id, status: "FAILED" });
+  });
 });

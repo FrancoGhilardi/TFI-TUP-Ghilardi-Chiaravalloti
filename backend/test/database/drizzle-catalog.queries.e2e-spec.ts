@@ -173,6 +173,38 @@ describe("DrizzleCatalogQueries (e2e)", () => {
       expect(card.image.position).toBe(3);
     });
 
+    it("keeps showing an image being processed again, or whose new processing failed, by its public version", async () => {
+      const reprocessing = await visible("Reprocesando");
+      const failed = await visible("Fallida");
+      await pool.query(
+        "UPDATE libreria.product_images SET status = 'PENDING' WHERE product_id = $1",
+        [reprocessing],
+      );
+      await pool.query(
+        "UPDATE libreria.product_images SET status = 'FAILED' WHERE product_id = $1",
+        [failed],
+      );
+
+      const cards = (await page()).items;
+
+      expect(cards.map((card) => card.id).sort()).toEqual([failed, reprocessing].sort());
+      expect(cards.every((card) => card.image.url.endsWith(".webp"))).toBe(true);
+      await expect(queries.findPageBySlug("reprocesando", NOW)).resolves.toMatchObject({
+        images: [expect.objectContaining({ position: 1 })],
+      });
+    });
+
+    it("leaves out a product whose only image never had a public version, even if failed", async () => {
+      const id = await visible("Sin version");
+      await pool.query(
+        "UPDATE libreria.product_images SET status = 'FAILED', public_key = NULL WHERE product_id = $1",
+        [id],
+      );
+
+      await expect(page()).resolves.toMatchObject({ items: [], totalItems: 0 });
+      await expect(queries.findPageBySlug("sin-version", NOW)).resolves.toBeNull();
+    });
+
     it("follows the store order: position, then the newest first", async () => {
       const older = await visible("Viejo", { createdAt: BEFORE });
       const newer = await visible("Nuevo", { createdAt: NOW });

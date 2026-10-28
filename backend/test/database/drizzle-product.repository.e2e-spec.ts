@@ -373,6 +373,44 @@ describe("Product persistence (e2e)", () => {
     });
   });
 
+  it("gives a product's images by position, locked, and saves a swap of positions at once", async () => {
+    await store(await newProduct());
+    const first = PRODUCT_ID.replace("b", "c");
+    const second = "4f9c1f43-6f4b-4d5c-9a3e-0000000000c9";
+    await images.saveAll([
+      ProductImage.register({
+        id: second,
+        productId: PRODUCT_ID,
+        position: 2,
+        originalKey: `products/${PRODUCT_ID}/second.png`,
+        mimeType: "image/png",
+        sizeBytes: 4096,
+        now: NOW,
+      }),
+    ]);
+
+    await transactions.run(async () => {
+      const found = await images.findByProduct(PRODUCT_ID);
+      expect(found.map((image) => image.getId())).toEqual([first, second]);
+      await expect(
+        pool.query("SELECT id FROM libreria.product_images WHERE id = $1 FOR UPDATE NOWAIT", [
+          second,
+        ]),
+      ).rejects.toMatchObject({ code: "55P03" });
+      found[0].moveTo(2);
+      found[1].moveTo(1);
+      await images.saveAll(found);
+    });
+
+    await expect(
+      images.findByProduct(PRODUCT_ID).then((found) => found.map((image) => image.getId())),
+    ).resolves.toEqual([second, first]);
+    await expect(
+      queries.findImagesByProduct(PRODUCT_ID).then((found) => found.map((image) => image.id)),
+    ).resolves.toEqual([second, first]);
+    await expect(images.findByProduct(OTHER_ID)).resolves.toEqual([]);
+  });
+
   it("gives the image without its link when the storage cannot sign it", async () => {
     await store(await newProduct());
     // The id `store` gives the product's image.
