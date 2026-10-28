@@ -3,10 +3,7 @@ import type { Clock } from "../../../../shared/application/clock.js";
 import type { EventPublisher } from "../../../../shared/application/event-publisher.js";
 import type { IdGenerator } from "../../../../shared/application/id-generator.js";
 import type { TransactionManager } from "../../../../shared/application/transaction-manager.js";
-import {
-  slugStoreOf,
-  type UniqueSlugGenerator,
-} from "../../../../shared/application/unique-slug-generator.js";
+import type { UniqueSlugGenerator } from "../../../../shared/application/unique-slug-generator.js";
 import type { UseCase } from "../../../../shared/application/use-case.js";
 import { Money } from "../../../../shared/domain/value-objects/money.js";
 import { Slug } from "../../../../shared/domain/value-objects/slug.js";
@@ -28,6 +25,7 @@ import type { ImageSettings } from "../settings/image-settings.js";
 import type { ImageKeyFactory } from "../services/image-key-factory.js";
 import type { ProductImageUploader } from "../services/product-image-uploader.js";
 import { detectImageType } from "../services/image-type.js";
+import { productSlugStore } from "../services/product-slug-store.js";
 import {
   assertCategoriesVisible,
   assertRelatedExist,
@@ -164,7 +162,7 @@ export class CreateProductUseCase implements UseCase<
     const { skus, slugs, products } = this.deps;
     return {
       sku: await skus.next(),
-      slug: await slugs.generate(title, slugStoreOf(products), Slug.MAX_LENGTH),
+      slug: await slugs.generate(title, productSlugStore(products), Slug.MAX_LENGTH),
     };
   }
 

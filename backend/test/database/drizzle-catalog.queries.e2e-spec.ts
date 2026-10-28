@@ -268,6 +268,55 @@ describe("DrizzleCatalogQueries (e2e)", () => {
     });
   });
 
+  describe("findFeatured and findNew", () => {
+    it("give the visible featured products in the store order, up to the limit", async () => {
+      const older = await visible("Viejo", { createdAt: BEFORE });
+      const newer = await visible("Nuevo", { createdAt: NOW });
+      const later = await visible("Después", { sortOrder: 1, createdAt: NOW });
+      const plain = await visible("Común");
+      const hidden = await visible("Oculto");
+      await pool.query("UPDATE libreria.products SET is_featured = true WHERE id = ANY($1)", [
+        [older, newer, later, hidden],
+      ]);
+      await pool.query("UPDATE libreria.products SET is_active = false WHERE id = $1", [hidden]);
+
+      expect(idsOf(await queries.findFeatured(5, NOW))).toEqual([newer, older, later]);
+      expect(idsOf(await queries.findFeatured(2, NOW))).toEqual([newer, older]);
+      expect(idsOf(await queries.findFeatured(5, NOW))).not.toContain(plain);
+    });
+
+    it("give only the products whose new mark still runs", async () => {
+      const forever = await visible("Sin vencimiento", { sortOrder: 0 });
+      const running = await visible("Vigente", { sortOrder: 1 });
+      const ended = await visible("Vencida", { sortOrder: 2 });
+      const endsNow = await visible("Vence ahora", { sortOrder: 3 });
+      await visible("Común", { sortOrder: 4 });
+      await pool.query("UPDATE libreria.products SET is_new = true WHERE id = $1", [forever]);
+      for (const [id, until] of [
+        [running, LATER],
+        [ended, BEFORE],
+        [endsNow, NOW],
+      ] as const) {
+        await pool.query(
+          "UPDATE libreria.products SET is_new = true, new_until = $2 WHERE id = $1",
+          [id, until],
+        );
+      }
+
+      // Postgres keeps microseconds; a date in JavaScript, milliseconds.
+      const withinTheMillisecond = await visible("Microsegundos", { sortOrder: 5 });
+      await pool.query(
+        "UPDATE libreria.products SET is_new = true, new_until = $2::timestamptz + interval '400 microseconds' WHERE id = $1",
+        [withinTheMillisecond, NOW],
+      );
+
+      const cards = await queries.findNew(5, NOW);
+
+      expect(idsOf(cards)).toEqual([forever, running]);
+      expect(cards.every((card) => card.isNew)).toBe(true);
+    });
+  });
+
   describe("findPageBySlug", () => {
     it("gives the processed images in order and only the visible categories", async () => {
       const id = await visible("Cuaderno A4");

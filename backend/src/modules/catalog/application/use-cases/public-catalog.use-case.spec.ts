@@ -7,6 +7,8 @@ import { ProductNotFoundError } from "../errors/product-not-found-error.js";
 import { CatalogQueries } from "../ports/catalog-queries.js";
 import { CatalogSettings } from "../settings/catalog-settings.js";
 import { GetProductDetailUseCase } from "./get-product-detail.use-case.js";
+import { ListFeaturedProductsUseCase } from "./list-featured-products.use-case.js";
+import { ListNewProductsUseCase } from "./list-new-products.use-case.js";
 import { SearchCatalogUseCase } from "./search-catalog.use-case.js";
 
 const NOW = new Date("2026-10-22T12:00:00.000Z");
@@ -49,6 +51,16 @@ class StubQueries extends CatalogQueries {
     return Promise.resolve({ items: [], page: 1, limit: 20, totalItems: 0, totalPages: 0 });
   }
 
+  findFeatured(limit: number, now: Date): Promise<ProductCardResult[]> {
+    this.calls.push(["featured", limit, now]);
+    return Promise.resolve([card("featured-1")]);
+  }
+
+  findNew(limit: number, now: Date): Promise<ProductCardResult[]> {
+    this.calls.push(["new", limit, now]);
+    return Promise.resolve([card("new-1")]);
+  }
+
   findPageBySlug(slug: string, now: Date): Promise<ProductPage | null> {
     this.calls.push(["slug", slug, now]);
     return Promise.resolve(this.page);
@@ -76,6 +88,8 @@ function setUp() {
   return {
     queries,
     search: new SearchCatalogUseCase(queries, clock),
+    featured: new ListFeaturedProductsUseCase(queries, new CatalogSettings(), clock),
+    fresh: new ListNewProductsUseCase(queries, new CatalogSettings(), clock),
     detail: new GetProductDetailUseCase(queries, new CatalogSettings(), clock),
   };
 }
@@ -88,6 +102,20 @@ describe("SearchCatalogUseCase", () => {
     await search.execute(query);
 
     expect(queries.calls).toEqual([["page", query, NOW]]);
+  });
+});
+
+describe("ListFeaturedProductsUseCase and ListNewProductsUseCase", () => {
+  it("read five of each as of now", async () => {
+    const { queries, featured, fresh } = setUp();
+
+    await expect(featured.execute()).resolves.toEqual([card("featured-1")]);
+    await expect(fresh.execute()).resolves.toEqual([card("new-1")]);
+
+    expect(queries.calls).toEqual([
+      ["featured", 5, NOW],
+      ["new", 5, NOW],
+    ]);
   });
 });
 

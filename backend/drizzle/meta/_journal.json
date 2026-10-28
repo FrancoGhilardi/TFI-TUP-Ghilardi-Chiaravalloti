@@ -64,6 +64,13 @@
       "when": 1793041921077,
       "tag": "0008_last_admin_constraint",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793131229809,
+      "tag": "0009_reserved_product_slugs",
+      "breakpoints": true
     }
   ]
 }

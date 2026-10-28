@@ -22,6 +22,8 @@ import { GetAdminCategoryUseCase } from "./application/use-cases/get-admin-categ
 import { GetProductDetailUseCase } from "./application/use-cases/get-product-detail.use-case.js";
 import { ListAdminCategoriesUseCase } from "./application/use-cases/list-admin-categories.use-case.js";
 import { ListCategoryTreeUseCase } from "./application/use-cases/list-category-tree.use-case.js";
+import { ListFeaturedProductsUseCase } from "./application/use-cases/list-featured-products.use-case.js";
+import { ListNewProductsUseCase } from "./application/use-cases/list-new-products.use-case.js";
 import { RestoreCategoryUseCase } from "./application/use-cases/restore-category.use-case.js";
 import { RestoreProductUseCase } from "./application/use-cases/restore-product.use-case.js";
 import { SearchCatalogUseCase } from "./application/use-cases/search-catalog.use-case.js";
@@ -67,6 +69,18 @@ import { CategoriesController } from "./presentation/http/categories.controller.
       useFactory: (queries: CatalogQueries, clock: Clock) =>
         new SearchCatalogUseCase(queries, clock),
       inject: [CatalogQueries, Clock],
+    },
+    {
+      provide: ListFeaturedProductsUseCase,
+      useFactory: (queries: CatalogQueries, settings: CatalogSettings, clock: Clock) =>
+        new ListFeaturedProductsUseCase(queries, settings, clock),
+      inject: [CatalogQueries, CatalogSettings, Clock],
+    },
+    {
+      provide: ListNewProductsUseCase,
+      useFactory: (queries: CatalogQueries, settings: CatalogSettings, clock: Clock) =>
+        new ListNewProductsUseCase(queries, settings, clock),
+      inject: [CatalogQueries, CatalogSettings, Clock],
     },
     {
       provide: GetProductDetailUseCase,
