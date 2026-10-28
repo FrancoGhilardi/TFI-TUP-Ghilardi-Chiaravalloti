@@ -1,5 +1,7 @@
 import { Transform } from "class-transformer";
 import {
+  ArrayMaxSize,
+  ArrayUnique,
   IsArray,
   IsBoolean,
   IsInt,
@@ -10,8 +12,15 @@ import {
   Matches,
   ValidateIf,
 } from "class-validator";
+import { RELATED_PRODUCTS_MAX } from "../../domain/catalog-limits.js";
 import { trimString } from "../../../identity/presentation/http/request-transforms.js";
-import { DECIMAL, isPresent, OnlyWith, PRODUCT_MESSAGES } from "./product-request-rules.js";
+import {
+  DECIMAL,
+  isPresent,
+  lowerCaseIds,
+  OnlyWith,
+  PRODUCT_MESSAGES,
+} from "./product-request-rules.js";
 
 /**
  * The `data` field of the new product form. Amounts and lengths in code points are checked
@@ -68,16 +77,21 @@ export class CreateProductRequestDto {
   @IsBoolean({ message: PRODUCT_MESSAGES.isActive })
   isActive!: boolean;
 
+  @Transform(lowerCaseIds)
   @IsArray({ message: PRODUCT_MESSAGES.categoryIds })
   @IsUUID("all", { each: true, message: PRODUCT_MESSAGES.categoryId })
   categoryIds!: string[];
 
+  @Transform(lowerCaseIds)
   @IsUUID("all", { message: PRODUCT_MESSAGES.primaryCategoryId })
   primaryCategoryId!: string;
 
   @ValidateIf(isPresent)
+  @Transform(lowerCaseIds)
   @IsArray({ message: PRODUCT_MESSAGES.relatedProductIds })
   @IsUUID("all", { each: true, message: PRODUCT_MESSAGES.relatedProductId })
+  @ArrayUnique({ message: PRODUCT_MESSAGES.relatedProductsRepeated })
+  @ArrayMaxSize(RELATED_PRODUCTS_MAX, { message: PRODUCT_MESSAGES.relatedProductsTooMany })
   relatedProductIds?: string[];
 
   /** One per image, in the same order; a missing or blank one means none. */

@@ -5,6 +5,7 @@ import { InvalidDescriptionError } from "../errors/invalid-description-error.js"
 import { InvalidNewUntilError } from "../errors/invalid-new-until-error.js";
 import { InvalidPriceError } from "../errors/invalid-price-error.js";
 import { InvalidProductTitleError } from "../errors/invalid-product-title-error.js";
+import { InvalidRelatedProductsError } from "../errors/invalid-related-products-error.js";
 import { InvalidSaleEndError } from "../errors/invalid-sale-end-error.js";
 import { InvalidSortOrderError } from "../errors/invalid-sort-order-error.js";
 import { InvalidStockError } from "../errors/invalid-stock-error.js";
@@ -290,16 +291,51 @@ describe("Product", () => {
       );
     });
 
-    it("keeps related products once each, and never itself", () => {
+    it("keeps up to 4 related products in the order given", () => {
       const product = create();
 
-      product.setRelatedProducts(["p-2", "p-3", "p-2"]);
+      product.setRelatedProducts(["p-4", "p-2", "p-5", "p-3"]);
 
+      expect(product.relatedProductIds).toEqual(["p-4", "p-2", "p-5", "p-3"]);
+    });
+
+    it.each([
+      ["itself", ["p-2", "product-1"], SelfRelatedProductError],
+      ["a repeated one", ["p-2", "p-3", "p-2"], InvalidRelatedProductsError],
+      ["more than 4", ["p-2", "p-3", "p-4", "p-5", "p-6"], InvalidRelatedProductsError],
+    ])("refuses %s as related, keeping the ones it had", (_label, ids, error) => {
+      const product = create();
+      product.setRelatedProducts(["p-2", "p-3"]);
+
+      expect(() => product.setRelatedProducts(ids)).toThrow(error);
       expect(product.relatedProductIds).toEqual(["p-2", "p-3"]);
-      expect(() => product.setRelatedProducts(["p-2", "product-1"])).toThrow(
+    });
+
+    it("tells itself as related apart from a repeated one", () => {
+      expect(() => create().setRelatedProducts(["product-1", "product-1"])).toThrow(
         SelfRelatedProductError,
       );
-      expect(product.relatedProductIds).toEqual(["p-2", "p-3"]);
+    });
+
+    it("checks a list of related products on its own, the product itself first", () => {
+      const check = (ids: string[]) => () => Product.assertValidRelatedIds("p-1", ids);
+
+      expect(check(["p-2", "p-3", "p-4", "p-5"])).not.toThrow();
+      expect(check(["p-1", "p-1"])).toThrow(SelfRelatedProductError);
+      expect(check(["p-2", "p-2"])).toThrow(expect.objectContaining({ reason: "duplicated" }));
+      expect(check(["p-2", "p-3", "p-4", "p-5", "p-6"])).toThrow(
+        expect.objectContaining({ reason: "tooMany" }),
+      );
+    });
+
+    it("keeps its own copy of the list given", () => {
+      const product = create();
+      const ids = ["p-2"];
+      product.setRelatedProducts(ids);
+
+      ids.push("p-3");
+
+      expect(product.relatedProductIds).toEqual(["p-2"]);
     });
 
     it("records who changed it", () => {
