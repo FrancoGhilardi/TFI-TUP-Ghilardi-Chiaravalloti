@@ -1,4 +1,5 @@
 import type { ProductImageMimeType } from "../../domain/entities/product-image.js";
+import { type ImageNaming, InvalidImageError } from "../../domain/errors/invalid-image-error.js";
 
 const startsWith = (bytes: Uint8Array, signature: number[], offset = 0) =>
   bytes.length >= offset + signature.length &&
@@ -23,4 +24,23 @@ export function detectImageType(bytes: Uint8Array): ProductImageMimeType | undef
     return "image/webp";
   }
   return undefined;
+}
+
+/**
+ * The format of an uploaded file, checked against the size limit first; a file too big or of
+ * another format is an `InvalidImageError` naming the image as `naming` says.
+ */
+export function checkedImageType(
+  bytes: Uint8Array,
+  maxSizeBytes: number,
+  naming: ImageNaming,
+): ProductImageMimeType {
+  if (bytes.length > maxSizeBytes) {
+    throw new InvalidImageError("size", naming);
+  }
+  const mimeType = detectImageType(bytes);
+  if (mimeType === undefined) {
+    throw new InvalidImageError("type", naming);
+  }
+  return mimeType;
 }

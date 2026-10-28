@@ -1,4 +1,5 @@
-import { detectImageType } from "./image-type.js";
+import { InvalidImageError } from "../../domain/errors/invalid-image-error.js";
+import { checkedImageType, detectImageType } from "./image-type.js";
 
 const bytes = (...values: number[]) => Uint8Array.from(values);
 const ascii = (text: string) => [...text].map((char) => char.charCodeAt(0));
@@ -20,5 +21,41 @@ describe("detectImageType", () => {
     ["nothing", bytes()],
   ])("recognizes nothing in %s", (_label, file) => {
     expect(detectImageType(file)).toBeUndefined();
+  });
+});
+
+describe("checkedImageType", () => {
+  const JPEG = bytes(0xff, 0xd8, 0xff, 0xe0, 0x00);
+
+  it("gives the format of a file within the size", () => {
+    expect(checkedImageType(JPEG, JPEG.length, "single")).toBe("image/jpeg");
+  });
+
+  it.each([
+    ["too big", JPEG, JPEG.length - 1, "size", "La imagen 3 no puede pesar más de 10 MB."],
+    [
+      "of another format",
+      bytes(...ascii("GIF89a")),
+      100,
+      "type",
+      "La imagen 3 tiene que ser JPEG, PNG o WebP.",
+    ],
+  ] as const)("refuses a file %s, naming the image", (_label, file, max, reason, message) => {
+    const error = (() => {
+      try {
+        return checkedImageType(file, max, 3);
+      } catch (caught) {
+        return caught;
+      }
+    })();
+
+    expect(error).toBeInstanceOf(InvalidImageError);
+    expect(error).toMatchObject({ reason, message, position: 3 });
+  });
+
+  it("checks the size before reading the format", () => {
+    expect(() => checkedImageType(bytes(...ascii("GIF89a")), 1, "single")).toThrow(
+      "La imagen no puede pesar más de 10 MB.",
+    );
   });
 });

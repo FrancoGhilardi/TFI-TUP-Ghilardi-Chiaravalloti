@@ -14,6 +14,7 @@ import { ImageKeyFactory } from "./application/services/image-key-factory.js";
 import { ProductImageUploader } from "./application/services/product-image-uploader.js";
 import { CatalogSettings } from "./application/settings/catalog-settings.js";
 import { ImageSettings } from "./application/settings/image-settings.js";
+import { AddProductImageUseCase } from "./application/use-cases/add-product-image.use-case.js";
 import { CreateCategoryUseCase } from "./application/use-cases/create-category.use-case.js";
 import { CreateProductUseCase } from "./application/use-cases/create-product.use-case.js";
 import { DeleteCategoryUseCase } from "./application/use-cases/delete-category.use-case.js";
@@ -47,6 +48,7 @@ import { AdminCategoriesController } from "./presentation/http/admin-categories.
 import { AdminProductsController } from "./presentation/http/admin-products.controller.js";
 import { CatalogController } from "./presentation/http/catalog.controller.js";
 import { CategoriesController } from "./presentation/http/categories.controller.js";
+import { ProductImagesController } from "./presentation/http/product-images.controller.js";
 import { SearchController } from "./presentation/http/search.controller.js";
 import { ProductMarksExpiryScheduler } from "./presentation/schedulers/product-marks-expiry.scheduler.js";
 
@@ -56,6 +58,7 @@ import { ProductMarksExpiryScheduler } from "./presentation/schedulers/product-m
     AdminCategoriesController,
     CatalogController,
     AdminProductsController,
+    ProductImagesController,
     SearchController,
   ],
   providers: [
@@ -249,6 +252,51 @@ import { ProductMarksExpiryScheduler } from "./presentation/schedulers/product-m
       useFactory: (products: ProductRepository, transaction: TransactionManager, clock: Clock) =>
         new DeleteProductUseCase(products, transaction, clock),
       inject: [ProductRepository, TransactionManager, Clock],
+    },
+    {
+      provide: AddProductImageUseCase,
+      useFactory: (
+        products: ProductRepository,
+        images: ProductImageRepository,
+        policy: ProductImagePolicy,
+        uploader: ProductImageUploader,
+        keys: ImageKeyFactory,
+        ids: IdGenerator,
+        settings: ImageSettings,
+        transaction: TransactionManager,
+        events: EventPublisher,
+        background: BackgroundTasks,
+        queries: AdminProductQueries,
+        clock: Clock,
+      ) =>
+        new AddProductImageUseCase({
+          products,
+          images,
+          policy,
+          uploader,
+          keys,
+          ids,
+          settings,
+          transaction,
+          events,
+          background,
+          queries,
+          clock,
+        }),
+      inject: [
+        ProductRepository,
+        ProductImageRepository,
+        ProductImagePolicy,
+        ProductImageUploader,
+        ImageKeyFactory,
+        IdGenerator,
+        ImageSettings,
+        TransactionManager,
+        EventPublisher,
+        BackgroundTasks,
+        AdminProductQueries,
+        Clock,
+      ],
     },
     {
       provide: ExpireProductMarksUseCase,

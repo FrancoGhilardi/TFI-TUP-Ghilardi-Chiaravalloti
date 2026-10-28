@@ -313,6 +313,52 @@ describe("Product persistence (e2e)", () => {
     expect(result?.images.map((image) => image.previewUrl)).toEqual([null]);
   });
 
+  it("counts the images of each product and gives one image as the panel shows it", async () => {
+    await store(await newProduct());
+    await store(await newProduct(OTHER_ID, "Cuaderno A5"));
+    await images.saveAll([
+      ProductImage.register({
+        id: "4f9c1f43-6f4b-4d5c-9a3e-0000000000c9",
+        productId: PRODUCT_ID,
+        position: 2,
+        originalKey: `products/${PRODUCT_ID}/second.png`,
+        mimeType: "image/png",
+        sizeBytes: 4096,
+        now: NOW,
+      }),
+    ]);
+
+    await expect(images.countByProduct(PRODUCT_ID)).resolves.toBe(2);
+    await expect(images.countByProduct(OTHER_ID)).resolves.toBe(1);
+    await expect(images.countByProduct("4f9c1f43-6f4b-4d5c-9a3e-0000000000ff")).resolves.toBe(0);
+    await expect(queries.findImageById("4f9c1f43-6f4b-4d5c-9a3e-0000000000c9")).resolves.toEqual({
+      id: "4f9c1f43-6f4b-4d5c-9a3e-0000000000c9",
+      position: 2,
+      previewUrl: `signed://products/${PRODUCT_ID}/second.png?ttl=600`,
+      altText: null,
+      mimeType: "image/png",
+      sizeBytes: 4096,
+      status: "PENDING",
+      createdAt: expect.any(Date) as unknown,
+    });
+    await expect(queries.findImageById("4f9c1f43-6f4b-4d5c-9a3e-0000000000ff")).resolves.toBeNull();
+  });
+
+  it("gives the image without its link when the storage cannot sign it", async () => {
+    await store(await newProduct());
+    // The id `store` gives the product's image.
+    const imageId = PRODUCT_ID.replace("b", "c");
+    linking.failing = true;
+    try {
+      await expect(queries.findImageById(imageId)).resolves.toMatchObject({
+        id: imageId,
+        previewUrl: null,
+      });
+    } finally {
+      linking.failing = false;
+    }
+  });
+
   it("makes a category deletion wait for a transaction that reads it as visible", async () => {
     const events: string[] = [];
     let markRead: () => void = () => undefined;

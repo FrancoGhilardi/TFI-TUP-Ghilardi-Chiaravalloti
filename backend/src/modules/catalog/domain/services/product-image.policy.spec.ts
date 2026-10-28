@@ -1,4 +1,5 @@
 import { InvalidImageCountError } from "../errors/invalid-image-count-error.js";
+import { ProductImageLimitReachedError } from "../errors/product-image-limit-reached-error.js";
 import { ProductImagePolicy } from "./product-image.policy.js";
 
 describe("ProductImagePolicy", () => {
@@ -19,5 +20,13 @@ describe("ProductImagePolicy", () => {
     [3, 3],
   ])("refuses %i images taking %i more", (current, incoming) => {
     expect(() => policy.assertCanAdd(current, incoming)).toThrow(InvalidImageCountError);
+  });
+
+  it.each([0, 4])("has room for one more image next to %i", (current) => {
+    expect(() => policy.assertRoomForOne(current)).not.toThrow();
+  });
+
+  it.each([5, 6])("has no room next to %i images", (current) => {
+    expect(() => policy.assertRoomForOne(current)).toThrow(ProductImageLimitReachedError);
   });
 });
