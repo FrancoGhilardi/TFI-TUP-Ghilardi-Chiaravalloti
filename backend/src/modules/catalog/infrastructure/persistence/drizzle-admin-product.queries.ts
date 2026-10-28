@@ -117,6 +117,17 @@ export class DrizzleAdminProductQueries extends AdminProductQueries {
     };
   }
 
+  async findImageById(id: string): Promise<AdminProductImageResult | null> {
+    const rows = await this.executor
+      .current()
+      .select()
+      .from(productImages)
+      .where(eq(productImages.id, id))
+      .limit(1);
+    const [image] = await this.imageResults(rows);
+    return image ?? null;
+  }
+
   /**
    * One Storage call signs every original. If it fails the links are left out and the failure
    * is logged: a product just created must still be answered as created.

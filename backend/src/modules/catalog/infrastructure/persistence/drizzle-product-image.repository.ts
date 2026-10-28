@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { sql } from "drizzle-orm";
+import { count, eq, sql } from "drizzle-orm";
 import { DrizzleExecutor } from "../../../../shared/infrastructure/database/drizzle.executor.js";
 import { productImages } from "../../../../shared/infrastructure/database/schema/index.js";
 import type { ProductImage } from "../../domain/entities/product-image.js";
@@ -35,5 +35,14 @@ export class DrizzleProductImageRepository extends ProductImageRepository {
           status: sql`excluded.status`,
         },
       });
+  }
+
+  async countByProduct(productId: string): Promise<number> {
+    const [row] = await this.executor
+      .current()
+      .select({ total: count() })
+      .from(productImages)
+      .where(eq(productImages.productId, productId));
+    return row.total;
   }
 }
