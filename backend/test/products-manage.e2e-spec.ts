@@ -38,6 +38,10 @@ class SigningStorage extends FileStorage {
   publicUrl(key: string): string {
     return `public://${key}`;
   }
+
+  download(): Promise<never> {
+    return Promise.reject(new Error("Not used"));
+  }
 }
 
 interface ProductRow {

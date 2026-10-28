@@ -2288,8 +2288,8 @@ classDiagram
     }
     class FileStorage {
         <<abstract port>>
-        +upload(bucket: StorageBucket, key: string, body: Buffer, contentType: string) Promise~void~
-        +download(bucket: StorageBucket, key: string) Promise~Buffer~
+        +upload(bucket: StorageBucket, key: string, body: Uint8Array, contentType: string) Promise~void~
+        +download(bucket: StorageBucket, key: string) Promise~Uint8Array~
         +remove(bucket: StorageBucket, keys: string[]) Promise~void~
         +publicUrl(key: string) string
         +signedUrl(key: string, expiresInSeconds: number) Promise~string~
@@ -2766,7 +2766,7 @@ classDiagram
 #### Infraestructura: adaptadores de servicios externos
 
 - **`DrizzleSkuGenerator`**: implementa `SkuGenerator` invocando la función `libreria.next_product_sku()`, que obtiene el siguiente valor de la secuencia de la base de datos. Al delegar la numeración en una secuencia, se garantiza que no se generen SKU repetidos aun ante altas simultáneas.
-- **`SupabaseFileStorage`**: implementa `FileStorage` sobre Supabase Storage, con un bucket privado para los archivos originales (`product-originals`) y uno público para las variantes (`product-images`). Nunca sobrescribe un archivo y cada llamada tiene un tope de 30 segundos. En el entorno local los buckets los crea `pnpm db:start`, a partir de `supabase/config.toml`; en Supabase se crean una vez desde el panel.
+- **`SupabaseFileStorage`**: implementa `FileStorage` sobre Supabase Storage, con un bucket privado para los archivos originales (`product-originals`) y uno público para las variantes (`product-images`). Nunca sobrescribe un archivo, cada llamada tiene un tope de 30 segundos y una descarga de un archivo inexistente es una falla. Los buckets no tienen políticas de acceso: solo el backend los lee y escribe, con la clave `service_role`, y lo único abierto es la dirección pública de las variantes procesadas; los originales no pueden listarse, descargarse, firmarse, subirse ni borrarse sin esa clave. La configuración de cada bucket (visibilidad, 10 MB y formatos) se define una sola vez en el código (`STORAGE_BUCKET_SETTINGS`): en Supabase la aplica `pnpm storage:setup`, que crea los que faltan y actualiza los que difieren y, con la clave pública `anon` del proyecto, verifica con un archivo de prueba que nadie más pueda listar, descargar, subir ni borrar archivos (falla indicando qué quedó abierto, por ejemplo por una política creada desde el panel), y en el entorno local la declara `supabase/config.toml`, que `pnpm db:start` usa para crearlos y que un test compara con esa definición.
 - **`SharpImageProcessor`**: implementa `ImageProcessor` con la librería Sharp, encargada de generar las variantes WebP de cada imagen.
 
 #### Presentación

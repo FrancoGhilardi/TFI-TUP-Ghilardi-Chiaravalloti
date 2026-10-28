@@ -77,6 +77,10 @@ class RecordingStorage extends FileStorage {
   publicUrl(): string {
     throw new Error("Not used");
   }
+
+  download(): Promise<never> {
+    return Promise.reject(new Error("Not used"));
+  }
 }
 
 class FakeProducts extends ProductRepository {
