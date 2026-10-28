@@ -10,13 +10,23 @@ import {
 import { containsPattern } from "../../../../shared/infrastructure/database/like-pattern.js";
 import { DrizzleExecutor } from "../../../../shared/infrastructure/database/drizzle.executor.js";
 import { categories } from "../../../../shared/infrastructure/database/schema/index.js";
-import type { AdminCategoryResult } from "../../application/dto/admin-category.result.js";
+import type {
+  AdminCategoryResult,
+  CategorySummaryResult,
+} from "../../application/dto/admin-category.result.js";
 import {
   CategorySortField,
   type ListAdminCategoriesQuery,
 } from "../../application/dto/list-admin-categories.query.js";
 import { CategoryQueries } from "../../application/ports/category-queries.js";
 import type { CategoryTreeRow } from "../../application/services/category-tree.js";
+import {
+  matchesEveryWord,
+  sortableName,
+  startsWithText,
+  unaccentedLike,
+  VISIBLE_CATEGORIES,
+} from "./catalog-sql.js";
 
 // A type, not an interface: a raw query needs an indexable row. Its timestamps come as text.
 type AdminRow = {
@@ -36,8 +46,10 @@ type AdminRow = {
   deletedAt: string | null;
 };
 
-// Case and accents do not change the order, as in the store tree.
-const SORTABLE_NAME = sql.raw("lower(libreria.immutable_unaccent(category.name))");
+// A type for the same reason; the fields of `CategorySummaryResult`.
+type SummaryRow = { id: string; name: string; slug: string };
+
+const SORTABLE_NAME = sortableName(sql`category.name`);
 
 /**
  * Every category reachable from a root, with its depth and the path that sorts the tree: at
@@ -104,6 +116,24 @@ export class DrizzleCategoryQueries extends CategoryQueries {
       })
       .from(categories)
       .where(and(eq(categories.isActive, true), isNull(categories.deletedAt)));
+  }
+
+  async searchVisible(
+    words: readonly string[],
+    text: string,
+    limit: number,
+  ): Promise<CategorySummaryResult[]> {
+    const { rows } = await this.executor.current().execute<SummaryRow>(sql`
+      WITH RECURSIVE ${VISIBLE_CATEGORIES}
+      SELECT category.id, category.name, category.slug
+      FROM visible_categories visible
+      JOIN libreria.categories category ON category.id = visible.id
+      WHERE ${matchesEveryWord(sql`category.name`, words)}
+      ORDER BY ${startsWithText(sql`category.name`, text)} DESC, ${SORTABLE_NAME} ASC,
+        category.id ASC
+      LIMIT ${limit}
+    `);
+    return rows;
   }
 
   async findAdminPage(query: ListAdminCategoriesQuery): Promise<Page<AdminCategoryResult>> {
@@ -176,7 +206,7 @@ function searchCondition(text: string | undefined): SQL | undefined {
     return undefined;
   }
   const pattern = containsPattern(text);
-  return sql`(libreria.immutable_unaccent(category.name) ILIKE libreria.immutable_unaccent(${pattern})
+  return sql`(${unaccentedLike(sql`category.name`, pattern)}
     OR category.slug ILIKE libreria.immutable_unaccent(${pattern}))`;
 }
 

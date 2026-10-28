@@ -1637,7 +1637,7 @@ classDiagram
     class CategoryQueries {
         <<abstract port>>
         +findVisibleRows() Promise~CategoryTreeRow[]~
-        +searchVisible(q: string, limit: number) Promise~CategorySummaryResult[]~
+        +searchVisible(words: string[], text: string, limit: number) Promise~CategorySummaryResult[]~
         +findAdminPage(query: ListAdminCategoriesQuery) Promise~Page~AdminCategoryResult~~
         +findAdminById(id: string) Promise~AdminCategoryResult~
     }
@@ -1833,7 +1833,9 @@ Por defecto, el listado muestra las categorías activas e inactivas. Las categor
 
 #### Búsqueda global
 
-El texto de búsqueda debe tener al menos 2 caracteres, para evitar consultas demasiado amplias que devuelvan resultados poco útiles. La cantidad de resultados es de 5 por grupo (productos y categorías) por defecto, con un máximo de 10.
+El texto de búsqueda debe tener al menos 2 caracteres, para evitar consultas demasiado amplias que devuelvan resultados poco útiles, y como máximo 100; se recortan los espacios de los extremos. La cantidad de resultados es de 5 por grupo (productos y categorías) por defecto, con un máximo de 10.
+
+`GlobalSearchUseCase` separa el texto en palabras, descarta las de una sola letra, que coinciden con casi todo, y las repetidas (sin distinguir mayúsculas ni tildes), y usa como máximo las primeras 5, ya que cada palabra suma una comparación por fila; si no queda ninguna, devuelve los dos grupos vacíos sin consultar la base. Las consultas exigen que cada una aparezca en el título del producto o en el nombre de la categoría, en cualquier orden y sin distinguir mayúsculas ni tildes; los comodines de `ILIKE` se toman como texto. Solo se buscan los productos visibles en la tienda y las categorías visibles en el árbol. Primero se muestran los resultados que empiezan con el texto completo, sin tener en cuenta los espacios repetidos; después, los productos siguen el orden de la tienda y las categorías el orden por nombre, con el id como desempate. Por eso `searchCards` y `searchVisible` reciben las palabras ya separadas y el texto completo, con un solo espacio entre palabras. La respuesta se puede guardar en caché por 60 segundos, como el resto de la tienda.
 
 ### Relación con el resto del sistema
 
@@ -1872,7 +1874,7 @@ classDiagram
         +findPageBySlug(slug: string, now: Date) Promise~ProductPage~
         +findManualRelated(productId: string, limit: number, now: Date) Promise~ProductCardResult[]~
         +findByPrimaryCategory(categoryId: string, excludeIds: string[], limit: number, now: Date) Promise~ProductCardResult[]~
-        +searchCards(q: string, limit: number, now: Date) Promise~ProductCardResult[]~
+        +searchCards(words: string[], text: string, limit: number, now: Date) Promise~ProductCardResult[]~
     }
     class AdminProductQueries {
         <<abstract port>>
@@ -2571,8 +2573,8 @@ classDiagram
         +publicVisibility()$ SQL
         +activeSale(now: Date)$ SQL
         +activeNew(now: Date)$ SQL
-        +titleMatches(q: string)$ SQL
-        +nameMatches(q: string)$ SQL
+        +matchesEveryWord(column: SQL, words: string[])$ SQL
+        +startsWithText(column: SQL, text: string)$ SQL
         +recordStatus(status: RecordStatusFilter)$ SQL
     }
     class CategoryMapper {
