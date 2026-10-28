@@ -77,4 +77,26 @@ describe("ProductImageUploader", () => {
 
     await expect(uploader.discardOriginals(["a.jpg"])).rejects.toBe(storage.failure);
   });
+
+  it("uploads a public version as WebP to the public storage, and removes them there", async () => {
+    const { storage, uploader } = setUp();
+
+    await uploader.uploadPublic("products/product-1/image-1-v1.webp", Uint8Array.from([1, 2]));
+    await uploader.discardPublic(["products/product-1/image-1-v0.webp"]);
+    await uploader.discardPublic([]);
+
+    expect(storage.calls).toEqual([
+      ["upload", StorageBucket.PUBLIC, "products/product-1/image-1-v1.webp", 2, "image/webp"],
+      ["remove", StorageBucket.PUBLIC, ["products/product-1/image-1-v0.webp"]],
+    ]);
+  });
+
+  it("rejects with the storage failure when a public version cannot be uploaded", async () => {
+    const { storage, uploader } = setUp();
+    storage.failure = new Error("storage down");
+
+    await expect(uploader.uploadPublic("a.webp", Uint8Array.from([1]))).rejects.toBe(
+      storage.failure,
+    );
+  });
 });

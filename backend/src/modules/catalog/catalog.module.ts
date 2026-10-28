@@ -9,6 +9,7 @@ import { UniqueSlugGenerator } from "../../shared/application/unique-slug-genera
 import { AdminProductQueries } from "./application/ports/admin-product-queries.js";
 import { CatalogQueries } from "./application/ports/catalog-queries.js";
 import { CategoryQueries } from "./application/ports/category-queries.js";
+import { ImageProcessor } from "./application/ports/image-processor.js";
 import { SkuGenerator } from "./application/ports/sku-generator.js";
 import { ImageKeyFactory } from "./application/services/image-key-factory.js";
 import { ProductImageUploader } from "./application/services/product-image-uploader.js";
@@ -27,6 +28,7 @@ import { ListAdminCategoriesUseCase } from "./application/use-cases/list-admin-c
 import { ListCategoryTreeUseCase } from "./application/use-cases/list-category-tree.use-case.js";
 import { ListFeaturedProductsUseCase } from "./application/use-cases/list-featured-products.use-case.js";
 import { ListNewProductsUseCase } from "./application/use-cases/list-new-products.use-case.js";
+import { ProcessProductImageUseCase } from "./application/use-cases/process-product-image.use-case.js";
 import { RestoreCategoryUseCase } from "./application/use-cases/restore-category.use-case.js";
 import { RestoreProductUseCase } from "./application/use-cases/restore-product.use-case.js";
 import { SearchCatalogUseCase } from "./application/use-cases/search-catalog.use-case.js";
@@ -37,6 +39,7 @@ import { ProductImageRepository } from "./domain/repositories/product-image.repo
 import { ProductRepository } from "./domain/repositories/product.repository.js";
 import { CategoryDeletionPolicy } from "./domain/services/category-deletion.policy.js";
 import { ProductImagePolicy } from "./domain/services/product-image.policy.js";
+import { SharpImageProcessor } from "./infrastructure/images/sharp-image-processor.js";
 import { DrizzleAdminProductQueries } from "./infrastructure/persistence/drizzle-admin-product.queries.js";
 import { DrizzleCatalogQueries } from "./infrastructure/persistence/drizzle-catalog.queries.js";
 import { DrizzleCategoryQueries } from "./infrastructure/persistence/drizzle-category.queries.js";
@@ -50,6 +53,7 @@ import { CatalogController } from "./presentation/http/catalog.controller.js";
 import { CategoriesController } from "./presentation/http/categories.controller.js";
 import { ProductImagesController } from "./presentation/http/product-images.controller.js";
 import { SearchController } from "./presentation/http/search.controller.js";
+import { ProductImageUploadedListener } from "./presentation/listeners/product-image-uploaded.listener.js";
 import { ProductMarksExpiryScheduler } from "./presentation/schedulers/product-marks-expiry.scheduler.js";
 
 @Module({
@@ -253,6 +257,31 @@ import { ProductMarksExpiryScheduler } from "./presentation/schedulers/product-m
         new DeleteProductUseCase(products, transaction, clock),
       inject: [ProductRepository, TransactionManager, Clock],
     },
+    {
+      provide: ImageProcessor,
+      useFactory: (settings: ImageSettings) => new SharpImageProcessor(settings),
+      inject: [ImageSettings],
+    },
+    {
+      provide: ProcessProductImageUseCase,
+      useFactory: (
+        images: ProductImageRepository,
+        processor: ImageProcessor,
+        keys: ImageKeyFactory,
+        uploader: ProductImageUploader,
+        ids: IdGenerator,
+        transaction: TransactionManager,
+      ) => new ProcessProductImageUseCase({ images, processor, keys, uploader, ids, transaction }),
+      inject: [
+        ProductImageRepository,
+        ImageProcessor,
+        ImageKeyFactory,
+        ProductImageUploader,
+        IdGenerator,
+        TransactionManager,
+      ],
+    },
+    ProductImageUploadedListener,
     {
       provide: AddProductImageUseCase,
       useFactory: (

@@ -92,6 +92,10 @@ class CountingImages extends ProductImageRepository {
     this.saved.push(...images);
     return Promise.resolve();
   }
+
+  findById(): Promise<never> {
+    return Promise.reject(new Error("Not used"));
+  }
 }
 
 class LoggingStorage extends FileStorage {
