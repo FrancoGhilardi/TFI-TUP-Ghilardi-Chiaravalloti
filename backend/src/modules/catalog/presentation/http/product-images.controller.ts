@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
+  Header,
   HttpCode,
   HttpStatus,
   Logger,
@@ -17,6 +19,7 @@ import { AnyPanelRole } from "../../../identity/presentation/decorators/roles.de
 import type { AdminProductImageResult } from "../../application/dto/admin-product-detail.result.js";
 import { AddProductImageUseCase } from "../../application/use-cases/add-product-image.use-case.js";
 import { DeleteProductImageUseCase } from "../../application/use-cases/delete-product-image.use-case.js";
+import { ListProductImagesUseCase } from "../../application/use-cases/list-product-images.use-case.js";
 import { ReorderProductImagesUseCase } from "../../application/use-cases/reorder-product-images.use-case.js";
 import { ReplaceProductImageFileUseCase } from "../../application/use-cases/replace-product-image-file.use-case.js";
 import { RetryProductImageProcessingUseCase } from "../../application/use-cases/retry-product-image-processing.use-case.js";
@@ -44,7 +47,15 @@ export class ProductImagesController {
     private readonly replaceProductImageFile: ReplaceProductImageFileUseCase,
     private readonly retryProductImageProcessing: RetryProductImageProcessingUseCase,
     private readonly deleteProductImage: DeleteProductImageUseCase,
+    private readonly listProductImages: ListProductImagesUseCase,
   ) {}
+
+  /** Read again while images are processed; its preview links expire, so it is never kept. */
+  @Get()
+  @Header("Cache-Control", "no-store")
+  findAll(@Param("productId", PRODUCT_ID) productId: string): Promise<AdminProductImageResult[]> {
+    return this.listProductImages.execute(productId);
+  }
 
   /** `multipart/form-data`: one file in `image` and an optional `altText`. */
   @Post()

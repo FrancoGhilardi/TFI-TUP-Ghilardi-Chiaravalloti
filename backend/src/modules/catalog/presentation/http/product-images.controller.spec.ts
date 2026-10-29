@@ -6,6 +6,7 @@ import { ROLES_KEY } from "../../../identity/presentation/decorators/roles.decor
 import { Logger } from "@nestjs/common";
 import type { AddProductImageUseCase } from "../../application/use-cases/add-product-image.use-case.js";
 import type { DeleteProductImageUseCase } from "../../application/use-cases/delete-product-image.use-case.js";
+import type { ListProductImagesUseCase } from "../../application/use-cases/list-product-images.use-case.js";
 import type { ReorderProductImagesUseCase } from "../../application/use-cases/reorder-product-images.use-case.js";
 import type { ReplaceProductImageFileUseCase } from "../../application/use-cases/replace-product-image-file.use-case.js";
 import type { RetryProductImageProcessingUseCase } from "../../application/use-cases/retry-product-image-processing.use-case.js";
@@ -24,6 +25,7 @@ function setUp() {
   const update = useCase();
   const replace = useCase();
   const retry = useCase();
+  const list = { execute: vi.fn(() => Promise.resolve([])) };
   const remove = {
     execute: vi.fn(() =>
       Promise.resolve({ imageId: IMAGE, leftovers: [] as { key: string; cause: unknown }[] }),
@@ -36,8 +38,9 @@ function setUp() {
     replace as unknown as ReplaceProductImageFileUseCase,
     retry as unknown as RetryProductImageProcessingUseCase,
     remove as unknown as DeleteProductImageUseCase,
+    list as unknown as ListProductImagesUseCase,
   );
-  return { add, reorder, update, replace, retry, remove, controller };
+  return { add, reorder, update, replace, retry, remove, list, controller };
 }
 
 const handler = (method: keyof ProductImagesController) =>
@@ -135,6 +138,17 @@ describe("ProductImagesController", () => {
     ]);
     expect(Reflect.getMetadata(HTTP_CODE_METADATA, handler("remove"))).toBe(204);
     error.mockRestore();
+  });
+
+  it("lists the images of the product of the route, never to be kept", async () => {
+    const { list, controller } = setUp();
+
+    await controller.findAll(ID);
+
+    expect(list.execute).toHaveBeenCalledExactlyOnceWith(ID);
+    expect(Reflect.getMetadata("__headers__", handler("findAll"))).toEqual([
+      { name: "Cache-Control", value: "no-store" },
+    ]);
   });
 
   it("answers a retry with 200, as it creates nothing", () => {

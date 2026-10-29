@@ -6,6 +6,7 @@ import type { ProductImagePolicy } from "../../domain/services/product-image.pol
 import type { AdminProductImageResult } from "../dto/admin-product-detail.result.js";
 import type { ReorderProductImagesCommand } from "../dto/reorder-product-images.command.js";
 import type { AdminProductQueries } from "../ports/admin-product-queries.js";
+import { imageResultsOf } from "../services/image-loading.js";
 import { loadEditableProduct } from "../services/product-loading.js";
 
 /**
@@ -34,6 +35,6 @@ export class ReorderProductImagesUseCase implements UseCase<
       }
       return product.getId();
     });
-    return this.queries.findImagesByProduct(productId);
+    return imageResultsOf(this.queries, productId);
   }
 }

@@ -20,6 +20,9 @@ export abstract class AdminProductQueries {
   /** The image with that id, as the product detail shows it, or `null`. */
   abstract findImageById(id: string): Promise<AdminProductImageResult | null>;
 
-  /** The product's images as its detail shows them, by position. */
-  abstract findImagesByProduct(productId: string): Promise<AdminProductImageResult[]>;
+  /**
+   * The product's images as its detail shows them, by position, deleted product or not; `null`
+   * when there is no such product.
+   */
+  abstract findImagesByProduct(productId: string): Promise<AdminProductImageResult[] | null>;
 }
