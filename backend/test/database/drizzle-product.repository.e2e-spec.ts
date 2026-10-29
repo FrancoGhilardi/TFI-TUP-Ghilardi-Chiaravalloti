@@ -406,9 +406,11 @@ describe("Product persistence (e2e)", () => {
       images.findByProduct(PRODUCT_ID).then((found) => found.map((image) => image.getId())),
     ).resolves.toEqual([second, first]);
     await expect(
-      queries.findImagesByProduct(PRODUCT_ID).then((found) => found.map((image) => image.id)),
+      queries.findImagesByProduct(PRODUCT_ID).then((found) => found?.map((image) => image.id)),
     ).resolves.toEqual([second, first]);
     await expect(images.findByProduct(OTHER_ID)).resolves.toEqual([]);
+    // An unknown product is told apart from one without images.
+    await expect(queries.findImagesByProduct(OTHER_ID)).resolves.toBeNull();
   });
 
   it("removes an image and numbers the others again in one transaction", async () => {
