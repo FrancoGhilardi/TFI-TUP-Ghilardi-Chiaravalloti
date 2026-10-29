@@ -107,8 +107,9 @@ describe("DrizzleCatalogQueries (e2e)", () => {
     return id;
   }
 
-  const page = (query: Partial<{ categorySlug: string; page: number; limit: number }> = {}) =>
-    queries.findPage({ page: 1, limit: 20, ...query }, NOW);
+  const page = (
+    query: Partial<{ categorySlug: string; page: number; limit: number; words: string[] }> = {},
+  ) => queries.findPage({ page: 1, limit: 20, ...query }, NOW);
 
   const idsOf = (cards: { id: string }[]) => cards.map((card) => card.id);
 
@@ -300,6 +301,62 @@ describe("DrizzleCatalogQueries (e2e)", () => {
 
       expect(first).toMatchObject({ isOnSale: true, salePrice: "5.00", isNew: true });
       expect(second).toMatchObject({ isOnSale: false, salePrice: null, isNew: false });
+    });
+  });
+
+  describe("findPage with words", () => {
+    const titles = async (words: string[], extra: Parameters<typeof page>[0] = {}) =>
+      (await page({ words, ...extra })).items.map((card) => card.title);
+
+    it("finds every word in the title, in any order, ignoring case and accents", async () => {
+      await visible("Lápiz negro HB");
+      await visible("Lapicera negra");
+      await visible("Cuaderno rayado");
+
+      await expect(titles(["NEGRO", "lapiz"])).resolves.toEqual(["Lápiz negro HB"]);
+    });
+
+    it("keeps the store order, not the one that puts first what starts with the text", async () => {
+      await visible("Mini cuaderno", { sortOrder: 0 });
+      await visible("Cuaderno A4", { sortOrder: 1 });
+
+      await expect(titles(["cuaderno"])).resolves.toEqual(["Mini cuaderno", "Cuaderno A4"]);
+    });
+
+    it("takes the wildcards as text", async () => {
+      await visible("Descuento 50% extra");
+      await visible("Descuento 500 extra");
+
+      await expect(titles(["50%"])).resolves.toEqual(["Descuento 50% extra"]);
+    });
+
+    it("shows only visible products, within the category asked", async () => {
+      const other = await insertCategory(pool, "Escolar");
+      // Distinct positions: the same one would leave the order to the random ids.
+      await visible("Cuaderno A4", { sortOrder: 0 });
+      await visible("Cuaderno escolar", { category: other, sortOrder: 1 });
+      const hidden = await visible("Cuaderno oculto", { sortOrder: 2 });
+      await pool.query("UPDATE libreria.products SET is_active = false WHERE id = $1", [hidden]);
+
+      await expect(titles(["cuaderno"])).resolves.toEqual(["Cuaderno A4", "Cuaderno escolar"]);
+      await expect(titles(["cuaderno"], { categorySlug: "escolar" })).resolves.toEqual([
+        "Cuaderno escolar",
+      ]);
+    });
+
+    it("counts only what it finds, also past the last page", async () => {
+      for (const title of ["Cuaderno 1", "Cuaderno 2", "Cuaderno 3", "Lapiz"]) {
+        await visible(title);
+      }
+
+      await expect(page({ words: ["cuaderno"], limit: 2 })).resolves.toMatchObject({
+        totalItems: 3,
+        totalPages: 2,
+      });
+      await expect(page({ words: ["cuaderno"], page: 3, limit: 2 })).resolves.toMatchObject({
+        items: [],
+        totalItems: 3,
+      });
     });
   });
 

@@ -27,6 +27,7 @@ export class CatalogController {
   findAll(@Query() query: SearchCatalogRequestDto): Promise<Page<ProductCardResult>> {
     return this.searchCatalog.execute({
       categorySlug: query.categorySlug,
+      q: query.q,
       page: query.page,
       limit: query.limit,
     });

@@ -4,6 +4,8 @@ import { RELATED_PRODUCTS_MAX } from "../../domain/catalog-limits.js";
 export class CatalogSettings {
   readonly defaultPageSize = 20;
   readonly maxPageSize = 50;
+  /** The last page the store lists: beyond it nobody browses, and it would only cost reads. */
+  readonly maxPage = 500;
   /** Featured and new products shown on the home page, each. */
   readonly highlightsLimit = 5;
   /** Related products shown on a product page; as many as can be set by hand. */

@@ -1,7 +1,7 @@
 import type { Page } from "../../../../shared/application/pagination.js";
 import type { ProductCardResult } from "../dto/product-card.result.js";
 import type { ProductPage } from "../dto/product-detail.result.js";
-import type { SearchCatalogQuery } from "../dto/search-catalog.query.js";
+import type { CatalogPageQuery } from "../dto/catalog-page.query.js";
 
 /**
  * Reads the store. Every operation only sees visible products: active, not deleted and with an
@@ -10,7 +10,7 @@ import type { SearchCatalogQuery } from "../dto/search-catalog.query.js";
  * position, then the newest first.
  */
 export abstract class CatalogQueries {
-  abstract findPage(query: SearchCatalogQuery, now: Date): Promise<Page<ProductCardResult>>;
+  abstract findPage(query: CatalogPageQuery, now: Date): Promise<Page<ProductCardResult>>;
 
   /** Visible featured products. */
   abstract findFeatured(limit: number, now: Date): Promise<ProductCardResult[]>;
