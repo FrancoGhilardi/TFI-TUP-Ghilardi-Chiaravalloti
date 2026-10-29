@@ -27,6 +27,10 @@ export interface ProductImageProps {
   height?: number;
   sizeBytes?: number;
   status: ImageStatus;
+  /** Since when it waits to be processed; only a pending image has it. */
+  pendingSince?: Date;
+  /** Processings started since it last began to wait, finished or not. */
+  processingAttempts: number;
   createdAt: Date;
 }
 
@@ -76,6 +80,8 @@ export class ProductImage extends Entity {
       mimeType: input.mimeType,
       sizeBytes: checkedSize(input.sizeBytes),
       status: ImageStatus.PENDING,
+      pendingSince: input.now,
+      processingAttempts: 0,
       createdAt: input.now,
     });
   }
@@ -124,6 +130,14 @@ export class ProductImage extends Entity {
     return this.props.status;
   }
 
+  get pendingSince(): Date | undefined {
+    return this.props.pendingSince;
+  }
+
+  get processingAttempts(): number {
+    return this.props.processingAttempts;
+  }
+
   get createdAt(): Date {
     return this.props.createdAt;
   }
@@ -151,13 +165,30 @@ export class ProductImage extends Entity {
     this.props.width = info.width;
     this.props.height = info.height;
     this.props.status = ImageStatus.PROCESSED;
+    this.props.pendingSince = undefined;
     return previous;
+  }
+
+  /**
+   * Counts a processing about to start, before it does: one that never ends, such as one that
+   * takes the process down, is counted all the same.
+   */
+  beginProcessingAttempt(): void {
+    this.assertPending();
+    this.props.processingAttempts++;
+  }
+
+  /** A processing that could not finish for a reason outside the image waits for another try. */
+  postpone(now: Date): void {
+    this.assertPending();
+    this.props.pendingSince = now;
   }
 
   /** Its public version, if an earlier processing left one, stays until it is replaced. */
   markFailed(): void {
     this.assertPending();
     this.props.status = ImageStatus.FAILED;
+    this.props.pendingSince = undefined;
   }
 
   /** Whether the alt text changed; a long one is told as the only image edited. */
@@ -180,21 +211,25 @@ export class ProductImage extends Entity {
    * that processing replaces it, so the store keeps showing the image meanwhile. Gives the
    * original it replaced, to be removed.
    */
-  replaceOriginal(original: ReplacementOriginal): string {
+  replaceOriginal(original: ReplacementOriginal, now: Date): string {
     const previous = this.props.originalKey;
     this.props.originalKey = original.originalKey;
     this.props.mimeType = original.mimeType;
     this.props.sizeBytes = checkedSize(original.sizeBytes);
     this.props.status = ImageStatus.PENDING;
+    this.props.pendingSince = now;
+    this.props.processingAttempts = 0;
     return previous;
   }
 
   /** Only a failed image goes back to wait for processing. */
-  retryProcessing(): void {
+  retryProcessing(now: Date): void {
     if (this.props.status !== ImageStatus.FAILED) {
       throw new ImageNotFailedError();
     }
     this.props.status = ImageStatus.PENDING;
+    this.props.pendingSince = now;
+    this.props.processingAttempts = 0;
   }
 
   private assertPending(): void {

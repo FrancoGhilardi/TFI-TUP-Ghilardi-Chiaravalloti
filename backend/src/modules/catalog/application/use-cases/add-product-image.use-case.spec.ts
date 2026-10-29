@@ -104,6 +104,10 @@ class CountingImages extends ProductImageRepository {
   delete(): Promise<never> {
     return Promise.reject(new Error("Not used"));
   }
+
+  findStalePendingIds(): Promise<never> {
+    return Promise.reject(new Error("Not used"));
+  }
 }
 
 class LoggingStorage extends FileStorage {

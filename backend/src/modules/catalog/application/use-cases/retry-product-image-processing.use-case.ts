@@ -1,4 +1,5 @@
 import type { BackgroundTasks } from "../../../../shared/application/background-tasks.js";
+import type { Clock } from "../../../../shared/application/clock.js";
 import type { EventPublisher } from "../../../../shared/application/event-publisher.js";
 import type { TransactionManager } from "../../../../shared/application/transaction-manager.js";
 import type { UseCase } from "../../../../shared/application/use-case.js";
@@ -26,6 +27,7 @@ export class RetryProductImageProcessingUseCase implements UseCase<
     private readonly events: EventPublisher,
     private readonly background: BackgroundTasks,
     private readonly queries: AdminProductQueries,
+    private readonly clock: Clock,
   ) {}
 
   async execute(command: RetryProductImageProcessingCommand): Promise<AdminProductImageResult> {
@@ -33,7 +35,7 @@ export class RetryProductImageProcessingUseCase implements UseCase<
     const imageId = await this.transaction.run(async () => {
       const product = await loadEditableProduct(this.products, command.productId);
       const image = await loadProductImage(this.images, product.getId(), command.imageId);
-      image.retryProcessing();
+      image.retryProcessing(this.clock.now());
       await this.images.saveAll([image]);
       return image.getId();
     });

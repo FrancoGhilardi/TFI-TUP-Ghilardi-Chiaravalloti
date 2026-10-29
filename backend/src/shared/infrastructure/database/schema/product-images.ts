@@ -1,5 +1,14 @@
 import { sql } from "drizzle-orm";
-import { check, integer, smallint, timestamp, unique, uuid, varchar } from "drizzle-orm/pg-core";
+import {
+  check,
+  index,
+  integer,
+  smallint,
+  timestamp,
+  unique,
+  uuid,
+  varchar,
+} from "drizzle-orm/pg-core";
 import { imageStatus } from "./enums.js";
 import { libreria } from "./libreria.schema.js";
 import { products } from "./products.js";
@@ -22,6 +31,12 @@ export const productImages = libreria.table(
     height: integer("height"),
     sizeBytes: integer("size_bytes"),
     status: imageStatus("status").notNull().default("PENDING"),
+    // When it last started to wait for processing; only a pending image has it. A trigger fills
+    // it in when a pending row comes without one, and clears it in any other state.
+    pendingSince: timestamp("pending_since", { withTimezone: true }),
+    // Processings started since it last began to wait; one that never ends, such as one that
+    // takes the process down, still counts, so an image cannot be retried forever.
+    processingAttempts: smallint("processing_attempts").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -41,5 +56,13 @@ export const productImages = libreria.table(
       "chk_product_images_processed_has_public_key",
       sql`status <> 'PROCESSED' OR public_key IS NOT NULL`,
     ),
+    check("chk_product_images_processing_attempts", sql`processing_attempts >= 0`),
+    check(
+      "chk_product_images_pending_since",
+      sql`(status = 'PENDING') = (pending_since IS NOT NULL)`,
+    ),
+    index("idx_product_images_pending_since")
+      .on(t.pendingSince)
+      .where(sql`status = 'PENDING'`),
   ],
 );

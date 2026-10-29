@@ -112,6 +112,8 @@ erDiagram
         integer height
         integer size_bytes
         image_status status "PENDING | PROCESSED | FAILED"
+        timestamptz pending_since "solo pendientes"
+        smallint processing_attempts "intentos desde que espera"
         timestamptz created_at
     }
 ```
@@ -607,6 +609,10 @@ CREATE TABLE libreria.product_images (
   height        integer,
   size_bytes    integer,
   status        libreria.image_status NOT NULL DEFAULT 'PENDING',
+  -- Desde cuando espera ser procesada; solo una imagen pendiente la tiene
+  pending_since timestamptz,
+  -- Procesamientos empezados desde que espera; al tercero sin terminar queda con error
+  processing_attempts smallint NOT NULL DEFAULT 0,
   created_at    timestamptz      NOT NULL DEFAULT now(),
 
   -- El UNIQUE junto con el rango 1-5 limita a 5 imagenes por producto.
@@ -625,8 +631,36 @@ CREATE TABLE libreria.product_images (
     CHECK (size_bytes IS NULL OR size_bytes > 0),
   -- Una imagen procesada debe tener su version publica
   CONSTRAINT chk_product_images_processed_has_public_key
-    CHECK (status <> 'PROCESSED' OR public_key IS NOT NULL)
+    CHECK (status <> 'PROCESSED' OR public_key IS NOT NULL),
+  -- Solo una imagen pendiente tiene fecha de espera (la completa o la borra un trigger)
+  CONSTRAINT chk_product_images_processing_attempts
+    CHECK (processing_attempts >= 0),
+  CONSTRAINT chk_product_images_pending_since
+    CHECK ((status = 'PENDING') = (pending_since IS NOT NULL))
 );
+
+-- Imagenes demoradas: las pendientes, por antiguedad de espera
+CREATE INDEX idx_product_images_pending_since
+  ON libreria.product_images (pending_since) WHERE status = 'PENDING';
+
+-- Completa pending_since en una fila pendiente que llega sin fecha y la borra en otro estado
+CREATE OR REPLACE FUNCTION libreria.set_image_pending_since()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.status <> 'PENDING' THEN
+    NEW.pending_since := NULL;
+  ELSIF NEW.pending_since IS NULL THEN
+    NEW.pending_since := now();
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_product_images_pending_since
+  BEFORE INSERT OR UPDATE ON libreria.product_images
+  FOR EACH ROW EXECUTE FUNCTION libreria.set_image_pending_since();
 
 -- Todo producto debe tener al menos una imagen (se valida al COMMIT)
 CREATE OR REPLACE FUNCTION libreria.check_product_has_image()
