@@ -23,6 +23,7 @@ import { DeleteProductImageUseCase } from "./application/use-cases/delete-produc
 import { DeleteProductUseCase } from "./application/use-cases/delete-product.use-case.js";
 import { ExpireProductMarksUseCase } from "./application/use-cases/expire-product-marks.use-case.js";
 import { GetAdminCategoryUseCase } from "./application/use-cases/get-admin-category.use-case.js";
+import { GetAdminProductUseCase } from "./application/use-cases/get-admin-product.use-case.js";
 import { GetProductDetailUseCase } from "./application/use-cases/get-product-detail.use-case.js";
 import { GlobalSearchUseCase } from "./application/use-cases/global-search.use-case.js";
 import { ListAdminCategoriesUseCase } from "./application/use-cases/list-admin-categories.use-case.js";
@@ -424,6 +425,11 @@ import { ProductMarksExpiryScheduler } from "./presentation/schedulers/product-m
         BackgroundTasks,
         AdminProductQueries,
       ],
+    },
+    {
+      provide: GetAdminProductUseCase,
+      useFactory: (queries: AdminProductQueries) => new GetAdminProductUseCase(queries),
+      inject: [AdminProductQueries],
     },
     {
       provide: DeleteProductImageUseCase,
