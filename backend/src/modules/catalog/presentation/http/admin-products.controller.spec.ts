@@ -2,6 +2,7 @@ import { ROLES_KEY } from "../../../identity/presentation/decorators/roles.decor
 import type { AuthUser } from "../../../identity/presentation/auth-user.js";
 import type { CreateProductUseCase } from "../../application/use-cases/create-product.use-case.js";
 import type { DeleteProductUseCase } from "../../application/use-cases/delete-product.use-case.js";
+import type { GetAdminProductUseCase } from "../../application/use-cases/get-admin-product.use-case.js";
 import type { RestoreProductUseCase } from "../../application/use-cases/restore-product.use-case.js";
 import type { UpdateProductUseCase } from "../../application/use-cases/update-product.use-case.js";
 import { AdminProductsController } from "./admin-products.controller.js";
@@ -30,18 +31,28 @@ function setUp() {
   const update = { execute: execute() };
   const remove = { execute: vi.fn(() => Promise.resolve()) };
   const restore = { execute: execute() };
+  const get = { execute: execute() };
   const controller = new AdminProductsController(
     create as unknown as CreateProductUseCase,
     update as unknown as UpdateProductUseCase,
     remove as unknown as DeleteProductUseCase,
     restore as unknown as RestoreProductUseCase,
+    get as unknown as GetAdminProductUseCase,
   );
-  return { create, update, remove, restore, controller };
+  return { create, update, remove, restore, get, controller };
 }
 
 describe("AdminProductsController", () => {
   it("is open to admins and sellers", () => {
     expect(Reflect.getMetadata(ROLES_KEY, AdminProductsController)).toEqual(["ADMIN", "SELLER"]);
+  });
+
+  it("gives the product of the route to the panel", async () => {
+    const { get, controller } = setUp();
+
+    await controller.findOne(ID);
+
+    expect(get.execute).toHaveBeenCalledExactlyOnceWith(ID);
   });
 
   it("creates with the data, the author and the files in order, each with its alt text", async () => {

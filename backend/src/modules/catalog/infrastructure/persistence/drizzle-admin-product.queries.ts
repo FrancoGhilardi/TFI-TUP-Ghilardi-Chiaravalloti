@@ -3,7 +3,11 @@ import { alias } from "drizzle-orm/pg-core";
 import { asc, desc, eq, sql } from "drizzle-orm";
 import { stackWithCauses } from "../../../../shared/application/error-stack.js";
 import { FileStorage } from "../../../../shared/application/file-storage.js";
-import { DrizzleExecutor } from "../../../../shared/infrastructure/database/drizzle.executor.js";
+import type { Database } from "../../../../shared/infrastructure/database/drizzle.client.js";
+import {
+  type DbExecutor,
+  DrizzleExecutor,
+} from "../../../../shared/infrastructure/database/drizzle.executor.js";
 import {
   categories,
   productCategories,
@@ -37,52 +41,56 @@ export class DrizzleAdminProductQueries extends AdminProductQueries {
     super();
   }
 
+  /**
+   * Every part is read from one snapshot, so an edit committed meanwhile never mixes old and
+   * new data; the links are signed afterwards, with no transaction open on Storage.
+   */
   async findById(id: string): Promise<AdminProductDetailResult | null> {
-    const db = this.executor.current();
-    const [row] = await db
-      .select({
-        product: products,
-        creatorName: creator.name,
-        editorName: editor.name,
-      })
-      .from(products)
-      .leftJoin(creator, eq(creator.id, products.createdBy))
-      .leftJoin(editor, eq(editor.id, products.updatedBy))
-      .where(eq(products.id, id))
-      .limit(1);
+    const [[row], assigned, images, relatedRows] = await this.inSnapshot((db) =>
+      Promise.all([
+        db
+          .select({
+            product: products,
+            creatorName: creator.name,
+            editorName: editor.name,
+          })
+          .from(products)
+          .leftJoin(creator, eq(creator.id, products.createdBy))
+          .leftJoin(editor, eq(editor.id, products.updatedBy))
+          .where(eq(products.id, id))
+          .limit(1),
+        db
+          .select({
+            id: categories.id,
+            name: categories.name,
+            slug: categories.slug,
+            isPrimary: productCategories.isPrimary,
+          })
+          .from(productCategories)
+          .innerJoin(categories, eq(categories.id, productCategories.categoryId))
+          .where(eq(productCategories.productId, id))
+          // The primary one first, then by name as the form lists them.
+          .orderBy(
+            desc(productCategories.isPrimary),
+            asc(sql`lower(${categories.name})`),
+            asc(categories.id),
+          ),
+        db
+          .select()
+          .from(productImages)
+          .where(eq(productImages.productId, id))
+          .orderBy(asc(productImages.position)),
+        db
+          .select({ id: related.id, sku: related.sku, title: related.title, slug: related.slug })
+          .from(relatedProducts)
+          .innerJoin(related, eq(related.id, relatedProducts.relatedProductId))
+          .where(eq(relatedProducts.productId, id))
+          .orderBy(asc(relatedProducts.sortOrder)),
+      ]),
+    );
     if (!row) {
       return null;
     }
-
-    const [assigned, images, relatedRows] = await Promise.all([
-      db
-        .select({
-          id: categories.id,
-          name: categories.name,
-          slug: categories.slug,
-          isPrimary: productCategories.isPrimary,
-        })
-        .from(productCategories)
-        .innerJoin(categories, eq(categories.id, productCategories.categoryId))
-        .where(eq(productCategories.productId, id))
-        // The primary one first, then by name as the form lists them.
-        .orderBy(
-          desc(productCategories.isPrimary),
-          asc(sql`lower(${categories.name})`),
-          asc(categories.id),
-        ),
-      db
-        .select()
-        .from(productImages)
-        .where(eq(productImages.productId, id))
-        .orderBy(asc(productImages.position)),
-      db
-        .select({ id: related.id, sku: related.sku, title: related.title, slug: related.slug })
-        .from(relatedProducts)
-        .innerJoin(related, eq(related.id, relatedProducts.relatedProductId))
-        .where(eq(relatedProducts.productId, id))
-        .orderBy(asc(relatedProducts.sortOrder)),
-    ]);
 
     const { product } = row;
     return {
@@ -136,6 +144,20 @@ export class DrizzleAdminProductQueries extends AdminProductQueries {
       .where(eq(productImages.productId, productId))
       .orderBy(asc(productImages.position));
     return this.imageResults(rows);
+  }
+
+  /**
+   * In the open transaction, if there is one; otherwise in a read-only one that sees a single
+   * snapshot of the database.
+   */
+  private inSnapshot<T>(read: (db: DbExecutor) => Promise<T>): Promise<T> {
+    if (this.executor.hasActiveTransaction()) {
+      return read(this.executor.current());
+    }
+    return (this.executor.current() as Database).transaction((tx) => read(tx), {
+      isolationLevel: "repeatable read",
+      accessMode: "read only",
+    });
   }
 
   /**
