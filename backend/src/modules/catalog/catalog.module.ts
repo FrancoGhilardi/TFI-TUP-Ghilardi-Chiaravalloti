@@ -27,6 +27,7 @@ import { GetAdminProductUseCase } from "./application/use-cases/get-admin-produc
 import { GetProductDetailUseCase } from "./application/use-cases/get-product-detail.use-case.js";
 import { GlobalSearchUseCase } from "./application/use-cases/global-search.use-case.js";
 import { ListAdminCategoriesUseCase } from "./application/use-cases/list-admin-categories.use-case.js";
+import { ListAdminProductsUseCase } from "./application/use-cases/list-admin-products.use-case.js";
 import { ListCategoryTreeUseCase } from "./application/use-cases/list-category-tree.use-case.js";
 import { ListFeaturedProductsUseCase } from "./application/use-cases/list-featured-products.use-case.js";
 import { ListNewProductsUseCase } from "./application/use-cases/list-new-products.use-case.js";
@@ -425,6 +426,12 @@ import { ProductMarksExpiryScheduler } from "./presentation/schedulers/product-m
         BackgroundTasks,
         AdminProductQueries,
       ],
+    },
+    {
+      provide: ListAdminProductsUseCase,
+      useFactory: (queries: AdminProductQueries, clock: Clock) =>
+        new ListAdminProductsUseCase(queries, clock),
+      inject: [AdminProductQueries, Clock],
     },
     {
       provide: GetAdminProductUseCase,

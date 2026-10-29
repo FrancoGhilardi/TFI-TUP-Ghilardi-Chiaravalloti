@@ -3,6 +3,8 @@ import type { AuthUser } from "../../../identity/presentation/auth-user.js";
 import type { CreateProductUseCase } from "../../application/use-cases/create-product.use-case.js";
 import type { DeleteProductUseCase } from "../../application/use-cases/delete-product.use-case.js";
 import type { GetAdminProductUseCase } from "../../application/use-cases/get-admin-product.use-case.js";
+import type { ListAdminProductsUseCase } from "../../application/use-cases/list-admin-products.use-case.js";
+import { SortDirection } from "../../../../shared/application/pagination.js";
 import type { RestoreProductUseCase } from "../../application/use-cases/restore-product.use-case.js";
 import type { UpdateProductUseCase } from "../../application/use-cases/update-product.use-case.js";
 import { AdminProductsController } from "./admin-products.controller.js";
@@ -32,20 +34,57 @@ function setUp() {
   const remove = { execute: vi.fn(() => Promise.resolve()) };
   const restore = { execute: execute() };
   const get = { execute: execute() };
+  const list = { execute: execute() };
   const controller = new AdminProductsController(
     create as unknown as CreateProductUseCase,
     update as unknown as UpdateProductUseCase,
     remove as unknown as DeleteProductUseCase,
     restore as unknown as RestoreProductUseCase,
     get as unknown as GetAdminProductUseCase,
+    list as unknown as ListAdminProductsUseCase,
   );
-  return { create, update, remove, restore, get, controller };
+  return { create, update, remove, restore, get, list, controller };
 }
 
 describe("AdminProductsController", () => {
   it("is open to admins and sellers", () => {
     expect(Reflect.getMetadata(ROLES_KEY, AdminProductsController)).toEqual(["ADMIN", "SELLER"]);
   });
+
+  it("passes the whole listing query to its use case", async () => {
+    const { list, controller } = setUp();
+    const query = {
+      q: "cuad",
+      categoryId: ID,
+      isOnSale: true,
+      maxStock: 3,
+      sortDir: SortDirection.DESC,
+      page: 2,
+      limit: 10,
+    };
+
+    await controller.findAll(query);
+
+    expect(list.execute).toHaveBeenCalledExactlyOnceWith({
+      ...query,
+      status: undefined,
+      isFeatured: undefined,
+      isNew: undefined,
+      sortBy: undefined,
+    });
+  });
+
+  it.each(["findAll", "findOne"] as const)(
+    "never lets %s be kept, as its links expire",
+    (method) => {
+      const handler = Object.getOwnPropertyDescriptor(AdminProductsController.prototype, method)
+        ?.value as object;
+
+      expect(Reflect.getMetadata("__headers__", handler)).toEqual([
+        { name: "Cache-Control", value: "no-store" },
+      ]);
+    },
+  );
 
   it("gives the product of the route to the panel", async () => {
     const { get, controller } = setUp();

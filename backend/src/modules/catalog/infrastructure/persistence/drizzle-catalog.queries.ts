@@ -13,8 +13,8 @@ import type { SearchCatalogQuery } from "../../application/dto/search-catalog.qu
 import { CatalogQueries } from "../../application/ports/catalog-queries.js";
 import { runsAt } from "../../domain/runs-at.js";
 import {
-  endedBy,
   matchesEveryWord,
+  newMarkRunsAt,
   sortableName,
   startsWithText,
   VISIBLE_CATEGORIES,
@@ -200,11 +200,7 @@ export class DrizzleCatalogQueries extends CatalogQueries {
 
   findNew(limit: number, now: Date): Promise<ProductCardResult[]> {
     // The same rule as `runsAt`, so every card listed here also says it is new.
-    return this.highlights(
-      sql`p.is_new AND (p.new_until IS NULL OR NOT ${endedBy(sql`p.new_until`, now)})`,
-      limit,
-      now,
-    );
+    return this.highlights(newMarkRunsAt(now), limit, now);
   }
 
   async findPageBySlug(slug: string, now: Date): Promise<ProductPage | null> {
