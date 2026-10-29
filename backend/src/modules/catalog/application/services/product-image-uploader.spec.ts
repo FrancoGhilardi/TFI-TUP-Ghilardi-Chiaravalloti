@@ -99,4 +99,42 @@ describe("ProductImageUploader", () => {
       storage.failure,
     );
   });
+
+  describe("discardDeleted", () => {
+    it("removes both files of a deleted image at once", async () => {
+      const storage = new RecordingStorage();
+      const releases: (() => void)[] = [];
+      storage.remove = (bucket: StorageBucket, keys: string[]) => {
+        storage.calls.push(["remove", bucket, keys]);
+        return new Promise<void>((resolve) => releases.push(resolve));
+      };
+      const removal = new ProductImageUploader(storage, 0).discardDeleted("a.jpg", "a.webp");
+      await Promise.resolve();
+
+      expect(storage.calls).toEqual([
+        ["remove", StorageBucket.PRIVATE, ["a.jpg"]],
+        ["remove", StorageBucket.PUBLIC, ["a.webp"]],
+      ]);
+      releases.forEach((release) => release());
+      await expect(removal).resolves.toEqual([]);
+    });
+
+    it("waits before trying a file again, and gives it back with why when it stays", async () => {
+      vi.useFakeTimers();
+      try {
+        const storage = new RecordingStorage();
+        storage.failure = new Error("storage down");
+        const removal = new ProductImageUploader(storage, 1000).discardDeleted("a.jpg", undefined);
+        await vi.advanceTimersByTimeAsync(999);
+        expect(storage.calls).toHaveLength(1);
+
+        await vi.advanceTimersByTimeAsync(1);
+
+        await expect(removal).resolves.toEqual([{ key: "a.jpg", cause: storage.failure }]);
+        expect(storage.calls).toHaveLength(2);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
 });

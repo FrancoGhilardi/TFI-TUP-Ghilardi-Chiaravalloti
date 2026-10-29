@@ -11,6 +11,9 @@ export abstract class ProductImageRepository {
   /** The product's images, by position. Inside a transaction they are locked. */
   abstract findByProduct(productId: string): Promise<ProductImage[]>;
 
+  /** Removing an image that is not there is not a failure. */
+  abstract delete(id: string): Promise<void>;
+
   /** How many images the product has, in any state. */
   abstract countByProduct(productId: string): Promise<number>;
 }

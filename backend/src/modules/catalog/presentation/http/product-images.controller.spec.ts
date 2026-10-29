@@ -3,7 +3,9 @@ import { HTTP_CODE_METADATA, PATH_METADATA } from "@nestjs/common/constants.js";
 import { plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
 import { ROLES_KEY } from "../../../identity/presentation/decorators/roles.decorator.js";
+import { Logger } from "@nestjs/common";
 import type { AddProductImageUseCase } from "../../application/use-cases/add-product-image.use-case.js";
+import type { DeleteProductImageUseCase } from "../../application/use-cases/delete-product-image.use-case.js";
 import type { ReorderProductImagesUseCase } from "../../application/use-cases/reorder-product-images.use-case.js";
 import type { ReplaceProductImageFileUseCase } from "../../application/use-cases/replace-product-image-file.use-case.js";
 import type { RetryProductImageProcessingUseCase } from "../../application/use-cases/retry-product-image-processing.use-case.js";
@@ -22,14 +24,20 @@ function setUp() {
   const update = useCase();
   const replace = useCase();
   const retry = useCase();
+  const remove = {
+    execute: vi.fn(() =>
+      Promise.resolve({ imageId: IMAGE, leftovers: [] as { key: string; cause: unknown }[] }),
+    ),
+  };
   const controller = new ProductImagesController(
     add as unknown as AddProductImageUseCase,
     reorder as unknown as ReorderProductImagesUseCase,
     update as unknown as UpdateProductImageUseCase,
     replace as unknown as ReplaceProductImageFileUseCase,
     retry as unknown as RetryProductImageProcessingUseCase,
+    remove as unknown as DeleteProductImageUseCase,
   );
-  return { add, reorder, update, replace, retry, controller };
+  return { add, reorder, update, replace, retry, remove, controller };
 }
 
 const handler = (method: keyof ProductImagesController) =>
@@ -95,6 +103,38 @@ describe("ProductImagesController", () => {
       bytes: buffer,
     });
     expect(retry.execute).toHaveBeenCalledExactlyOnceWith({ productId: ID, imageId: IMAGE });
+  });
+
+  it("deletes with 204, logging the files the storage kept", async () => {
+    const { remove, controller } = setUp();
+    const error = vi.spyOn(Logger.prototype, "error").mockImplementation(() => undefined);
+
+    await expect(controller.remove(ID, IMAGE)).resolves.toBeUndefined();
+    expect(error).not.toHaveBeenCalled();
+
+    remove.execute.mockResolvedValueOnce({
+      imageId: IMAGE,
+      leftovers: [
+        { key: "a.jpg", cause: new Error("storage down") },
+        { key: "b.webp", cause: new Error("timeout") },
+      ],
+    });
+    await controller.remove(ID.toUpperCase(), IMAGE.toUpperCase());
+
+    expect(remove.execute).toHaveBeenCalledWith({
+      productId: ID.toUpperCase(),
+      imageId: IMAGE.toUpperCase(),
+    });
+    expect(error.mock.calls.map(([message]) => String(message))).toEqual([
+      expect.stringMatching(
+        new RegExp(
+          `^File a.jpg of the deleted image ${IMAGE} was left in storage\nError: storage down`,
+        ),
+      ),
+      expect.stringMatching(/^File b\.webp .*\nError: timeout/),
+    ]);
+    expect(Reflect.getMetadata(HTTP_CODE_METADATA, handler("remove"))).toBe(204);
+    error.mockRestore();
   });
 
   it("answers a retry with 200, as it creates nothing", () => {

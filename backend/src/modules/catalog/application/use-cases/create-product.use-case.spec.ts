@@ -196,6 +196,10 @@ class FakeImages extends ProductImageRepository {
   findByProduct(): Promise<never> {
     return Promise.reject(new Error("Not used"));
   }
+
+  delete(): Promise<never> {
+    return Promise.reject(new Error("Not used"));
+  }
 }
 
 class RecordingTransaction extends TransactionManager {

@@ -19,6 +19,7 @@ import { AddProductImageUseCase } from "./application/use-cases/add-product-imag
 import { CreateCategoryUseCase } from "./application/use-cases/create-category.use-case.js";
 import { CreateProductUseCase } from "./application/use-cases/create-product.use-case.js";
 import { DeleteCategoryUseCase } from "./application/use-cases/delete-category.use-case.js";
+import { DeleteProductImageUseCase } from "./application/use-cases/delete-product-image.use-case.js";
 import { DeleteProductUseCase } from "./application/use-cases/delete-product.use-case.js";
 import { ExpireProductMarksUseCase } from "./application/use-cases/expire-product-marks.use-case.js";
 import { GetAdminCategoryUseCase } from "./application/use-cases/get-admin-category.use-case.js";
@@ -422,6 +423,23 @@ import { ProductMarksExpiryScheduler } from "./presentation/schedulers/product-m
         EventPublisher,
         BackgroundTasks,
         AdminProductQueries,
+      ],
+    },
+    {
+      provide: DeleteProductImageUseCase,
+      useFactory: (
+        products: ProductRepository,
+        images: ProductImageRepository,
+        policy: ProductImagePolicy,
+        uploader: ProductImageUploader,
+        transaction: TransactionManager,
+      ) => new DeleteProductImageUseCase(products, images, policy, uploader, transaction),
+      inject: [
+        ProductRepository,
+        ProductImageRepository,
+        ProductImagePolicy,
+        ProductImageUploader,
+        TransactionManager,
       ],
     },
     {
