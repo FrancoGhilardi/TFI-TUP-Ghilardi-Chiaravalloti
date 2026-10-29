@@ -1,4 +1,5 @@
 import { BackgroundTasks } from "../../../../shared/application/background-tasks.js";
+import { Clock } from "../../../../shared/application/clock.js";
 import {
   type ApplicationEvent,
   EventPublisher,
@@ -110,6 +111,8 @@ const copyOf = (image: ProductImage) =>
     height: image.height,
     sizeBytes: image.sizeBytes,
     status: image.status,
+    pendingSince: image.pendingSince,
+    processingAttempts: image.processingAttempts,
     createdAt: image.createdAt,
   });
 
@@ -164,6 +167,10 @@ class InMemoryImages extends ProductImageRepository {
     this.log.push(`delete ${id}`);
     this.stored.delete(id);
     return Promise.resolve();
+  }
+
+  findStalePendingIds(): Promise<never> {
+    return Promise.reject(new Error("Not used"));
   }
 }
 
@@ -247,6 +254,14 @@ class ImmediateTasks extends BackgroundTasks {
   }
 }
 
+const SAVED = new Date("2026-10-28T13:00:00.000Z");
+
+class FixedClock extends Clock {
+  now(): Date {
+    return SAVED;
+  }
+}
+
 class FixedIds extends IdGenerator {
   next(): string {
     return "version-1";
@@ -306,6 +321,7 @@ function setUp() {
     events,
     background,
     queries,
+    clock: new FixedClock(),
   });
   const retry = new RetryProductImageProcessingUseCase(
     products,
@@ -314,6 +330,7 @@ function setUp() {
     events,
     background,
     queries,
+    new FixedClock(),
   );
   const remove = new DeleteProductImageUseCase(
     products,
@@ -443,6 +460,7 @@ describe("ReplaceProductImageFileUseCase", () => {
       sizeBytes: PNG.length,
       publicKey: "products/product-1/image-1-v1.webp",
       altText: "Tapa",
+      pendingSince: SAVED,
     });
   });
 
@@ -524,7 +542,10 @@ describe("RetryProductImageProcessingUseCase", () => {
       "commit",
       "publish image-2",
     ]);
-    expect(images.stored.get("image-2")?.status).toBe(ImageStatus.PENDING);
+    expect(images.stored.get("image-2")).toMatchObject({
+      status: ImageStatus.PENDING,
+      pendingSince: SAVED,
+    });
   });
 
   it("refuses an image whose processing did not fail", async () => {

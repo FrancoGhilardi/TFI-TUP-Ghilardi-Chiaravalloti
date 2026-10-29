@@ -12,4 +12,13 @@ export class ImageSettings {
   readonly publicQuality = 80;
   /** Larger originals fail instead of filling the memory while decoded. */
   readonly maxInputPixels = 40_000_000;
+  /** A processing takes seconds; an image pending longer than this has stalled. */
+  readonly staleAfterMinutes = 10;
+  /** Stalled images processed per run, one after another; the rest wait for the next run. */
+  readonly staleBatchSize = 20;
+  /**
+   * Processings an image gets before it is left failed: one that keeps being cut off, such as
+   * by taking the process down, stops being retried.
+   */
+  readonly maxProcessingAttempts = 3;
 }

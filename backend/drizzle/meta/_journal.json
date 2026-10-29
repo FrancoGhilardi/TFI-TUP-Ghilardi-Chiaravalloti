@@ -78,6 +78,20 @@
       "when": 1793197918315,
       "tag": "0010_related_products_limit",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793299881373,
+      "tag": "0011_image_pending_since",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793300988218,
+      "tag": "0012_image_processing_attempts",
+      "breakpoints": true
     }
   ]
 }

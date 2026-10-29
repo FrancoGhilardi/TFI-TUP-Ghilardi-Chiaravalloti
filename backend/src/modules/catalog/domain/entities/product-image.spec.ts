@@ -4,6 +4,7 @@ import { ImageStatus } from "../image-status.js";
 import { type NewProductImageProps, ProductImage } from "./product-image.js";
 
 const NOW = new Date("2026-10-22T12:00:00.000Z");
+const LATER = new Date("2026-10-22T13:00:00.000Z");
 
 const register = (overrides: Partial<NewProductImageProps> = {}) =>
   ProductImage.register({
@@ -29,6 +30,7 @@ describe("ProductImage", () => {
       altText: "Cuaderno rayado",
       mimeType: "image/jpeg",
       sizeBytes: 2048,
+      pendingSince: NOW,
       status: ImageStatus.PENDING,
       createdAt: NOW,
     });
@@ -69,6 +71,7 @@ describe("ProductImage", () => {
 
       expect(image.markProcessed(PROCESSED)).toBeUndefined();
       expect(image).toMatchObject({ ...PROCESSED, status: ImageStatus.PROCESSED });
+      expect(image.pendingSince).toBeUndefined();
       expect(image.isPending()).toBe(false);
     });
 
@@ -83,6 +86,7 @@ describe("ProductImage", () => {
         width: 800,
         height: 1000,
         status: ImageStatus.PENDING,
+        processingAttempts: 0,
         createdAt: NOW,
       });
 
@@ -105,7 +109,11 @@ describe("ProductImage", () => {
 
       image.markFailed();
 
-      expect(image).toMatchObject({ status: ImageStatus.FAILED, publicKey: undefined });
+      expect(image).toMatchObject({
+        status: ImageStatus.FAILED,
+        publicKey: undefined,
+        pendingSince: undefined,
+      });
     });
 
     it("processes or fails only a pending image", () => {
@@ -149,11 +157,14 @@ describe("ProductImage", () => {
         height: 1000,
       });
 
-      const previous = image.replaceOriginal({
-        originalKey: "products/product-1/image-1-v2.png",
-        mimeType: "image/png",
-        sizeBytes: 4096,
-      });
+      const previous = image.replaceOriginal(
+        {
+          originalKey: "products/product-1/image-1-v2.png",
+          mimeType: "image/png",
+          sizeBytes: 4096,
+        },
+        LATER,
+      );
 
       expect(previous).toBe("products/product-1/image-1.jpg");
       expect(image).toMatchObject({
@@ -164,16 +175,53 @@ describe("ProductImage", () => {
         publicKey: "products/product-1/image-1-v1.webp",
         width: 800,
         height: 1000,
+        pendingSince: LATER,
       });
     });
 
-    it("sends only a failed image back to wait for processing", () => {
+    it("sends only a failed image back to wait for processing, from then on", () => {
       const failed = register();
       failed.markFailed();
-      failed.retryProcessing();
+      failed.retryProcessing(LATER);
 
-      expect(failed.status).toBe(ImageStatus.PENDING);
-      expect(() => failed.retryProcessing()).toThrow(ImageNotFailedError);
+      expect(failed).toMatchObject({ status: ImageStatus.PENDING, pendingSince: LATER });
+      expect(() => failed.retryProcessing(LATER)).toThrow(ImageNotFailedError);
+    });
+  });
+
+  describe("attempts", () => {
+    it("counts each processing that starts, and postpones a pending one from a new time", () => {
+      const image = register();
+
+      image.beginProcessingAttempt();
+      image.beginProcessingAttempt();
+      image.postpone(LATER);
+
+      expect(image).toMatchObject({ processingAttempts: 2, pendingSince: LATER });
+    });
+
+    it("starts counting again when a new original or a retry makes it wait", () => {
+      const replaced = register();
+      replaced.beginProcessingAttempt();
+      replaced.replaceOriginal(
+        { originalKey: "products/product-1/image-1-v2.png", mimeType: "image/png", sizeBytes: 9 },
+        LATER,
+      );
+      const retried = register();
+      retried.beginProcessingAttempt();
+      retried.markFailed();
+      retried.retryProcessing(LATER);
+
+      expect(replaced.processingAttempts).toBe(0);
+      expect(retried.processingAttempts).toBe(0);
+    });
+
+    it("counts or postpones only a pending image", () => {
+      const failed = register();
+      failed.markFailed();
+
+      expect(() => failed.beginProcessingAttempt()).toThrow("not pending");
+      expect(() => failed.postpone(LATER)).toThrow("not pending");
     });
   });
 });

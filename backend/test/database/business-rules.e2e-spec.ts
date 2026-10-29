@@ -121,6 +121,69 @@ describe("business rules in the database (e2e)", () => {
     });
   });
 
+  describe("image pending since", () => {
+    const sinceOf = async (productId: string) =>
+      (
+        await pool.query<{ status: string; pending_since: Date | null }>(
+          "SELECT status, pending_since FROM libreria.product_images WHERE product_id = $1",
+          [productId],
+        )
+      ).rows[0];
+
+    it("stamps a pending image added without the time, and keeps one given", async () => {
+      const { id } = await insertProductWithDeps(pool);
+      const given = new Date("2026-10-01T12:00:00.000Z");
+
+      await expect(sinceOf(id)).resolves.toMatchObject({
+        status: "PENDING",
+        pending_since: expect.any(Date) as unknown,
+      });
+      await pool.query(
+        "UPDATE libreria.product_images SET pending_since = $2 WHERE product_id = $1",
+        [id, given],
+      );
+      await expect(sinceOf(id)).resolves.toMatchObject({ pending_since: given });
+    });
+
+    it("clears it once the image is processed or failed, and stamps it again when pending", async () => {
+      const { id } = await insertProductWithDeps(pool);
+
+      await pool.query(
+        "UPDATE libreria.product_images SET status = 'FAILED', pending_since = now() WHERE product_id = $1",
+        [id],
+      );
+      await expect(sinceOf(id)).resolves.toMatchObject({ status: "FAILED", pending_since: null });
+      await pool.query(
+        "UPDATE libreria.product_images SET status = 'PENDING' WHERE product_id = $1",
+        [id],
+      );
+      await expect(sinceOf(id)).resolves.toMatchObject({
+        status: "PENDING",
+        pending_since: expect.any(Date) as unknown,
+      });
+    });
+
+    it("refuses a pending image without the time when the trigger is off", async () => {
+      const { id } = await insertProductWithDeps(pool);
+      await pool.query(
+        "ALTER TABLE libreria.product_images DISABLE TRIGGER trg_product_images_pending_since",
+      );
+      try {
+        await expectPgError(
+          pool.query(
+            "UPDATE libreria.product_images SET pending_since = NULL WHERE product_id = $1",
+            [id],
+          ),
+          CHECK_VIOLATION,
+        );
+      } finally {
+        await pool.query(
+          "ALTER TABLE libreria.product_images ENABLE TRIGGER trg_product_images_pending_since",
+        );
+      }
+    });
+  });
+
   describe("categories", () => {
     it("rejects changing the slug", async () => {
       await insertCategory(pool, "Books");
