@@ -17,6 +17,10 @@ class StubQueries extends AdminProductQueries {
   findImagesByProduct(): Promise<never> {
     return Promise.reject(new Error("Not used"));
   }
+
+  findPage(): Promise<never> {
+    return Promise.reject(new Error("Not used"));
+  }
 }
 
 describe("GetAdminProductUseCase", () => {
