@@ -28,6 +28,7 @@ import { GetProductDetailUseCase } from "./application/use-cases/get-product-det
 import { GlobalSearchUseCase } from "./application/use-cases/global-search.use-case.js";
 import { ListAdminCategoriesUseCase } from "./application/use-cases/list-admin-categories.use-case.js";
 import { ListAdminProductsUseCase } from "./application/use-cases/list-admin-products.use-case.js";
+import { ListProductImagesUseCase } from "./application/use-cases/list-product-images.use-case.js";
 import { ListCategoryTreeUseCase } from "./application/use-cases/list-category-tree.use-case.js";
 import { ListFeaturedProductsUseCase } from "./application/use-cases/list-featured-products.use-case.js";
 import { ListNewProductsUseCase } from "./application/use-cases/list-new-products.use-case.js";
@@ -426,6 +427,11 @@ import { ProductMarksExpiryScheduler } from "./presentation/schedulers/product-m
         BackgroundTasks,
         AdminProductQueries,
       ],
+    },
+    {
+      provide: ListProductImagesUseCase,
+      useFactory: (queries: AdminProductQueries) => new ListProductImagesUseCase(queries),
+      inject: [AdminProductQueries],
     },
     {
       provide: ListAdminProductsUseCase,

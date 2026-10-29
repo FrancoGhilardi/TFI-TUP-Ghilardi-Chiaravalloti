@@ -2339,10 +2339,7 @@ classDiagram
     }
 
     class ListProductImagesUseCase {
-        -images: ProductImageRepository
-        -products: ProductRepository
-        -storage: FileStorage
-        -settings: ImageSettings
+        -queries: AdminProductQueries
         +execute(productId: string) Promise~AdminProductImageResult[]~
     }
     class AddProductImageUseCase {
@@ -2464,6 +2461,7 @@ classDiagram
     ImageProcessor ..> PublicImageVersion
     ProductImageUploader --> FileStorage
     ProductImageUploader --> ImageKeyFactory
+    ListProductImagesUseCase --> AdminProductQueries
     AddProductImageUseCase --> ProductImageUploader
     AddProductImageUseCase ..> ProductImageUploadedEvent : publica
     ReplaceProductImageFileUseCase --> ProductImageUploader
@@ -2475,7 +2473,6 @@ classDiagram
     ProcessProductImageUseCase --> ImageKeyFactory
     ProcessProductImageUseCase --> ImageSettings
     ReprocessStaleImagesUseCase --> ProcessProductImageUseCase
-    ListProductImagesUseCase --> FileStorage
     ListProductImagesUseCase ..> AdminProductImageResult
 ```
 
@@ -2535,7 +2532,7 @@ Todas las operaciones sobre una imagen existente verifican que el producto exist
 
 **Reintento de procesamiento.** Solo para una imagen cuyo procesamiento falló (si no, `ImageNotFailedError`): vuelve al estado pendiente y, una vez confirmado, se publica de nuevo el evento de procesamiento, lo que permite recuperarla sin necesidad de volver a cargar el archivo.
 
-**Visualización en el panel.** Cuando la imagen ya está procesada, se muestra su variante de 800 px. Mientras está pendiente o si su procesamiento falló, se muestra el archivo original mediante una URL firmada, de validez limitada, ya que el original se encuentra en el almacenamiento privado. De esta forma, el usuario puede ver la imagen cargada aun antes de que esté disponible en la tienda.
+**Visualización en el panel.** El panel consulta las imágenes de un producto, por posición y con su estado, también si el producto está dado de baja, y vuelve a consultarlas mientras alguna se está procesando. Cada imagen, procesada o no, se muestra con su archivo original mediante una URL firmada de validez limitada (10 minutos), ya que el original se encuentra en el almacenamiento privado; si Storage no puede firmarlas, se informan sin URL y la consulta se responde igual. Como esos enlaces vencen, la respuesta no se guarda en caché. Una consulta de un producto inexistente responde que no existe. La miniatura del listado de productos, en cambio, usa la versión pública de la imagen cuando ya la tiene, y solo firma el original mientras no la tenga.
 
 #### Procesamiento
 
