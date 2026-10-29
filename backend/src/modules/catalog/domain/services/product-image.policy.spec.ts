@@ -1,6 +1,7 @@
 import { ProductImage } from "../entities/product-image.js";
 import { InvalidImageCountError } from "../errors/invalid-image-count-error.js";
 import { InvalidImageOrderError } from "../errors/invalid-image-order-error.js";
+import { LastProductImageError } from "../errors/last-product-image-error.js";
 import { ProductImageLimitReachedError } from "../errors/product-image-limit-reached-error.js";
 import { ProductImagePolicy } from "./product-image.policy.js";
 
@@ -73,6 +74,42 @@ describe("ProductImagePolicy", () => {
 
       expect(() => policy.reorder(images, ids)).toThrow(InvalidImageOrderError);
       expect(positions(images)).toEqual({ a: 1, b: 2, c: 3 });
+    });
+  });
+
+  it.each([2, 5])("lets a product with %i images lose one", (current) => {
+    expect(() => policy.assertCanRemove(current)).not.toThrow();
+  });
+
+  it.each([1, 0])("never lets a product with %i images lose one", (current) => {
+    expect(() => policy.assertCanRemove(current)).toThrow(LastProductImageError);
+  });
+
+  describe("compact", () => {
+    const imageAt = (id: string, position: number) =>
+      ProductImage.register({
+        id,
+        productId: "product-1",
+        position,
+        originalKey: `products/product-1/${id}.jpg`,
+        mimeType: "image/jpeg",
+        sizeBytes: 10,
+        now: new Date("2026-10-28T12:00:00.000Z"),
+      });
+
+    it("numbers the images left from 1 in their order, giving only the ones that moved", () => {
+      const first = imageAt("a", 1);
+      const third = imageAt("c", 3);
+      const fifth = imageAt("e", 5);
+
+      const moved = policy.compact([fifth, first, third]);
+
+      expect(moved.map((image) => image.getId())).toEqual(["c", "e"]);
+      expect([first, third, fifth].map((image) => image.position)).toEqual([1, 2, 3]);
+    });
+
+    it("moves nothing without gaps", () => {
+      expect(policy.compact([imageAt("a", 1), imageAt("b", 2)])).toEqual([]);
     });
   });
 });

@@ -61,6 +61,10 @@ export class DrizzleProductImageRepository extends ProductImageRepository {
     return rows.map((row) => ProductImageMapper.toDomain(row));
   }
 
+  async delete(id: string): Promise<void> {
+    await this.executor.current().delete(productImages).where(eq(productImages.id, id));
+  }
+
   async countByProduct(productId: string): Promise<number> {
     const [row] = await this.executor
       .current()

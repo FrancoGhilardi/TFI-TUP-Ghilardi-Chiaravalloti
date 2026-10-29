@@ -411,6 +411,40 @@ describe("Product persistence (e2e)", () => {
     await expect(images.findByProduct(OTHER_ID)).resolves.toEqual([]);
   });
 
+  it("removes an image and numbers the others again in one transaction", async () => {
+    await store(await newProduct());
+    const first = PRODUCT_ID.replace("b", "c");
+    const others = ["4f9c1f43-6f4b-4d5c-9a3e-0000000000c8", "4f9c1f43-6f4b-4d5c-9a3e-0000000000c9"];
+    await images.saveAll(
+      others.map((id, index) =>
+        ProductImage.register({
+          id,
+          productId: PRODUCT_ID,
+          position: index + 2,
+          originalKey: `products/${PRODUCT_ID}/${id}.png`,
+          mimeType: "image/png",
+          sizeBytes: 4096,
+          now: NOW,
+        }),
+      ),
+    );
+
+    await transactions.run(async () => {
+      await images.delete(first);
+      const left = await images.findByProduct(PRODUCT_ID);
+      left.forEach((image, index) => image.moveTo(index + 1));
+      await images.saveAll(left);
+    });
+
+    const left = await images.findByProduct(PRODUCT_ID);
+    expect(left.map((image) => [image.getId(), image.position])).toEqual([
+      [others[0], 1],
+      [others[1], 2],
+    ]);
+    await expect(images.findById(first)).resolves.toBeNull();
+    await expect(images.delete(first)).resolves.toBeUndefined();
+  });
+
   it("gives the image without its link when the storage cannot sign it", async () => {
     await store(await newProduct());
     // The id `store` gives the product's image.

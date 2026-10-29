@@ -13,6 +13,7 @@ import { ProductImage } from "../../domain/entities/product-image.js";
 import { ImageNotFailedError } from "../../domain/errors/image-not-failed-error.js";
 import { InvalidImageError } from "../../domain/errors/invalid-image-error.js";
 import { InvalidImageOrderError } from "../../domain/errors/invalid-image-order-error.js";
+import { LastProductImageError } from "../../domain/errors/last-product-image-error.js";
 import { ProductDeletedError } from "../../domain/errors/product-deleted-error.js";
 import { ImageStatus } from "../../domain/image-status.js";
 import { ProductImageRepository } from "../../domain/repositories/product-image.repository.js";
@@ -33,6 +34,7 @@ import { ReorderProductImagesUseCase } from "./reorder-product-images.use-case.j
 import { ReplaceProductImageFileUseCase } from "./replace-product-image-file.use-case.js";
 import { RetryProductImageProcessingUseCase } from "./retry-product-image-processing.use-case.js";
 import { UpdateProductImageUseCase } from "./update-product-image.use-case.js";
+import { DeleteProductImageUseCase } from "./delete-product-image.use-case.js";
 
 const NOW = new Date("2026-10-28T12:00:00.000Z");
 const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1]);
@@ -157,10 +159,18 @@ class InMemoryImages extends ProductImageRepository {
   countByProduct(): Promise<never> {
     return Promise.reject(new Error("Not used"));
   }
+
+  delete(id: string): Promise<void> {
+    this.log.push(`delete ${id}`);
+    this.stored.delete(id);
+    return Promise.resolve();
+  }
 }
 
 class LoggingStorage extends FileStorage {
   failUpload = false;
+  /** How many removals fail before they work again. */
+  failRemoves = 0;
 
   constructor(private readonly log: string[]) {
     super();
@@ -173,6 +183,10 @@ class LoggingStorage extends FileStorage {
 
   remove(bucket: StorageBucket, keys: string[]): Promise<void> {
     this.log.push(`remove ${bucket} ${keys.join(",")}`);
+    if (this.failRemoves > 0) {
+      this.failRemoves--;
+      return Promise.reject(new Error("storage down"));
+    }
     return Promise.resolve();
   }
 
@@ -297,7 +311,27 @@ function setUp() {
     background,
     queries,
   );
-  return { log, products, images, storage, transaction, settle, reorder, update, replace, retry };
+  const remove = new DeleteProductImageUseCase(
+    products,
+    images,
+    new ProductImagePolicy(),
+    // No wait before a retry, so the tests stay fast.
+    new ProductImageUploader(storage, 0),
+    transaction,
+  );
+  return {
+    log,
+    products,
+    images,
+    storage,
+    transaction,
+    settle,
+    reorder,
+    update,
+    replace,
+    retry,
+    remove,
+  };
 }
 
 const positions = (images: InMemoryImages) =>
@@ -496,6 +530,102 @@ describe("RetryProductImageProcessingUseCase", () => {
       ImageNotFailedError,
     );
     expect(log).not.toContain("publish image-1");
+  });
+});
+
+describe("DeleteProductImageUseCase", () => {
+  it("removes the image, numbers the others again and only then removes its files", async () => {
+    const { log, images, remove } = setUp();
+    images.stored.get("image-2")!.markProcessed({
+      publicKey: "products/product-1/image-2-v1.webp",
+      width: 800,
+      height: 1000,
+    });
+
+    // Named in capitals, as a route may: it is the same image.
+    await expect(remove.execute({ productId: "product-1", imageId: "IMAGE-2" })).resolves.toEqual({
+      imageId: "image-2",
+      leftovers: [],
+    });
+
+    expect(log).toEqual([
+      "begin",
+      "load product",
+      "load images",
+      "delete image-2",
+      "save image-3",
+      "commit",
+      "remove PRIVATE products/product-1/image-2.jpg",
+      "remove PUBLIC products/product-1/image-2-v1.webp",
+    ]);
+    expect(positions(images)).toEqual({ "image-1": 1, "image-3": 2 });
+  });
+
+  it("saves no other image when the one in the last position goes, and has no public file to remove without one", async () => {
+    const { log, remove } = setUp();
+
+    await remove.execute({ productId: "product-1", imageId: "image-3" });
+
+    expect(log.filter((entry) => entry.startsWith("save"))).toEqual([]);
+    expect(log.slice(-1)).toEqual(["remove PRIVATE products/product-1/image-3.jpg"]);
+  });
+
+  it("never removes the last image of a product, touching nothing", async () => {
+    const { log, images, remove } = setUp();
+    images.stored.delete("image-2");
+    images.stored.delete("image-3");
+
+    await expect(remove.execute({ productId: "product-1", imageId: "image-1" })).rejects.toThrow(
+      LastProductImageError,
+    );
+    expect(log.some((entry) => /^(delete|save|remove)/.test(entry))).toBe(false);
+  });
+
+  it("answers 404 for an image of another product", async () => {
+    const { remove } = setUp();
+
+    await expect(remove.execute({ productId: "product-1", imageId: "other-1" })).rejects.toThrow(
+      ProductImageNotFoundError,
+    );
+  });
+
+  it("keeps the files when the deletion is not committed", async () => {
+    const { log, images, remove } = setUp();
+    images.failSave = true;
+
+    await expect(remove.execute({ productId: "product-1", imageId: "image-1" })).rejects.toThrow(
+      "database down",
+    );
+    expect(log.some((entry) => entry.startsWith("remove"))).toBe(false);
+  });
+
+  it("tries each file twice, and gives back the ones still there", async () => {
+    const { log, storage, remove } = setUp();
+    storage.failRemoves = 1;
+
+    await expect(remove.execute({ productId: "product-1", imageId: "image-3" })).resolves.toEqual({
+      imageId: "image-3",
+      leftovers: [],
+    });
+    expect(log.filter((entry) => entry.startsWith("remove"))).toHaveLength(2);
+
+    const again = setUp();
+    again.storage.failRemoves = 2;
+    await expect(
+      again.remove.execute({ productId: "product-1", imageId: "image-3" }),
+    ).resolves.toEqual({
+      imageId: "image-3",
+      leftovers: [{ key: "products/product-1/image-3.jpg", cause: new Error("storage down") }],
+    });
+  });
+
+  it("refuses a deleted product", async () => {
+    const { products, remove } = setUp();
+    products.product!.softDelete("admin-1", NOW);
+
+    await expect(remove.execute({ productId: "product-1", imageId: "image-1" })).rejects.toThrow(
+      ProductDeletedError,
+    );
   });
 });
 
