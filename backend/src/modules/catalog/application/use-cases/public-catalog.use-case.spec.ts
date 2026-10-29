@@ -2,7 +2,7 @@ import { Clock } from "../../../../shared/application/clock.js";
 import type { Page } from "../../../../shared/application/pagination.js";
 import type { ProductCardResult } from "../dto/product-card.result.js";
 import type { ProductPage } from "../dto/product-detail.result.js";
-import type { SearchCatalogQuery } from "../dto/search-catalog.query.js";
+import type { CatalogPageQuery } from "../dto/catalog-page.query.js";
 import { ProductNotFoundError } from "../errors/product-not-found-error.js";
 import { CatalogQueries } from "../ports/catalog-queries.js";
 import { CatalogSettings } from "../settings/catalog-settings.js";
@@ -46,7 +46,7 @@ class StubQueries extends CatalogQueries {
   manual: ProductCardResult[] = [];
   sameCategory: ProductCardResult[] = [];
 
-  findPage(query: SearchCatalogQuery, now: Date): Promise<Page<ProductCardResult>> {
+  findPage(query: CatalogPageQuery, now: Date): Promise<Page<ProductCardResult>> {
     this.calls.push(["page", query, now]);
     return Promise.resolve({ items: [], page: 1, limit: 20, totalItems: 0, totalPages: 0 });
   }
@@ -91,7 +91,7 @@ function setUp() {
   const clock = new FixedClock();
   return {
     queries,
-    search: new SearchCatalogUseCase(queries, clock),
+    search: new SearchCatalogUseCase(queries, new CatalogSettings(), clock),
     featured: new ListFeaturedProductsUseCase(queries, new CatalogSettings(), clock),
     fresh: new ListNewProductsUseCase(queries, new CatalogSettings(), clock),
     detail: new GetProductDetailUseCase(queries, new CatalogSettings(), clock),
@@ -106,6 +106,29 @@ describe("SearchCatalogUseCase", () => {
     await search.execute(query);
 
     expect(queries.calls).toEqual([["page", query, NOW]]);
+  });
+
+  it("looks for the words of the text, as the search box does", async () => {
+    const { queries, search } = setUp();
+
+    await search.execute({ q: " Lápiz a lapiz NEGRO ", page: 1, limit: 20 });
+
+    expect(queries.calls).toEqual([
+      ["page", { page: 1, limit: 20, words: ["Lápiz", "NEGRO"] }, NOW],
+    ]);
+  });
+
+  it("finds nothing, without reading, for a text of one-letter words", async () => {
+    const { queries, search } = setUp();
+
+    await expect(search.execute({ q: "a b", page: 2, limit: 10 })).resolves.toEqual({
+      items: [],
+      page: 2,
+      limit: 10,
+      totalItems: 0,
+      totalPages: 0,
+    });
+    expect(queries.calls).toEqual([]);
   });
 });
 

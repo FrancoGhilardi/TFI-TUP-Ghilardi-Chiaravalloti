@@ -86,9 +86,9 @@ import { ProductMarksExpiryScheduler } from "./presentation/schedulers/product-m
     { provide: CatalogSettings, useValue: new CatalogSettings() },
     {
       provide: SearchCatalogUseCase,
-      useFactory: (queries: CatalogQueries, clock: Clock) =>
-        new SearchCatalogUseCase(queries, clock),
-      inject: [CatalogQueries, Clock],
+      useFactory: (queries: CatalogQueries, settings: CatalogSettings, clock: Clock) =>
+        new SearchCatalogUseCase(queries, settings, clock),
+      inject: [CatalogQueries, CatalogSettings, Clock],
     },
     {
       provide: ListFeaturedProductsUseCase,

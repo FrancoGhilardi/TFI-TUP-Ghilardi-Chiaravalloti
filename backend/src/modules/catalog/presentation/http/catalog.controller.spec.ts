@@ -65,11 +65,12 @@ describe("CatalogController", () => {
   it("passes the listing and the slug to their use cases", async () => {
     const { search, detail, controller } = setUp();
 
-    await controller.findAll({ categorySlug: "cuadernos", page: 2, limit: 10 });
+    await controller.findAll({ categorySlug: "cuadernos", q: "rayado", page: 2, limit: 10 });
     await controller.findOne("cuaderno-a4");
 
     expect(search.execute).toHaveBeenCalledExactlyOnceWith({
       categorySlug: "cuadernos",
+      q: "rayado",
       page: 2,
       limit: 10,
     });
@@ -95,6 +96,14 @@ describe("SearchCatalogRequestDto", () => {
     expect(dto).toMatchObject({ page: 1, limit: 20, categorySlug: undefined });
   });
 
+  it("reads a search trimmed, and a blank one as none", async () => {
+    await expect(check({ q: "  cuaderno rayado " })).resolves.toMatchObject({
+      dto: { q: "cuaderno rayado" },
+      fields: [],
+    });
+    expect((await check({ q: "   " })).dto.q).toBeUndefined();
+  });
+
   it("reads the query string values, taking a blank category as none", async () => {
     await expect(check({ page: "3", limit: "50", categorySlug: " cuadernos " })).resolves.toEqual(
       expect.objectContaining({ fields: [] }),
@@ -105,9 +114,12 @@ describe("SearchCatalogRequestDto", () => {
   it.each([
     ["page", "0"],
     ["page", "uno"],
+    ["page", "501"],
     ["limit", "0"],
     ["limit", "51"],
     ["categorySlug", "a".repeat(121)],
+    ["q", "a"],
+    ["q", "a".repeat(101)],
   ])("refuses %s %o", async (field, value) => {
     expect((await check({ [field]: value })).fields).toEqual([field]);
   });

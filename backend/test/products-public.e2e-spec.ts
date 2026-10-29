@@ -6,6 +6,7 @@ import type { Page } from "./../src/shared/application/pagination.js";
 import type { ProductCardResult } from "./../src/modules/catalog/application/dto/product-card.result.js";
 import type { ProductDetailResult } from "./../src/modules/catalog/application/dto/product-detail.result.js";
 import type { ErrorResponse } from "./../src/shared/presentation/http/error-response.js";
+import { SEARCH_TEXT_MESSAGE } from "./../src/modules/catalog/presentation/http/search-text.js";
 import { createTestApp } from "./create-test-app.js";
 import {
   adminPool,
@@ -128,6 +129,67 @@ describe("GET /products and /products/:slug (e2e)", () => {
         expect((response.body as ErrorResponse).code).toBe("VALIDATION_FAILED");
       },
     );
+  });
+
+  describe("GET /products?q=", () => {
+    const titlesOf = (response: request.Response) =>
+      (response.body as Page<ProductCardResult>).items.map((card) => card.title);
+
+    it("finds every word of the text in the title, in the store order, cacheable", async () => {
+      await shown("Lapicera negra", 0);
+      await shown("Lápiz negro HB", 1);
+      await shown("Cuaderno rayado", 2);
+
+      const response = await http.get("/api/v1/products").query({ q: " NEGR  la " }).expect(200);
+
+      expect(response.headers["cache-control"]).toBe("public, max-age=60");
+      expect(titlesOf(response)).toEqual(["Lapicera negra", "Lápiz negro HB"]);
+      expect(response.body).toMatchObject({ totalItems: 2, totalPages: 1 });
+    });
+
+    it("combines the text with the category and the page", async () => {
+      const other = await insertCategory(pool, "Escolar");
+      await shown("Cuaderno A4", 0);
+      await shown("Cuaderno A5", 1);
+      const { id } = await insertProductWithDeps(pool, {
+        title: "Cuaderno escolar",
+        categoryId: other,
+      });
+      await processImage(id, 1);
+
+      const inCategory = await http
+        .get("/api/v1/products")
+        .query({ q: "cuaderno", categorySlug: "cuadernos", limit: 1, page: 2 })
+        .expect(200);
+
+      expect(titlesOf(inCategory)).toEqual(["Cuaderno A5"]);
+      expect(inCategory.body).toMatchObject({ totalItems: 2, totalPages: 2 });
+    });
+
+    it("takes a blank text as no search, and one-letter words as nothing found", async () => {
+      await shown("Cuaderno A4");
+
+      const blank = await http.get("/api/v1/products").query({ q: "   " }).expect(200);
+      const letters = await http.get("/api/v1/products").query({ q: "a b" }).expect(200);
+
+      expect(titlesOf(blank)).toEqual(["Cuaderno A4"]);
+      expect(letters.body).toMatchObject({ items: [], totalItems: 0 });
+    });
+
+    it("refuses a page past the last the store lists", async () => {
+      const response = await http.get("/api/v1/products").query({ page: 501 }).expect(400);
+
+      expect((response.body as { code: string }).code).toBe("VALIDATION_FAILED");
+    });
+
+    it.each(["a", "a".repeat(101)])("refuses %o with 400", async (q) => {
+      const response = await http.get("/api/v1/products").query({ q }).expect(400);
+
+      expect(response.body).toMatchObject({
+        code: "VALIDATION_FAILED",
+        details: [{ field: "q", messages: [SEARCH_TEXT_MESSAGE] }],
+      });
+    });
   });
 
   describe("GET /products/featured and /products/new", () => {
