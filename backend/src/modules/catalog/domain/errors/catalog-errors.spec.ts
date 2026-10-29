@@ -18,6 +18,7 @@ import { InvalidImageCountError } from "./invalid-image-count-error.js";
 import { ImageNotFailedError } from "./image-not-failed-error.js";
 import { InvalidImageError } from "./invalid-image-error.js";
 import { InvalidImageOrderError } from "./invalid-image-order-error.js";
+import { LastProductImageError } from "./last-product-image-error.js";
 import { InvalidNewUntilError } from "./invalid-new-until-error.js";
 import { InvalidPriceError } from "./invalid-price-error.js";
 import { InvalidProductTitleError } from "./invalid-product-title-error.js";
@@ -229,6 +230,12 @@ const CASES: [DomainError, Base, string, string][] = [
     InvalidValueError,
     "INVALID_IMAGE_ORDER",
     "Mandá todas las imágenes del producto, cada una una sola vez.",
+  ],
+  [
+    new LastProductImageError(),
+    BusinessRuleViolationError,
+    "LAST_PRODUCT_IMAGE",
+    "El producto tiene que tener al menos una imagen. Subí otra antes de borrar esta.",
   ],
   [
     new ImageNotFailedError(),
