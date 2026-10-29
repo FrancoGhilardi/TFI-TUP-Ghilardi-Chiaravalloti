@@ -1,4 +1,4 @@
-import { queryBoolean, queryInteger } from "./query-transforms.js";
+import { queryBoolean, queryInteger, queryText } from "./query-transforms.js";
 
 describe("queryBoolean", () => {
   it.each([
@@ -9,6 +9,17 @@ describe("queryBoolean", () => {
     [undefined, undefined],
   ])("reads %o as %o", (value, read) => {
     expect(queryBoolean({ value })).toBe(read);
+  });
+});
+
+describe("queryText", () => {
+  it.each([
+    ["  cuaderno ", "cuaderno"],
+    ["   ", undefined],
+    ["", undefined],
+    [3, 3],
+  ])("reads %o as %o", (value, read) => {
+    expect(queryText({ value })).toBe(read);
   });
 });
 

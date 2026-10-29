@@ -1869,7 +1869,7 @@ Al igual que en el resto del backend, las operaciones de escritura trabajan sobr
 classDiagram
     class CatalogQueries {
         <<abstract port>>
-        +findPage(query: SearchCatalogQuery, now: Date) Promise~Page~ProductCardResult~~
+        +findPage(query: CatalogPageQuery, now: Date) Promise~Page~ProductCardResult~~
         +findFeatured(limit: number, now: Date) Promise~ProductCardResult[]~
         +findNew(limit: number, now: Date) Promise~ProductCardResult[]~
         +findPageBySlug(slug: string, now: Date) Promise~ProductPage~
@@ -2006,6 +2006,18 @@ classDiagram
         +sort: ProductSort
         +page: number
         +limit: number
+    }
+    class CatalogPageQuery {
+        +categorySlug?: string
+        +words?: string[]
+        +page: number
+        +limit: number
+    }
+    class SearchWords {
+        <<application service>>
+        +searchWordsOf(text: string, settings: CatalogSettings)$ SearchWords
+        +words: string[]
+        +text: string
     }
     class ListAdminProductsQuery {
         +q?: string
@@ -2174,6 +2186,8 @@ classDiagram
     RestoreProductUseCase --> AdminProductQueries
     CreateProductUseCase --> SkuGenerator
     SearchCatalogUseCase --> CatalogSettings
+    SearchCatalogUseCase ..> SearchWords
+    SearchCatalogUseCase ..> CatalogPageQuery
     ListFeaturedProductsUseCase --> CatalogSettings
     ListNewProductsUseCase --> CatalogSettings
     GetProductDetailUseCase --> CatalogSettings
@@ -2222,7 +2236,7 @@ classDiagram
 
 **Tarjetas de producto.** Cada tarjeta muestra como imagen la primera en orden entre las ya procesadas, y como categoría, la categoría principal del producto.
 
-**Catálogo y buscador.** Una misma operación resuelve tanto el listado general del catálogo como la búsqueda con filtros. Hoy filtra por categoría, incluyendo las subcategorías visibles; una categoría oculta o inexistente da una página vacía. La búsqueda por texto, el rango de precio, las marcas y los demás órdenes se suman con el buscador. Devuelve 20 productos por página por defecto, con un máximo de 50. El orden por relevancia solo se aplica cuando se ingresa un texto de búsqueda; en caso contrario, los productos se ordenan por posición y fecha de creación.
+**Catálogo y buscador.** Una misma operación resuelve tanto el listado general del catálogo como la búsqueda con filtros. Filtra por categoría, incluyendo las subcategorías visibles (una categoría oculta o inexistente da una página vacía), y por texto, combinables entre sí y con el paginado. El texto, de 2 a 100 caracteres, se busca igual que en la búsqueda global: cada palabra tiene que aparecer en el título, en cualquier orden y sin distinguir mayúsculas ni tildes, ignorando las palabras de una letra y las repetidas y usando como máximo las primeras cinco; si no queda ninguna palabra, la página sale vacía. La separación en palabras la comparten ambos casos de uso, de modo que el "ver todos" del buscador del sitio muestra los mismos productos. A diferencia de la búsqueda global, no se ponen primero los que empiezan con el texto: los resultados siguen el orden del catálogo, por posición, fecha de creación y, como desempate, identificador. El rango de precio, las marcas y los demás órdenes pueden sumarse más adelante. Devuelve 20 productos por página por defecto, con un máximo de 50, y hasta la página 500, para acotar el costo de un pedido a una ruta pública.
 
 **Destacados y novedades.** Cada consulta devuelve como máximo 5 productos, ordenados por posición y, ante igual posición, del más reciente al más antiguo. No existe un límite para la cantidad de productos que pueden marcarse como destacados o novedades: el límite se aplica solo a la cantidad que se muestra. Una novedad solo cuenta mientras su marca está vigente. Como estas rutas comparten el prefijo de la ficha (`/products/featured` y `/products/new`), los slugs `featured` y `new` están reservados: el alta de un producto los considera ocupados y genera el siguiente sufijo libre, y la base de datos los rechaza.
 

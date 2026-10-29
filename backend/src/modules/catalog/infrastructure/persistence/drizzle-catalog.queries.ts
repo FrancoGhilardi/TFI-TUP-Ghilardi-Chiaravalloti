@@ -9,7 +9,7 @@ import type {
   ProductImageResult,
 } from "../../application/dto/product-card.result.js";
 import type { ProductPage } from "../../application/dto/product-detail.result.js";
-import type { SearchCatalogQuery } from "../../application/dto/search-catalog.query.js";
+import type { CatalogPageQuery } from "../../application/dto/catalog-page.query.js";
 import { CatalogQueries } from "../../application/ports/catalog-queries.js";
 import { runsAt } from "../../domain/runs-at.js";
 import {
@@ -154,7 +154,7 @@ export class DrizzleCatalogQueries extends CatalogQueries {
     super();
   }
 
-  async findPage(query: SearchCatalogQuery, now: Date): Promise<Page<ProductCardResult>> {
+  async findPage(query: CatalogPageQuery, now: Date): Promise<Page<ProductCardResult>> {
     // The category and every visible one below it.
     const ctes =
       query.categorySlug === undefined
@@ -175,18 +175,20 @@ export class DrizzleCatalogQueries extends CatalogQueries {
             SELECT 1 FROM libreria.product_categories assigned
             WHERE assigned.product_id = p.id AND assigned.category_id IN (SELECT id FROM branch)
           )`;
+    // Without words, every title matches.
+    const filter = sql`${inCategory} AND ${matchesEveryWord(sql`p.title`, query.words ?? [])}`;
 
     // One query, so the page and its total come from the same snapshot and connection.
     const rows = await this.cardRows(
       ctes,
       sql`libreria.products p`,
-      sql`${IS_LISTED} AND ${inCategory}`,
+      sql`${IS_LISTED} AND ${filter}`,
       sql`${STORE_ORDER} LIMIT ${query.limit} OFFSET ${offsetOf(query)}`,
       sql`, count(*) OVER ()::int AS total_items`,
     );
     // Past the last page there is no row to carry the total, so it is counted apart.
     const totalItems =
-      rows[0]?.total_items ?? (query.page === 1 ? 0 : await this.countVisible(ctes, inCategory));
+      rows[0]?.total_items ?? (query.page === 1 ? 0 : await this.countVisible(ctes, filter));
     return pageOf(
       rows.map((row) => this.cardOf(row, now)),
       totalItems,
@@ -349,12 +351,12 @@ export class DrizzleCatalogQueries extends CatalogQueries {
     );
   }
 
-  private async countVisible(ctes: SQL, inCategory: SQL): Promise<number> {
+  private async countVisible(ctes: SQL, filter: SQL): Promise<number> {
     const [row] = await rowsOf(
       this.executor.current().execute<{ [column: string]: unknown; total: number }>(sql`
         ${ctes}
         SELECT count(*)::int AS total FROM libreria.products p
-        WHERE ${IS_VISIBLE} AND ${inCategory}`),
+        WHERE ${IS_VISIBLE} AND ${filter}`),
     );
     return row.total;
   }
