@@ -6,4 +6,7 @@ export interface CatalogPageQuery extends PageRequest {
   categorySlug?: string;
   /** Every one in the title, in any order, ignoring case and accents. */
   words?: string[];
+  isFeatured?: boolean;
+  /** A "new" mark counts only while it runs at `now`. */
+  isNew?: boolean;
 }

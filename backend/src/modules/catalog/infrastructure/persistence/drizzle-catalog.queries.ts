@@ -13,6 +13,7 @@ import type { CatalogPageQuery } from "../../application/dto/catalog-page.query.
 import { CatalogQueries } from "../../application/ports/catalog-queries.js";
 import { runsAt } from "../../domain/runs-at.js";
 import {
+  markFiltersOf,
   matchesEveryWord,
   newMarkRunsAt,
   sortableName,
@@ -168,15 +169,17 @@ export class DrizzleCatalogQueries extends CatalogQueries {
             SELECT visible.id FROM visible_categories visible
             JOIN branch ON visible.parent_id = branch.id
           )`;
-    const inCategory =
-      query.categorySlug === undefined
-        ? sql`true`
-        : sql`EXISTS (
-            SELECT 1 FROM libreria.product_categories assigned
-            WHERE assigned.product_id = p.id AND assigned.category_id IN (SELECT id FROM branch)
-          )`;
-    // Without words, every title matches.
-    const filter = sql`${inCategory} AND ${matchesEveryWord(sql`p.title`, query.words ?? [])}`;
+    const filters = markFiltersOf(query, now);
+    if (query.categorySlug !== undefined) {
+      filters.push(sql`EXISTS (
+        SELECT 1 FROM libreria.product_categories assigned
+        WHERE assigned.product_id = p.id AND assigned.category_id IN (SELECT id FROM branch)
+      )`);
+    }
+    if (query.words?.length) {
+      filters.push(matchesEveryWord(sql`p.title`, query.words));
+    }
+    const filter = filters.length === 0 ? sql`true` : sql.join(filters, sql` AND `);
 
     // One query, so the page and its total come from the same snapshot and connection.
     const rows = await this.cardRows(
