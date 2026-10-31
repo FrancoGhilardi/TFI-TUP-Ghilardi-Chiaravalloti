@@ -1,4 +1,5 @@
 import type { BackgroundTasks } from "../../../../shared/application/background-tasks.js";
+import type { Clock } from "../../../../shared/application/clock.js";
 import type { EventPublisher } from "../../../../shared/application/event-publisher.js";
 import type { IdGenerator } from "../../../../shared/application/id-generator.js";
 import type { TransactionManager } from "../../../../shared/application/transaction-manager.js";
@@ -27,6 +28,7 @@ export interface ReplaceProductImageFileDependencies {
   events: EventPublisher;
   background: BackgroundTasks;
   queries: AdminProductQueries;
+  clock: Clock;
 }
 
 /**
@@ -65,11 +67,11 @@ export class ReplaceProductImageFileUseCase implements UseCase<
       previous = await deps.transaction.run(async () => {
         await loadEditableProduct(deps.products, productId);
         const image = await loadProductImage(deps.images, productId, imageId);
-        const replaced = image.replaceOriginal({
-          originalKey: key,
-          mimeType,
-          sizeBytes: command.bytes.length,
-        });
+        // Read once locked: the upload may have taken a while.
+        const replaced = image.replaceOriginal(
+          { originalKey: key, mimeType, sizeBytes: command.bytes.length },
+          deps.clock.now(),
+        );
         await deps.images.saveAll([image]);
         return replaced;
       });

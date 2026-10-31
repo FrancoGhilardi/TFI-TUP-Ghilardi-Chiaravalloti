@@ -14,6 +14,12 @@ export abstract class ProductImageRepository {
   /** Removing an image that is not there is not a failure. */
   abstract delete(id: string): Promise<void>;
 
+  /**
+   * The images pending since `pendingBefore` or earlier, the oldest first, up to `limit`: those
+   * whose processing stalled.
+   */
+  abstract findStalePendingIds(pendingBefore: Date, limit: number): Promise<string[]>;
+
   /** How many images the product has, in any state. */
   abstract countByProduct(productId: string): Promise<number>;
 }

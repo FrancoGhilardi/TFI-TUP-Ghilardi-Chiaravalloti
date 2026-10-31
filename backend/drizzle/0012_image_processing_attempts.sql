@@ -1,0 +1,2 @@
+ALTER TABLE "libreria"."product_images" ADD COLUMN "processing_attempts" smallint DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "libreria"."product_images" ADD CONSTRAINT "chk_product_images_processing_attempts" CHECK (processing_attempts >= 0);

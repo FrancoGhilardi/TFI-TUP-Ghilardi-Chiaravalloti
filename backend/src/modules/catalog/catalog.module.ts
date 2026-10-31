@@ -35,6 +35,7 @@ import { ListNewProductsUseCase } from "./application/use-cases/list-new-product
 import { ProcessProductImageUseCase } from "./application/use-cases/process-product-image.use-case.js";
 import { ReorderProductImagesUseCase } from "./application/use-cases/reorder-product-images.use-case.js";
 import { ReplaceProductImageFileUseCase } from "./application/use-cases/replace-product-image-file.use-case.js";
+import { ReprocessStaleImagesUseCase } from "./application/use-cases/reprocess-stale-images.use-case.js";
 import { RestoreCategoryUseCase } from "./application/use-cases/restore-category.use-case.js";
 import { RestoreProductUseCase } from "./application/use-cases/restore-product.use-case.js";
 import { RetryProductImageProcessingUseCase } from "./application/use-cases/retry-product-image-processing.use-case.js";
@@ -63,6 +64,7 @@ import { ProductImagesController } from "./presentation/http/product-images.cont
 import { SearchController } from "./presentation/http/search.controller.js";
 import { ProductImageUploadedListener } from "./presentation/listeners/product-image-uploaded.listener.js";
 import { ProductMarksExpiryScheduler } from "./presentation/schedulers/product-marks-expiry.scheduler.js";
+import { StaleImagesScheduler } from "./presentation/schedulers/stale-images.scheduler.js";
 
 @Module({
   controllers: [
@@ -279,7 +281,19 @@ import { ProductMarksExpiryScheduler } from "./presentation/schedulers/product-m
         uploader: ProductImageUploader,
         ids: IdGenerator,
         transaction: TransactionManager,
-      ) => new ProcessProductImageUseCase({ images, processor, keys, uploader, ids, transaction }),
+        settings: ImageSettings,
+        clock: Clock,
+      ) =>
+        new ProcessProductImageUseCase({
+          images,
+          processor,
+          keys,
+          uploader,
+          ids,
+          transaction,
+          settings,
+          clock,
+        }),
       inject: [
         ProductImageRepository,
         ImageProcessor,
@@ -287,9 +301,22 @@ import { ProductMarksExpiryScheduler } from "./presentation/schedulers/product-m
         ProductImageUploader,
         IdGenerator,
         TransactionManager,
+        ImageSettings,
+        Clock,
       ],
     },
     ProductImageUploadedListener,
+    {
+      provide: ReprocessStaleImagesUseCase,
+      useFactory: (
+        images: ProductImageRepository,
+        process: ProcessProductImageUseCase,
+        settings: ImageSettings,
+        clock: Clock,
+      ) => new ReprocessStaleImagesUseCase(images, process, settings, clock),
+      inject: [ProductImageRepository, ProcessProductImageUseCase, ImageSettings, Clock],
+    },
+    StaleImagesScheduler,
     {
       provide: AddProductImageUseCase,
       useFactory: (
@@ -375,6 +402,7 @@ import { ProductMarksExpiryScheduler } from "./presentation/schedulers/product-m
         events: EventPublisher,
         background: BackgroundTasks,
         queries: AdminProductQueries,
+        clock: Clock,
       ) =>
         new ReplaceProductImageFileUseCase({
           products,
@@ -387,6 +415,7 @@ import { ProductMarksExpiryScheduler } from "./presentation/schedulers/product-m
           events,
           background,
           queries,
+          clock,
         }),
       inject: [
         ProductRepository,
@@ -399,6 +428,7 @@ import { ProductMarksExpiryScheduler } from "./presentation/schedulers/product-m
         EventPublisher,
         BackgroundTasks,
         AdminProductQueries,
+        Clock,
       ],
     },
     {
@@ -410,6 +440,7 @@ import { ProductMarksExpiryScheduler } from "./presentation/schedulers/product-m
         events: EventPublisher,
         background: BackgroundTasks,
         queries: AdminProductQueries,
+        clock: Clock,
       ) =>
         new RetryProductImageProcessingUseCase(
           products,
@@ -418,6 +449,7 @@ import { ProductMarksExpiryScheduler } from "./presentation/schedulers/product-m
           events,
           background,
           queries,
+          clock,
         ),
       inject: [
         ProductRepository,
@@ -426,6 +458,7 @@ import { ProductMarksExpiryScheduler } from "./presentation/schedulers/product-m
         EventPublisher,
         BackgroundTasks,
         AdminProductQueries,
+        Clock,
       ],
     },
     {

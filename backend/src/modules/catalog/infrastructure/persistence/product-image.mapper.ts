@@ -21,6 +21,8 @@ export const ProductImageMapper = {
       height: row.height ?? undefined,
       sizeBytes: row.sizeBytes ?? undefined,
       status: ImageStatus[row.status],
+      pendingSince: row.pendingSince ?? undefined,
+      processingAttempts: row.processingAttempts,
       createdAt: row.createdAt,
     });
   },
@@ -38,6 +40,8 @@ export const ProductImageMapper = {
       height: image.height ?? null,
       sizeBytes: image.sizeBytes ?? null,
       status: image.status,
+      pendingSince: image.pendingSince ?? null,
+      processingAttempts: image.processingAttempts,
       createdAt: image.createdAt,
     };
   },

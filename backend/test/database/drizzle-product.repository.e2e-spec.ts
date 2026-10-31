@@ -447,6 +447,37 @@ describe("Product persistence (e2e)", () => {
     await expect(images.delete(first)).resolves.toBeUndefined();
   });
 
+  it("finds the images pending since a time, the oldest first and up to a limit", async () => {
+    await store(await newProduct());
+    await store(await newProduct(OTHER_ID, "Cuaderno A5"));
+    const [old, older] = [PRODUCT_ID.replace("b", "c"), OTHER_ID.replace("b", "c")];
+    const since = (id: string, at: string) =>
+      pool.query("UPDATE libreria.product_images SET pending_since = $2 WHERE id = $1", [id, at]);
+    await since(old, "2026-10-22T11:00:00.000Z");
+    await since(older, "2026-10-22T10:00:00.000Z");
+    const processed = "4f9c1f43-6f4b-4d5c-9a3e-0000000000c9";
+    const image = ProductImage.register({
+      id: processed,
+      productId: PRODUCT_ID,
+      position: 2,
+      originalKey: `products/${PRODUCT_ID}/second.png`,
+      mimeType: "image/png",
+      sizeBytes: 4096,
+      now: new Date("2026-10-22T09:00:00.000Z"),
+    });
+    image.markProcessed({ publicKey: "products/p.webp", width: 800, height: 1000 });
+    await images.saveAll([image]);
+
+    await expect(images.findStalePendingIds(NOW, 10)).resolves.toEqual([older, old]);
+    await expect(images.findStalePendingIds(NOW, 1)).resolves.toEqual([older]);
+    await expect(
+      images.findStalePendingIds(new Date("2026-10-22T10:30:00.000Z"), 10),
+    ).resolves.toEqual([older]);
+    await expect(images.findById(old)).resolves.toMatchObject({
+      pendingSince: new Date("2026-10-22T11:00:00.000Z"),
+    });
+  });
+
   it("gives the image without its link when the storage cannot sign it", async () => {
     await store(await newProduct());
     // The id `store` gives the product's image.
