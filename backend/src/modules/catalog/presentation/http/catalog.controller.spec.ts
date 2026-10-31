@@ -65,12 +65,21 @@ describe("CatalogController", () => {
   it("passes the listing and the slug to their use cases", async () => {
     const { search, detail, controller } = setUp();
 
-    await controller.findAll({ categorySlug: "cuadernos", q: "rayado", page: 2, limit: 10 });
+    await controller.findAll({
+      categorySlug: "cuadernos",
+      q: "rayado",
+      isFeatured: true,
+      isNew: false,
+      page: 2,
+      limit: 10,
+    });
     await controller.findOne("cuaderno-a4");
 
     expect(search.execute).toHaveBeenCalledExactlyOnceWith({
       categorySlug: "cuadernos",
       q: "rayado",
+      isFeatured: true,
+      isNew: false,
       page: 2,
       limit: 10,
     });
@@ -96,6 +105,13 @@ describe("SearchCatalogRequestDto", () => {
     expect(dto).toMatchObject({ page: 1, limit: 20, categorySlug: undefined });
   });
 
+  it("reads the marks as true or false", async () => {
+    await expect(check({ isFeatured: "true", isNew: "false" })).resolves.toMatchObject({
+      dto: { isFeatured: true, isNew: false },
+      fields: [],
+    });
+  });
+
   it("reads a search trimmed, and a blank one as none", async () => {
     await expect(check({ q: "  cuaderno rayado " })).resolves.toMatchObject({
       dto: { q: "cuaderno rayado" },
@@ -119,6 +135,8 @@ describe("SearchCatalogRequestDto", () => {
     ["limit", "51"],
     ["categorySlug", "a".repeat(121)],
     ["q", "a"],
+    ["isFeatured", "si"],
+    ["isNew", "1"],
     ["q", "a".repeat(101)],
   ])("refuses %s %o", async (field, value) => {
     expect((await check({ [field]: value })).fields).toEqual([field]);

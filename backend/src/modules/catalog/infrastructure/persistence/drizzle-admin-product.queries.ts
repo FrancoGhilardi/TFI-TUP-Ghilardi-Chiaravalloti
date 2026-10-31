@@ -40,7 +40,13 @@ import {
 import { AdminProductQueries } from "../../application/ports/admin-product-queries.js";
 import { ImageSettings } from "../../application/settings/image-settings.js";
 import { ImageStatus } from "../../domain/image-status.js";
-import { newMarkRunsAt, saleRunsAt, sortableName, unaccentedLike } from "./catalog-sql.js";
+import {
+  markFiltersOf,
+  newMarkRunsAt,
+  saleRunsAt,
+  sortableName,
+  unaccentedLike,
+} from "./catalog-sql.js";
 
 const creator = alias(users, "creator");
 const editor = alias(users, "editor");
@@ -112,15 +118,7 @@ function filtersOf(query: ListAdminProductsQuery, now: Date): SQL {
       WHERE assigned.product_id = p.id AND assigned.category_id IN (SELECT id FROM branch)
     )`);
   }
-  if (query.isFeatured !== undefined) {
-    filters.push(sql`p.is_featured = ${query.isFeatured}`);
-  }
-  if (query.isOnSale !== undefined) {
-    filters.push(query.isOnSale ? saleRunsAt(now) : sql`NOT ${saleRunsAt(now)}`);
-  }
-  if (query.isNew !== undefined) {
-    filters.push(query.isNew ? newMarkRunsAt(now) : sql`NOT ${newMarkRunsAt(now)}`);
-  }
+  filters.push(...markFiltersOf(query, now));
   if (query.maxStock !== undefined) {
     filters.push(sql`p.stock <= ${query.maxStock}`);
   }
