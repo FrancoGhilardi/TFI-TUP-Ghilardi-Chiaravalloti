@@ -28,6 +28,8 @@ export class CatalogController {
     return this.searchCatalog.execute({
       categorySlug: query.categorySlug,
       q: query.q,
+      isFeatured: query.isFeatured,
+      isNew: query.isNew,
       page: query.page,
       limit: query.limit,
     });

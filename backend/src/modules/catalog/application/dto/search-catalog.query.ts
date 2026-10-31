@@ -6,4 +6,7 @@ export interface SearchCatalogQuery extends PageRequest {
   categorySlug?: string;
   /** Only products whose title has every word of it, as the store search box finds them. */
   q?: string;
+  isFeatured?: boolean;
+  /** A "new" mark counts only while it runs at the time of the query. */
+  isNew?: boolean;
 }

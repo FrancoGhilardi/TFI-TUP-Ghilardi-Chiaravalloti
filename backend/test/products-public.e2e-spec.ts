@@ -7,6 +7,7 @@ import type { ProductCardResult } from "./../src/modules/catalog/application/dto
 import type { ProductDetailResult } from "./../src/modules/catalog/application/dto/product-detail.result.js";
 import type { ErrorResponse } from "./../src/shared/presentation/http/error-response.js";
 import { SEARCH_TEXT_MESSAGE } from "./../src/modules/catalog/presentation/http/search-text.js";
+import { QUERY_BOOLEAN_MESSAGE } from "./../src/shared/presentation/http/query-boolean.js";
 import { createTestApp } from "./create-test-app.js";
 import {
   adminPool,
@@ -248,6 +249,97 @@ describe("GET /products and /products/:slug (e2e)", () => {
 
       await expect(http.get("/api/v1/products/featured").expect(200)).resolves.toMatchObject({
         body: [],
+      });
+    });
+
+    it.each([
+      ["featured", "is_featured = true", { isFeatured: true }],
+      ["new", "is_new = true", { isNew: true }],
+    ])(
+      "lists every %s product, paged, in the order of the section",
+      async (route, mark, filter) => {
+        const ids = await six(mark);
+        await shown("Sin marca");
+
+        const section = await http.get(`/api/v1/products/${route}`).expect(200);
+        const firstPage = await http
+          .get("/api/v1/products")
+          .query({ ...filter, limit: 5 })
+          .expect(200);
+        const secondPage = await http
+          .get("/api/v1/products")
+          .query({ ...filter, limit: 5, page: 2 })
+          .expect(200);
+
+        expect(firstPage.headers["cache-control"]).toBe("public, max-age=60");
+        expect((firstPage.body as Page<ProductCardResult>).items).toEqual(section.body);
+        expect(firstPage.body).toMatchObject({ totalItems: 6, totalPages: 2 });
+        expect((secondPage.body as Page<ProductCardResult>).items.map((card) => card.id)).toEqual(
+          ids.slice(5),
+        );
+      },
+    );
+  });
+
+  describe("GET /products?isFeatured=&isNew=", () => {
+    const titlesOf = (response: request.Response) =>
+      (response.body as Page<ProductCardResult>).items.map((card) => card.title);
+
+    it("lists only the products whose new mark still runs, or only the others", async () => {
+      const running = await shown("Vigente", 0);
+      const ended = await shown("Vencida", 1);
+      await shown("Sin marca", 2);
+      await set(running, "is_new = true, new_until = now() + interval '1 day'");
+      await set(ended, "is_new = true, new_until = now() - interval '1 day'");
+
+      const marked = await http.get("/api/v1/products").query({ isNew: true }).expect(200);
+      const others = await http.get("/api/v1/products").query({ isNew: false }).expect(200);
+
+      expect(titlesOf(marked)).toEqual(["Vigente"]);
+      expect(titlesOf(others)).toEqual(["Vencida", "Sin marca"]);
+    });
+
+    it("combines the marks with the text, the category and each other", async () => {
+      const other = await insertCategory(pool, "Escolar");
+      const both = await shown("Cuaderno A4", 0);
+      const featured = await shown("Cuaderno A5", 1);
+      await shown("Lapiz HB", 2);
+      const { id: elsewhere } = await insertProductWithDeps(pool, {
+        title: "Cuaderno escolar",
+        categoryId: other,
+      });
+      await processImage(elsewhere, 1);
+      for (const id of [both, featured, elsewhere]) {
+        await set(id, "is_featured = true");
+      }
+      await set(both, "is_new = true");
+
+      const response = await http
+        .get("/api/v1/products")
+        .query({ q: "cuaderno", categorySlug: "cuadernos", isFeatured: true })
+        .expect(200);
+      const newAndFeatured = await http
+        .get("/api/v1/products")
+        .query({ isFeatured: true, isNew: true })
+        .expect(200);
+
+      expect(titlesOf(response)).toEqual(["Cuaderno A4", "Cuaderno A5"]);
+      expect(response.body).toMatchObject({ totalItems: 2 });
+      expect(titlesOf(newAndFeatured)).toEqual(["Cuaderno A4"]);
+    });
+
+    it.each([
+      ["isFeatured", "si"],
+      ["isNew", "1"],
+    ])("refuses %s=%s with 400", async (field, value) => {
+      const response = await http
+        .get("/api/v1/products")
+        .query({ [field]: value })
+        .expect(400);
+
+      expect(response.body).toMatchObject({
+        code: "VALIDATION_FAILED",
+        details: [{ field, messages: [QUERY_BOOLEAN_MESSAGE] }],
       });
     });
   });

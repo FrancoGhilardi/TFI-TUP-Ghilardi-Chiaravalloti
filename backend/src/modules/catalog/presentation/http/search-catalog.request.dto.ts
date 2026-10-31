@@ -1,6 +1,7 @@
 import { Transform, Type } from "class-transformer";
 import { IsInt, IsOptional, IsString, Max, MaxLength, Min } from "class-validator";
 import { limitMessage } from "../../../../shared/presentation/http/page-request.dto.js";
+import { IsQueryBoolean } from "../../../../shared/presentation/http/query-boolean.js";
 import { queryText } from "../../../../shared/presentation/http/query-transforms.js";
 import type { SearchCatalogQuery } from "../../application/dto/search-catalog.query.js";
 import { CatalogSettings } from "../../application/settings/catalog-settings.js";
@@ -23,6 +24,13 @@ export class SearchCatalogRequestDto implements SearchCatalogQuery {
   @IsOptional()
   @IsSearchText()
   q?: string;
+
+  @IsQueryBoolean()
+  isFeatured?: boolean;
+
+  /** Only a "new" mark that still runs. */
+  @IsQueryBoolean()
+  isNew?: boolean;
 
   @Type(() => Number)
   @IsInt({ message: PAGE_MESSAGE })
