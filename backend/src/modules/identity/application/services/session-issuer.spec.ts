@@ -37,7 +37,7 @@ class RecordingSessionRepository extends SessionRepository {
     return Promise.reject(new Error("Not used by SessionIssuer"));
   }
 
-  deleteExpiredBefore(): Promise<number> {
+  deleteExpired(): Promise<number> {
     return Promise.reject(new Error("Not used by SessionIssuer"));
   }
 }

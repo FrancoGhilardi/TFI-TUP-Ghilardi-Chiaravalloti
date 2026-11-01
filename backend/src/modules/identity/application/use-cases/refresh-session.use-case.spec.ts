@@ -65,7 +65,7 @@ class InMemorySessionRepository extends SessionRepository {
     return Promise.resolve();
   }
 
-  deleteExpiredBefore(): Promise<number> {
+  deleteExpired(): Promise<number> {
     return Promise.reject(new Error("Not used by RefreshSessionUseCase"));
   }
 

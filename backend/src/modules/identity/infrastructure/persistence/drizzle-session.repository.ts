@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { and, eq, isNull, lt, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, lte, sql } from "drizzle-orm";
 import { DrizzleExecutor } from "../../../../shared/infrastructure/database/drizzle.executor.js";
 import { sessions } from "../../../../shared/infrastructure/database/schema/index.js";
 import type { Session } from "../../domain/entities/session.js";
@@ -70,12 +70,19 @@ export class DrizzleSessionRepository extends SessionRepository {
       .where(and(eq(sessions.userId, userId), isNull(sessions.revokedAt)));
   }
 
-  async deleteExpiredBefore(date: Date): Promise<number> {
-    const deleted = await this.executor
-      .current()
-      .delete(sessions)
-      .where(lt(sessions.expiresAt, date))
-      .returning({ id: sessions.id });
-    return deleted.length;
+  /**
+   * Skips the rows another statement has locked, such as a refresh or a revocation of every
+   * session of a user, instead of waiting for them: those lock rows in another order, so waiting
+   * could end in a deadlock. What is skipped is deleted on the next run.
+   */
+  async deleteExpired(now: Date): Promise<number> {
+    const db = this.executor.current();
+    const expired = db
+      .select({ id: sessions.id })
+      .from(sessions)
+      .where(lte(sessions.expiresAt, now))
+      .for("update", { skipLocked: true });
+    const result = await db.delete(sessions).where(inArray(sessions.id, expired));
+    return result.rowCount ?? 0;
   }
 }

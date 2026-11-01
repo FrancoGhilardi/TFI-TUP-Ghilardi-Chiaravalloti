@@ -20,6 +20,9 @@ export abstract class SessionRepository {
   /** Revokes every session of the user that is not revoked yet. */
   abstract revokeAllForUser(userId: string, now: Date): Promise<void>;
 
-  /** Deletes the sessions that expired before `date`; returns how many were deleted. */
-  abstract deleteExpiredBefore(date: Date): Promise<number>;
+  /**
+   * Deletes the sessions expired at `now`, as `Session.isExpired` says, revoked or not; one still
+   * running is never touched. Returns how many were deleted.
+   */
+  abstract deleteExpired(now: Date): Promise<number>;
 }

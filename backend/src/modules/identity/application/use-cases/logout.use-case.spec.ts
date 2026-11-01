@@ -52,7 +52,7 @@ class InMemorySessionRepository extends SessionRepository {
     return this.unused();
   }
 
-  deleteExpiredBefore(): Promise<number> {
+  deleteExpired(): Promise<number> {
     return this.unused();
   }
 
