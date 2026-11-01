@@ -136,7 +136,7 @@ Organiza los productos en categorías, con soporte para subcategorías mediante 
 
 ### `products`
 
-Es la entidad central del catálogo: contiene título, descripción, precio, precio de oferta, stock y las marcas de destacado/novedad/oferta. Se relaciona con `users` a través de `created_by` y `updated_by`, para saber qué usuario del panel cargó o modificó cada producto. El SKU y el slug son inmutables una vez generados, protegidos por trigger, porque se usan como identificadores externos (URL, referencia en WhatsApp) y no deben cambiar con el tiempo.
+Es la entidad central del catálogo: contiene título, descripción, precio, precio de oferta, stock y las marcas de destacado/novedad/oferta. Se relaciona con `users` a través de `created_by` y `updated_by`, para saber qué usuario del panel cargó o modificó cada producto. El SKU y el slug son inmutables una vez generados, protegidos por trigger, porque se usan como identificadores externos (URL, referencia en WhatsApp) y no deben cambiar con el tiempo. Los slugs `featured` y `new` están reservados, porque coinciden con rutas fijas de la tienda.
 
 ### `product_categories`
 
@@ -148,18 +148,18 @@ Modela la relación de "productos similares" como una relación muchos a muchos 
 
 ### `product_images`
 
-Guarda hasta 5 imágenes por producto, cada una con su posición, sus claves de almacenamiento (original en bucket privado, variante procesada en bucket público) y su estado de procesamiento (`PENDING`, `PROCESSED`, `FAILED`). Se relaciona con `products` mediante `product_id`, con borrado en cascada, porque una imagen no tiene sentido sin el producto al que pertenece. La combinación `product_id` + `position` es única (y diferible) para poder reordenar las imágenes dentro de una misma transacción sin violar la restricción.
+Guarda hasta 5 imágenes por producto, cada una con su posición, sus claves de almacenamiento (original en bucket privado, versión pública procesada en bucket público) y su estado de procesamiento (`PENDING`, `PROCESSED`, `FAILED`). Mientras está pendiente guarda desde cuándo espera (`pending_since`), con lo que se detectan las imágenes demoradas, y cuenta los procesamientos empezados (`processing_attempts`), para dejar con error una que nunca termina. Se relaciona con `products` mediante `product_id`, con borrado en cascada, porque una imagen no tiene sentido sin el producto al que pertenece. La combinación `product_id` + `position` es única (y diferible) para poder reordenar las imágenes dentro de una misma transacción sin violar la restricción.
 
 ## Por qué estas relaciones
 
 - **`users` y `products`/`sessions`/`users`** son relaciones 1 a N: un usuario puede crear muchos productos o tener muchas sesiones, pero cada producto o sesión pertenece a un único usuario. Esto permite trazabilidad (quién hizo qué) sin duplicar datos de usuario en cada tabla.
 - **`products` y `categories`** necesitan una tabla intermedia (`product_categories`) porque la relación es N a N: un producto puede estar en varias categorías y una categoría agrupa varios productos, algo que una relación 1 a N no podría representar.
 - **`related_products`** también es N a N, pero autorreferenciada (producto-producto), por eso tiene su propia tabla en lugar de una simple columna de clave foránea.
-- **`product_images`** es 1 a N respecto de `products` (cada imagen pertenece a un solo producto), pero con un límite de negocio (máximo 5) que se refuerza con un constraint trigger diferido, no solo con una clave foránea simple.
+- **`product_images`** es 1 a N respecto de `products` (cada imagen pertenece a un solo producto), pero con límites de negocio que una clave foránea simple no expresa: el mínimo de una imagen se refuerza con un constraint trigger diferido y el máximo de 5, con el rango de posiciones y su unicidad.
 
 ## Introducción al DDL
 
-A continuación se presenta el script DDL (Data Definition Language) que implementa el modelo entidad-relación descripto, probado sobre PostgreSQL 16 y pensado para ejecutarse en Supabase.
+A continuación se presenta el script DDL (Data Definition Language) que implementa el modelo entidad-relación descripto, probado sobre PostgreSQL 17 (la versión de Supabase) y pensado para ejecutarse en Supabase. Refleja el resultado de aplicar todas las migraciones del backend (`drizzle/0000` a `drizzle/0012`).
 
 El script crea las siete tablas en el schema `libreria` (no expuesto por la Data API de Supabase, por seguridad), junto con las extensiones, tipos enumerados, funciones auxiliares, índices y triggers necesarios para que ciertas reglas de negocio —como la inmutabilidad del SKU y el slug, el límite de 5 imágenes por producto, la categoría principal única o la exigencia de al menos una categoría e imagen por producto— se cumplan a nivel de base de datos y no dependan únicamente de la validación en el backend.
 
@@ -305,8 +305,9 @@ BEGIN
         AND is_active
         AND deleted_at IS NULL
     ) THEN
-      RAISE EXCEPTION 'No se puede quitar al ultimo administrador activo'
-        USING ERRCODE = 'check_violation';
+      -- El nombre de la restriccion permite a la aplicacion responder con su propio mensaje
+      RAISE EXCEPTION 'The last active administrator cannot be removed'
+        USING ERRCODE = 'check_violation', CONSTRAINT = 'chk_users_last_active_admin';
     END IF;
   END IF;
 
@@ -460,6 +461,9 @@ CREATE TABLE libreria.products (
   CONSTRAINT uq_products_slug UNIQUE (slug),
   CONSTRAINT chk_products_slug_format
     CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
+  -- Rutas fijas de la tienda (/products/featured y /products/new)
+  CONSTRAINT chk_products_slug_not_reserved
+    CHECK (slug NOT IN ('featured', 'new')),
   CONSTRAINT chk_products_title_not_blank
     CHECK (btrim(title) <> ''),
   CONSTRAINT chk_products_price_positive
