@@ -26,6 +26,7 @@ import { RestoreUserUseCase } from "./application/use-cases/restore-user.use-cas
 import { UpdateUserUseCase } from "./application/use-cases/update-user.use-case.js";
 import { LoginUseCase } from "./application/use-cases/login.use-case.js";
 import { LogoutUseCase } from "./application/use-cases/logout.use-case.js";
+import { PurgeExpiredSessionsUseCase } from "./application/use-cases/purge-expired-sessions.use-case.js";
 import { RefreshSessionUseCase } from "./application/use-cases/refresh-session.use-case.js";
 import { RequestPasswordResetUseCase } from "./application/use-cases/request-password-reset.use-case.js";
 import { ResolveAuthenticatedUserUseCase } from "./application/use-cases/resolve-authenticated-user.use-case.js";
@@ -46,6 +47,7 @@ import { OriginGuard } from "./presentation/guards/origin.guard.js";
 import { AuthController } from "./presentation/http/auth.controller.js";
 import { RefreshTokenCookie } from "./presentation/http/refresh-token-cookie.js";
 import { UsersController } from "./presentation/http/users.controller.js";
+import { SessionsCleanupScheduler } from "./presentation/schedulers/sessions-cleanup.scheduler.js";
 
 @Module({
   // The secret and lifetime are passed on each call by JwtAccessTokenService.
@@ -281,6 +283,13 @@ import { UsersController } from "./presentation/http/users.controller.js";
       useFactory: (users: UserRepository) => new ResolveAuthenticatedUserUseCase(users),
       inject: [UserRepository],
     },
+    {
+      provide: PurgeExpiredSessionsUseCase,
+      useFactory: (sessions: SessionRepository, clock: Clock) =>
+        new PurgeExpiredSessionsUseCase(sessions, clock),
+      inject: [SessionRepository, Clock],
+    },
+    SessionsCleanupScheduler,
   ],
   // JwtAuthGuard is registered globally in AppModule and needs both.
   exports: [AccessTokenService, ResolveAuthenticatedUserUseCase],
