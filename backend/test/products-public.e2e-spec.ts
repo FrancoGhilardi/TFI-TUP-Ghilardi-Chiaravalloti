@@ -344,6 +344,95 @@ describe("GET /products and /products/:slug (e2e)", () => {
     });
   });
 
+  describe("GET /products with prices, stock and order", () => {
+    const titlesOf = (response: request.Response) =>
+      (response.body as Page<ProductCardResult>).items.map((card) => card.title);
+    const list = (query: Record<string, unknown>) =>
+      http.get("/api/v1/products").query(query).expect(200);
+
+    it("filters and sorts by the price a card shows, the sale one only while it runs", async () => {
+      const onSale = await shown("Oferta", 0);
+      const ended = await shown("Vencida", 1);
+      const cheap = await shown("Barata", 2);
+      const dear = await shown("Cara", 3);
+      await set(onSale, "price = 50, is_on_sale = true, sale_price = 20, stock = 4");
+      await set(
+        ended,
+        "price = 25, is_on_sale = true, sale_price = 10, sale_ends_at = now() - interval '1 day', stock = 4",
+      );
+      await set(cheap, "price = 15, stock = 4");
+      await set(dear, "price = 30, stock = 0");
+
+      const range = await list({ minPrice: "15", maxPrice: "25.00", sort: "PRICE_ASC" });
+
+      expect(range.headers["cache-control"]).toBe("public, max-age=60");
+      expect(titlesOf(range)).toEqual(["Barata", "Oferta", "Vencida"]);
+      expect((range.body as Page<ProductCardResult>).items[1]).toMatchObject({
+        price: "50.00",
+        salePrice: "20.00",
+        isOnSale: true,
+      });
+      expect(range.body).toMatchObject({ totalItems: 3 });
+      expect(titlesOf(await list({ isOnSale: true }))).toEqual(["Oferta"]);
+      expect(titlesOf(await list({ inStock: false }))).toEqual(["Cara"]);
+      // The sale price, 20, puts "Oferta" below "Vencida", whose regular 25 counts.
+      expect(titlesOf(await list({ sort: "PRICE_DESC", inStock: true }))).toEqual([
+        "Vencida",
+        "Oferta",
+        "Barata",
+      ]);
+    });
+
+    it("puts first the titles that start with the search, or sorts by date or title", async () => {
+      const funda = await shown("Funda para cuaderno", 0);
+      const a4 = await shown("Cuaderno A4", 1);
+      await set(funda, "created_at = '2026-10-20'");
+      await set(a4, "created_at = '2026-10-01'");
+
+      expect(titlesOf(await list({ q: "cuaderno", categorySlug: "cuadernos" }))).toEqual([
+        "Cuaderno A4",
+        "Funda para cuaderno",
+      ]);
+      expect(titlesOf(await list({}))).toEqual(["Funda para cuaderno", "Cuaderno A4"]);
+      expect(titlesOf(await list({ sort: "NEWEST" }))).toEqual([
+        "Funda para cuaderno",
+        "Cuaderno A4",
+      ]);
+      expect(titlesOf(await list({ q: "cuaderno", sort: "TITLE_ASC" }))).toEqual([
+        "Cuaderno A4",
+        "Funda para cuaderno",
+      ]);
+    });
+
+    it.each([
+      [{ minPrice: "abc" }, "minPrice", "Escribí un precio válido, como 1500 o 1500.50."],
+      [{ maxPrice: "-5" }, "maxPrice", "Escribí un precio válido, como 1500 o 1500.50."],
+      [{ sort: "CHEAPEST" }, "sort", "Elegí un orden válido."],
+      [{ inStock: "si" }, "inStock", QUERY_BOOLEAN_MESSAGE],
+      [{ isOnSale: "1" }, "isOnSale", QUERY_BOOLEAN_MESSAGE],
+    ])("refuses %o with 400", async (query, field, message) => {
+      const response = await http.get("/api/v1/products").query(query).expect(400);
+
+      expect(response.body).toMatchObject({
+        code: "VALIDATION_FAILED",
+        details: [{ field, messages: [message] }],
+      });
+    });
+
+    it("refuses a highest price below the lowest with 400, naming the field", async () => {
+      const response = await http
+        .get("/api/v1/products")
+        .query({ minPrice: "30", maxPrice: "20.99" })
+        .expect(400);
+
+      expect(response.body).toMatchObject({
+        code: "INVALID_PRICE_RANGE",
+        message: "El precio máximo no puede ser menor que el mínimo.",
+        details: { field: "maxPrice" },
+      });
+    });
+  });
+
   describe("GET /products/:slug", () => {
     it("gives the product with its processed images, its categories and its related products", async () => {
       const id = await shown("Cuaderno A4");

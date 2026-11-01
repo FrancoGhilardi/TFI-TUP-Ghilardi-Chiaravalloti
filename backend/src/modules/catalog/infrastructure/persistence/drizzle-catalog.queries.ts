@@ -10,9 +10,11 @@ import type {
 } from "../../application/dto/product-card.result.js";
 import type { ProductPage } from "../../application/dto/product-detail.result.js";
 import type { CatalogPageQuery } from "../../application/dto/catalog-page.query.js";
+import { ProductSort } from "../../application/dto/search-catalog.query.js";
 import { CatalogQueries } from "../../application/ports/catalog-queries.js";
 import { runsAt } from "../../domain/runs-at.js";
 import {
+  effectivePriceAt,
   markFiltersOf,
   matchesEveryWord,
   newMarkRunsAt,
@@ -38,6 +40,36 @@ const IS_VISIBLE = sql`
   )`;
 
 const STORE_ORDER = sql`p.sort_order ASC, p.created_at DESC, p.id ASC`;
+
+// The price a card shows, on sale or not, worked out once per product as `priced.shown_price`
+// for the filters and the order of a listing.
+const pricedProducts = (now: Date): SQL =>
+  sql`libreria.products p CROSS JOIN LATERAL (SELECT ${effectivePriceAt(now)} AS shown_price) priced`;
+const SHOWN_PRICE = sql`priced.shown_price`;
+
+/**
+ * The order a store listing asks for, from `pricedProducts`. By relevance, a search puts first
+ * the titles that start with it, as the search box does. An unknown order fails here rather
+ * than sorting in a way nobody asked for.
+ */
+function orderOf(query: CatalogPageQuery): SQL {
+  switch (query.sort) {
+    case ProductSort.RELEVANCE:
+      return query.text === undefined
+        ? STORE_ORDER
+        : sql`${startsWithText(sql`p.title`, query.text)} DESC, ${STORE_ORDER}`;
+    case ProductSort.PRICE_ASC:
+      return sql`${SHOWN_PRICE} ASC, ${STORE_ORDER}`;
+    case ProductSort.PRICE_DESC:
+      return sql`${SHOWN_PRICE} DESC, ${STORE_ORDER}`;
+    case ProductSort.NEWEST:
+      return sql`p.created_at DESC, p.id ASC`;
+    case ProductSort.TITLE_ASC:
+      return sql`${sortableName(sql`p.title`)} ASC, p.id ASC`;
+    default:
+      throw new Error(`Unknown product sort: ${String(query.sort)}`);
+  }
+}
 
 // A card: the product, its first image to show and its primary category if visible.
 const CARD_COLUMNS = sql`
@@ -179,19 +211,30 @@ export class DrizzleCatalogQueries extends CatalogQueries {
     if (query.words?.length) {
       filters.push(matchesEveryWord(sql`p.title`, query.words));
     }
+    if (query.inStock !== undefined) {
+      filters.push(query.inStock ? sql`p.stock > 0` : sql`p.stock = 0`);
+    }
+    if (query.minPrice !== undefined) {
+      filters.push(sql`${SHOWN_PRICE} >= ${query.minPrice.toDecimalString()}::numeric`);
+    }
+    if (query.maxPrice !== undefined) {
+      filters.push(sql`${SHOWN_PRICE} <= ${query.maxPrice.toDecimalString()}::numeric`);
+    }
     const filter = filters.length === 0 ? sql`true` : sql.join(filters, sql` AND `);
+    const products = pricedProducts(now);
 
     // One query, so the page and its total come from the same snapshot and connection.
     const rows = await this.cardRows(
       ctes,
-      sql`libreria.products p`,
+      products,
       sql`${IS_LISTED} AND ${filter}`,
-      sql`${STORE_ORDER} LIMIT ${query.limit} OFFSET ${offsetOf(query)}`,
+      sql`${orderOf(query)} LIMIT ${query.limit} OFFSET ${offsetOf(query)}`,
       sql`, count(*) OVER ()::int AS total_items`,
     );
     // Past the last page there is no row to carry the total, so it is counted apart.
     const totalItems =
-      rows[0]?.total_items ?? (query.page === 1 ? 0 : await this.countVisible(ctes, filter));
+      rows[0]?.total_items ??
+      (query.page === 1 ? 0 : await this.countVisible(ctes, products, filter));
     return pageOf(
       rows.map((row) => this.cardOf(row, now)),
       totalItems,
@@ -354,11 +397,11 @@ export class DrizzleCatalogQueries extends CatalogQueries {
     );
   }
 
-  private async countVisible(ctes: SQL, filter: SQL): Promise<number> {
+  private async countVisible(ctes: SQL, products: SQL, filter: SQL): Promise<number> {
     const [row] = await rowsOf(
       this.executor.current().execute<{ [column: string]: unknown; total: number }>(sql`
         ${ctes}
-        SELECT count(*)::int AS total FROM libreria.products p
+        SELECT count(*)::int AS total FROM ${products}
         WHERE ${IS_VISIBLE} AND ${filter}`),
     );
     return row.total;

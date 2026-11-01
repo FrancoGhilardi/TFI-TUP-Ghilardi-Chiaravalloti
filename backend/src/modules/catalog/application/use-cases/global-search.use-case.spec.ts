@@ -102,13 +102,13 @@ describe("GlobalSearchUseCase", () => {
     expect(categories.calls).toEqual([[["cuaderno"], "cuaderno", 7]]);
   });
 
-  it("looks for each word once, whatever its case, keeping the whole text with single spaces", async () => {
+  it("looks for each word once, whatever its case, and for titles starting with those words", async () => {
     const { catalog, categories, search } = setUp();
 
     await search.execute({ q: "  Cuaderno  rayado\tcuaderno A4 ", limit: 5 });
 
     const words = ["Cuaderno", "rayado", "A4"];
-    const text = "Cuaderno rayado cuaderno A4";
+    const text = "Cuaderno rayado A4";
     expect(catalog.calls).toEqual([[words, text, 5, NOW]]);
     expect(categories.calls).toEqual([[words, text, 5]]);
   });
@@ -118,7 +118,7 @@ describe("GlobalSearchUseCase", () => {
 
     await search.execute({ q: "lápiz LAPIZ negro", limit: 5 });
 
-    expect(catalog.calls).toEqual([[["lápiz", "negro"], "lápiz LAPIZ negro", 5, NOW]]);
+    expect(catalog.calls).toEqual([[["lápiz", "negro"], "lápiz negro", 5, NOW]]);
   });
 
   it("leaves out one-letter words and looks for the first 5 distinct ones", async () => {
@@ -127,12 +127,7 @@ describe("GlobalSearchUseCase", () => {
     await search.execute({ q: "a cuaderno é b uno dos tres cuatro cinco", limit: 5 });
 
     expect(catalog.calls).toEqual([
-      [
-        ["cuaderno", "uno", "dos", "tres", "cuatro"],
-        "a cuaderno é b uno dos tres cuatro cinco",
-        5,
-        NOW,
-      ],
+      [["cuaderno", "uno", "dos", "tres", "cuatro"], "cuaderno uno dos tres cuatro", 5, NOW],
     ]);
   });
 

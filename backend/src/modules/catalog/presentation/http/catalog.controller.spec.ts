@@ -7,6 +7,7 @@ import type { GetProductDetailUseCase } from "../../application/use-cases/get-pr
 import type { ListFeaturedProductsUseCase } from "../../application/use-cases/list-featured-products.use-case.js";
 import type { ListNewProductsUseCase } from "../../application/use-cases/list-new-products.use-case.js";
 import type { SearchCatalogUseCase } from "../../application/use-cases/search-catalog.use-case.js";
+import { ProductSort } from "../../application/dto/search-catalog.query.js";
 import { RESERVED_PRODUCT_SLUGS } from "../../domain/reserved-slugs.js";
 import { CatalogController } from "./catalog.controller.js";
 import { SearchCatalogRequestDto } from "./search-catalog.request.dto.js";
@@ -70,6 +71,11 @@ describe("CatalogController", () => {
       q: "rayado",
       isFeatured: true,
       isNew: false,
+      isOnSale: true,
+      inStock: false,
+      minPrice: "10",
+      maxPrice: "20.50",
+      sort: ProductSort.PRICE_ASC,
       page: 2,
       limit: 10,
     });
@@ -80,6 +86,11 @@ describe("CatalogController", () => {
       q: "rayado",
       isFeatured: true,
       isNew: false,
+      isOnSale: true,
+      inStock: false,
+      minPrice: "10",
+      maxPrice: "20.50",
+      sort: ProductSort.PRICE_ASC,
       page: 2,
       limit: 10,
     });
@@ -112,6 +123,28 @@ describe("SearchCatalogRequestDto", () => {
     });
   });
 
+  it("reads the sale and the stock as true or false, and the order", async () => {
+    await expect(
+      check({ isOnSale: "true", inStock: "false", sort: "TITLE_ASC" }),
+    ).resolves.toMatchObject({
+      dto: { isOnSale: true, inStock: false, sort: ProductSort.TITLE_ASC },
+      fields: [],
+    });
+  });
+
+  it("reads the prices as decimal text, trimmed, and takes an equal range", async () => {
+    await expect(check({ minPrice: " 1500 ", maxPrice: "1500.00" })).resolves.toMatchObject({
+      dto: { minPrice: "1500", maxPrice: "1500.00" },
+      fields: [],
+    });
+    expect((await check({ minPrice: "  " })).dto.minPrice).toBeUndefined();
+  });
+
+  it("refuses a wrong price alone, leaving the range to the use case", async () => {
+    expect((await check({ minPrice: "x", maxPrice: "1" })).fields).toEqual(["minPrice"]);
+    expect((await check({ minPrice: "20", maxPrice: "10" })).fields).toEqual([]);
+  });
+
   it("reads a search trimmed, and a blank one as none", async () => {
     await expect(check({ q: "  cuaderno rayado " })).resolves.toMatchObject({
       dto: { q: "cuaderno rayado" },
@@ -137,6 +170,14 @@ describe("SearchCatalogRequestDto", () => {
     ["q", "a"],
     ["isFeatured", "si"],
     ["isNew", "1"],
+    ["isOnSale", "si"],
+    ["inStock", "0"],
+    ["minPrice", "-1"],
+    ["minPrice", "1,50"],
+    ["maxPrice", "1.505"],
+    ["maxPrice", "12345678901"],
+    ["sort", "PRICE"],
+    ["sort", ["PRICE_ASC", "NEWEST"]],
     ["q", "a".repeat(101)],
   ])("refuses %s %o", async (field, value) => {
     expect((await check({ [field]: value })).fields).toEqual([field]);
