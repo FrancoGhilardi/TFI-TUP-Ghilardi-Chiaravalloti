@@ -1,3 +1,4 @@
+import { ApiPropertyOptional } from "@nestjs/swagger";
 import { Transform, Type } from "class-transformer";
 import { IsInt, Max, Min } from "class-validator";
 import { trimString } from "../../../identity/presentation/http/request-transforms.js";
@@ -14,6 +15,7 @@ export class GlobalSearchRequestDto implements GlobalSearchQuery {
   @IsSearchText()
   q!: string;
 
+  @ApiPropertyOptional({ type: Number, default: SETTINGS.searchDefaultLimit })
   @Type(() => Number)
   @IsInt({ message: LIMIT_MESSAGE })
   @Min(1, { message: LIMIT_MESSAGE })

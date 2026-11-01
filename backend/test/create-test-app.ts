@@ -7,6 +7,7 @@ import { Test } from "@nestjs/testing";
 import type { App } from "supertest/types.js";
 import { AppModule } from "./../src/app.module.js";
 import { setupApp } from "./../src/app.setup.js";
+import { setupOpenApi } from "./../src/openapi.js";
 import type { Env } from "./../src/config/env.js";
 
 interface TestAppOptions {
@@ -15,11 +16,13 @@ interface TestAppOptions {
   overrides?: { provide: Abstract<unknown>; useValue: unknown }[];
   /** Pinned so the tests never depend on the TRUST_PROXY of the local .env or CI. */
   trustProxy?: number;
+  /** Other settings read as if they came from the environment, such as NODE_ENV. */
+  env?: Partial<Env>;
 }
 
 /**
  * Builds the full application. The environment is read once when AppModule is imported,
- * so `trustProxy` is injected through ConfigService instead of process.env.
+ * so `trustProxy` and `env` are injected through ConfigService instead of process.env.
  */
 export async function createTestApp(options: TestAppOptions = {}): Promise<INestApplication<App>> {
   const builder = Test.createTestingModule({
@@ -32,13 +35,16 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<INest
   const moduleRef = await builder.compile();
   const app = moduleRef.createNestApplication<INestApplication<App>>();
 
-  const trustProxy = options.trustProxy ?? 0;
+  const settings: Partial<Env> = { TRUST_PROXY: options.trustProxy ?? 0, ...options.env };
   const config = app.get<ConfigService<Env, true>>(ConfigService);
   const realGet = config.get.bind(config) as (...args: unknown[]) => unknown;
-  vi.spyOn(config, "get").mockImplementation(((...args: unknown[]) =>
-    args[0] === "TRUST_PROXY" ? trustProxy : realGet(...args)) as typeof config.get);
+  vi.spyOn(config, "get").mockImplementation(((...args: unknown[]) => {
+    const key = args[0] as keyof Env;
+    return key in settings ? settings[key] : realGet(...args);
+  }) as typeof config.get);
 
   setupApp(app);
+  await setupOpenApi(app);
   await app.init();
   // No test depends on the real time: a job that matters is run by hand with a test clock.
   for (const job of app.get(SchedulerRegistry).getCronJobs().values()) {

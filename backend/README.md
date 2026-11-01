@@ -97,6 +97,17 @@ Rules:
 
 `pnpm test:e2e` needs the local database and Storage (`pnpm db:start`). It runs the migrations first and refuses to run if `DATABASE_MIGRATION_URL` does not point to `127.0.0.1` or `localhost`.
 
+### API documentation
+
+The OpenAPI document is the contract with the frontend. Outside production the app serves it at `/api/docs` (Swagger UI) and `/api/docs-json`; in production only with `OPENAPI_ENABLED=true`. `docs/openapi.json` keeps a copy in the repository, so the frontend can use it without the API running.
+
+```bash
+pnpm openapi:metadata   # after changing a DTO or a route: regenerates src/openapi-metadata.ts
+pnpm openapi:export     # regenerates the metadata, builds and writes docs/openapi.json
+```
+
+Request and response types come from the DTOs (`*.dto.ts`) through the Swagger plugin, whose output is kept in `src/openapi-metadata.ts`, so the document is the same built or under test. Each endpoint declares its errors with `@ApiErrors`, by status and `code`. The e2e tests fail if a route is missing from the document, or if either generated file is out of date.
+
 ## Compile and run the project
 
 ```bash

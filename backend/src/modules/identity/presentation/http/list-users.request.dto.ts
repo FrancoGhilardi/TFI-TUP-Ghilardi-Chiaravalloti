@@ -1,3 +1,4 @@
+import { ApiPropertyOptional } from "@nestjs/swagger";
 import { Transform } from "class-transformer";
 import { IsEnum, IsOptional, IsString, MaxLength } from "class-validator";
 import { RecordStatusFilter, SortDirection } from "../../../../shared/application/pagination.js";
@@ -27,6 +28,7 @@ export class ListUsersRequestDto extends PageRequestDto implements ListUsersQuer
   @IsEnum(RecordStatusFilter, { message: "Elegí un estado válido." })
   status?: RecordStatusFilter;
 
+  @ApiPropertyOptional({ enum: SortDirection, default: SortDirection.ASC })
   @IsEnum(SortDirection, { message: "Elegí un orden válido." })
   sortDir: SortDirection = SortDirection.ASC;
 }

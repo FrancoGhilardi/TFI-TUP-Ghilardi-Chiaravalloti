@@ -1,3 +1,4 @@
+import { ApiPropertyOptional } from "@nestjs/swagger";
 import { Transform } from "class-transformer";
 import { IsEnum, IsOptional, IsString, IsUUID, MaxLength } from "class-validator";
 import { RecordStatusFilter, SortDirection } from "../../../../shared/application/pagination.js";
@@ -37,6 +38,7 @@ export class ListAdminCategoriesRequestDto
   @IsEnum(CategorySortField, { message: "Elegí un campo de orden válido." })
   sortBy?: CategorySortField;
 
+  @ApiPropertyOptional({ enum: SortDirection, default: SortDirection.ASC })
   @IsEnum(SortDirection, { message: "Elegí un orden válido." })
   sortDir: SortDirection = SortDirection.ASC;
 }
