@@ -1,15 +1,28 @@
 import "reflect-metadata";
 import { Logger } from "@nestjs/common";
+import { BackgroundTasks } from "../../../../shared/application/background-tasks.js";
 import type { PurgeExpiredSessionsUseCase } from "../../application/use-cases/purge-expired-sessions.use-case.js";
 import { SESSIONS_CLEANUP_JOB, SessionsCleanupScheduler } from "./sessions-cleanup.scheduler.js";
+
+class RecordingTasks extends BackgroundTasks {
+  readonly names: string[] = [];
+  readonly pending: Promise<unknown>[] = [];
+
+  run(name: string, work: () => Promise<unknown>): void {
+    this.names.push(name);
+    this.pending.push(work());
+  }
+}
 
 function setUp(execute: () => Promise<unknown>) {
   const log = vi.spyOn(Logger.prototype, "log").mockImplementation(() => undefined);
   const error = vi.spyOn(Logger.prototype, "error").mockImplementation(() => undefined);
-  const scheduler = new SessionsCleanupScheduler({
-    execute: vi.fn(execute),
-  } as unknown as PurgeExpiredSessionsUseCase);
-  return { scheduler, log, error };
+  const background = new RecordingTasks();
+  const scheduler = new SessionsCleanupScheduler(
+    { execute: vi.fn(execute) } as unknown as PurgeExpiredSessionsUseCase,
+    background,
+  );
+  return { scheduler, background, log, error };
 }
 
 describe("SessionsCleanupScheduler", () => {
@@ -18,7 +31,7 @@ describe("SessionsCleanupScheduler", () => {
   });
 
   it("runs every day at 3 a.m. in Argentina", () => {
-    const handler = Object.getOwnPropertyDescriptor(SessionsCleanupScheduler.prototype, "run")
+    const handler = Object.getOwnPropertyDescriptor(SessionsCleanupScheduler.prototype, "schedule")
       ?.value as object;
 
     expect(Reflect.getMetadata("SCHEDULE_CRON_OPTIONS", handler)).toEqual({
@@ -38,6 +51,15 @@ describe("SessionsCleanupScheduler", () => {
     const quiet = setUp(() => Promise.resolve({ deleted: 0 }));
     await quiet.scheduler.run();
     expect(quiet.log).not.toHaveBeenCalled();
+  });
+
+  it("runs each scheduled time in the background, which closing waits for", async () => {
+    const { scheduler, background } = setUp(() => Promise.reject(new Error("database down")));
+
+    scheduler.schedule();
+    await Promise.all(background.pending);
+
+    expect(background.names).toEqual(["Deleting expired sessions"]);
   });
 
   it("logs a failure instead of throwing it", async () => {
