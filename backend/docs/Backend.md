@@ -1836,7 +1836,7 @@ Por defecto, el listado muestra las categorías activas e inactivas. Las categor
 
 El texto de búsqueda debe tener al menos 2 caracteres, para evitar consultas demasiado amplias que devuelvan resultados poco útiles, y como máximo 100; se recortan los espacios de los extremos. La cantidad de resultados es de 5 por grupo (productos y categorías) por defecto, con un máximo de 10.
 
-`GlobalSearchUseCase` separa el texto en palabras, descarta las de una sola letra, que coinciden con casi todo, y las repetidas (sin distinguir mayúsculas ni tildes), y usa como máximo las primeras 5, ya que cada palabra suma una comparación por fila; si no queda ninguna, devuelve los dos grupos vacíos sin consultar la base. Las consultas exigen que cada una aparezca en el título del producto o en el nombre de la categoría, en cualquier orden y sin distinguir mayúsculas ni tildes; los comodines de `ILIKE` se toman como texto. Solo se buscan los productos visibles en la tienda y las categorías visibles en el árbol. Primero se muestran los resultados que empiezan con el texto completo, sin tener en cuenta los espacios repetidos; después, los productos siguen el orden de la tienda y las categorías el orden por nombre, con el id como desempate. Por eso `searchCards` y `searchVisible` reciben las palabras ya separadas y el texto completo, con un solo espacio entre palabras. La respuesta se puede guardar en caché por 60 segundos, como el resto de la tienda.
+`GlobalSearchUseCase` separa el texto en palabras, descarta las de una sola letra, que coinciden con casi todo, y las repetidas (sin distinguir mayúsculas ni tildes), y usa como máximo las primeras 5, ya que cada palabra suma una comparación por fila; si no queda ninguna, devuelve los dos grupos vacíos sin consultar la base. Las consultas exigen que cada una aparezca en el título del producto o en el nombre de la categoría, en cualquier orden y sin distinguir mayúsculas ni tildes; los comodines de `ILIKE` se toman como texto. Solo se buscan los productos visibles en la tienda y las categorías visibles en el árbol. Primero se muestran los resultados que empiezan con las palabras buscadas, en el orden en que se escribieron y sin las de una letra ni las repetidas, sin tener en cuenta los espacios repetidos; después, los productos siguen el orden de la tienda y las categorías el orden por nombre, con el id como desempate. Por eso `searchCards` y `searchVisible` reciben las palabras ya separadas y, para el orden, esas mismas palabras unidas por un solo espacio. La respuesta se puede guardar en caché por 60 segundos, como el resto de la tienda.
 
 ### Relación con el resto del sistema
 
@@ -1997,21 +1997,27 @@ classDiagram
     class SearchCatalogQuery {
         +q?: string
         +categorySlug?: string
-        +minPrice?: number
-        +maxPrice?: number
+        +minPrice?: string
+        +maxPrice?: string
         +isOnSale?: boolean
         +isNew?: boolean
         +isFeatured?: boolean
         +inStock?: boolean
-        +sort: ProductSort
+        +sort?: ProductSort
         +page: number
         +limit: number
     }
     class CatalogPageQuery {
         +categorySlug?: string
         +words?: string[]
+        +text?: string
         +isFeatured?: boolean
         +isNew?: boolean
+        +isOnSale?: boolean
+        +inStock?: boolean
+        +minPrice?: Money
+        +maxPrice?: Money
+        +sort: ProductSort
         +page: number
         +limit: number
     }
@@ -2238,7 +2244,7 @@ classDiagram
 
 **Tarjetas de producto.** Cada tarjeta muestra como imagen la primera en orden entre las ya procesadas, y como categoría, la categoría principal del producto.
 
-**Catálogo y buscador.** Una misma operación resuelve tanto el listado general del catálogo como la búsqueda con filtros. Filtra por categoría, incluyendo las subcategorías visibles (una categoría oculta o inexistente da una página vacía), por texto, por productos destacados y por novedades vigentes, combinables entre sí y con el paginado. El texto, de 2 a 100 caracteres, se busca igual que en la búsqueda global: cada palabra tiene que aparecer en el título, en cualquier orden y sin distinguir mayúsculas ni tildes, ignorando las palabras de una letra y las repetidas y usando como máximo las primeras cinco; si no queda ninguna palabra, la página sale vacía. La separación en palabras la comparten ambos casos de uso, de modo que el "ver todos" del buscador del sitio muestra los mismos productos. A diferencia de la búsqueda global, no se ponen primero los que empiezan con el texto: los resultados siguen el orden del catálogo, por posición, fecha de creación y, como desempate, identificador. Una novedad cuenta solo mientras no venció, con la misma regla que la sección de novedades, y cada marca acepta `true` o `false`; así, el "ver todo" de destacados y de novedades de la página de inicio muestra los mismos productos que esas secciones, en el mismo orden y paginados. El rango de precio, las ofertas y los demás órdenes pueden sumarse más adelante. Devuelve 20 productos por página por defecto, con un máximo de 50, y hasta la página 500, para acotar el costo de un pedido a una ruta pública.
+**Catálogo y buscador.** Una misma operación resuelve tanto el listado general del catálogo como la búsqueda con filtros. Filtra por categoría, incluyendo las subcategorías visibles (una categoría oculta o inexistente da una página vacía), por texto, por productos destacados, por novedades y ofertas vigentes, por disponibilidad de stock y por rango de precio, combinables entre sí y con el paginado. El precio que se filtra y se ordena es el que muestra la tarjeta: el de oferta mientras la oferta está vigente y, si no, el regular; el rango acepta montos con hasta dos decimales e incluye ambos extremos, y el caso de uso rechaza un máximo menor que el mínimo, señalando el campo para que el formulario lo marque. Un orden desconocido para la consulta es un error, nunca un orden distinto del pedido. El texto, de 2 a 100 caracteres, se busca igual que en la búsqueda global: cada palabra tiene que aparecer en el título, en cualquier orden y sin distinguir mayúsculas ni tildes, ignorando las palabras de una letra y las repetidas y usando como máximo las primeras cinco; si no queda ninguna palabra, la página sale vacía. La separación en palabras la comparten ambos casos de uso, de modo que el "ver todos" del buscador del sitio muestra los mismos productos. El orden puede ser por relevancia (el de por defecto), por precio de menor a mayor o de mayor a menor, por fecha de alta o por título, sin distinguir mayúsculas ni tildes. Por relevancia, con un texto van primero los títulos que empiezan con las palabras buscadas, como en la búsqueda global, y después el orden del catálogo, por posición, fecha de creación y, como desempate, identificador; sin texto, directamente el orden del catálogo, que también desempata los órdenes por precio. Una novedad cuenta solo mientras no venció, con la misma regla que la sección de novedades, y cada marca acepta `true` o `false`; así, el "ver todo" de destacados y de novedades de la página de inicio muestra los mismos productos que esas secciones, en el mismo orden y paginados. Devuelve 20 productos por página por defecto, con un máximo de 50, y hasta la página 500, para acotar el costo de un pedido a una ruta pública.
 
 **Destacados y novedades.** Cada consulta devuelve como máximo 5 productos, ordenados por posición y, ante igual posición, del más reciente al más antiguo. No existe un límite para la cantidad de productos que pueden marcarse como destacados o novedades: el límite se aplica solo a la cantidad que se muestra. Una novedad solo cuenta mientras su marca está vigente. Como estas rutas comparten el prefijo de la ficha (`/products/featured` y `/products/new`), los slugs `featured` y `new` están reservados: el alta de un producto los considera ocupados y genera el siguiente sufijo libre, y la base de datos los rechaza.
 
