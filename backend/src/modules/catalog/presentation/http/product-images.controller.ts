@@ -1,4 +1,18 @@
 import {
+  ApiBody,
+  ApiConsumes,
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from "@nestjs/swagger";
+import {
+  ApiErrors,
+  VALIDATION_FAILED,
+} from "../../../../shared/presentation/http/openapi-decorators.js";
+import { AdminProductImageResponseDto } from "./admin-product.response.dto.js";
+import {
   Body,
   Controller,
   Delete,
@@ -35,6 +49,8 @@ import { ReorderProductImagesRequestDto } from "./reorder-product-images.request
 import { UpdateProductImageRequestDto } from "./update-product-image.request.dto.js";
 
 /** The images of a product in the admin panel, for admins and sellers. */
+@ApiTags("Product images")
+@ApiErrors({ 403: ["PASSWORD_CHANGE_REQUIRED"] })
 @Controller("admin/products/:productId/images")
 @AnyPanelRole()
 export class ProductImagesController {
@@ -53,6 +69,9 @@ export class ProductImagesController {
   /** Read again while images are processed; its preview links expire, so it is never kept. */
   @Get()
   @Header("Cache-Control", "no-store")
+  @ApiOperation({ summary: "The images of a product, by position, with their state" })
+  @ApiOkResponse({ type: [AdminProductImageResponseDto] })
+  @ApiErrors({ 404: ["PRODUCT_NOT_FOUND"] })
   findAll(@Param("productId", PRODUCT_ID) productId: string): Promise<AdminProductImageResult[]> {
     return this.listProductImages.execute(productId);
   }
@@ -60,6 +79,29 @@ export class ProductImagesController {
   /** `multipart/form-data`: one file in `image` and an optional `altText`. */
   @Post()
   @UseInterceptors(ProductImageFormInterceptor)
+  @ApiOperation({ summary: "Add an image; it is processed in the background" })
+  @ApiConsumes("multipart/form-data")
+  @ApiBody({
+    schema: {
+      type: "object",
+      required: ["image"],
+      properties: {
+        image: {
+          type: "string",
+          format: "binary",
+          description: "A JPEG, PNG or WebP file of up to 10 MB.",
+        },
+        altText: { type: "string", maxLength: 255 },
+      },
+    },
+  })
+  @ApiCreatedResponse({ type: AdminProductImageResponseDto })
+  @ApiErrors({
+    400: [VALIDATION_FAILED, "INVALID_IMAGE"],
+    404: ["PRODUCT_NOT_FOUND"],
+    422: ["PRODUCT_DELETED", "PRODUCT_IMAGE_LIMIT_REACHED"],
+    502: ["IMAGE_UPLOAD_FAILED"],
+  })
   add(
     @Param("productId", PRODUCT_ID) productId: string,
     @Body() body: AddProductImageRequestDto,
@@ -73,6 +115,13 @@ export class ProductImagesController {
 
   // Declared before ":imageId", which would take it.
   @Patch("order")
+  @ApiOperation({ summary: "Set the order of every image of the product" })
+  @ApiOkResponse({ type: [AdminProductImageResponseDto] })
+  @ApiErrors({
+    400: [VALIDATION_FAILED, "INVALID_IMAGE_ORDER"],
+    404: ["PRODUCT_NOT_FOUND"],
+    422: ["PRODUCT_DELETED"],
+  })
   reorder(
     @Param("productId", PRODUCT_ID) productId: string,
     @Body() body: ReorderProductImagesRequestDto,
@@ -81,6 +130,13 @@ export class ProductImagesController {
   }
 
   @Patch(":imageId")
+  @ApiOperation({ summary: "Change the alternative text; an empty one removes it" })
+  @ApiOkResponse({ type: AdminProductImageResponseDto })
+  @ApiErrors({
+    400: [VALIDATION_FAILED, "INVALID_IMAGE"],
+    404: ["PRODUCT_NOT_FOUND", "PRODUCT_IMAGE_NOT_FOUND"],
+    422: ["PRODUCT_DELETED"],
+  })
   update(
     @Param("productId", PRODUCT_ID) productId: string,
     @Param("imageId", IMAGE_ID) imageId: string,
@@ -92,6 +148,30 @@ export class ProductImagesController {
   /** `multipart/form-data`: the new file alone, in `image`. */
   @Put(":imageId/file")
   @UseInterceptors(ImageFileFormInterceptor)
+  @ApiOperation({
+    summary: "Replace the file; the public version stays until the new one is ready",
+  })
+  @ApiConsumes("multipart/form-data")
+  @ApiBody({
+    schema: {
+      type: "object",
+      required: ["image"],
+      properties: {
+        image: {
+          type: "string",
+          format: "binary",
+          description: "A JPEG, PNG or WebP file of up to 10 MB.",
+        },
+      },
+    },
+  })
+  @ApiOkResponse({ type: AdminProductImageResponseDto })
+  @ApiErrors({
+    400: [VALIDATION_FAILED, "INVALID_IMAGE"],
+    404: ["PRODUCT_NOT_FOUND", "PRODUCT_IMAGE_NOT_FOUND"],
+    422: ["PRODUCT_DELETED"],
+    502: ["IMAGE_UPLOAD_FAILED"],
+  })
   replaceFile(
     @Param("productId", PRODUCT_ID) productId: string,
     @Param("imageId", IMAGE_ID) imageId: string,
@@ -102,6 +182,12 @@ export class ProductImagesController {
 
   @Post(":imageId/retry")
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Process again an image whose processing failed" })
+  @ApiOkResponse({ type: AdminProductImageResponseDto })
+  @ApiErrors({
+    404: ["PRODUCT_NOT_FOUND", "PRODUCT_IMAGE_NOT_FOUND"],
+    422: ["PRODUCT_DELETED", "IMAGE_NOT_FAILED"],
+  })
   retry(
     @Param("productId", PRODUCT_ID) productId: string,
     @Param("imageId", IMAGE_ID) imageId: string,
@@ -112,6 +198,12 @@ export class ProductImagesController {
   /** The image is gone either way; files the storage kept are logged to be removed by hand. */
   @Delete(":imageId")
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: "Delete an image and its files; never the last one" })
+  @ApiNoContentResponse()
+  @ApiErrors({
+    404: ["PRODUCT_NOT_FOUND", "PRODUCT_IMAGE_NOT_FOUND"],
+    422: ["PRODUCT_DELETED", "LAST_PRODUCT_IMAGE"],
+  })
   async remove(
     @Param("productId", PRODUCT_ID) productId: string,
     @Param("imageId", IMAGE_ID) imageId: string,

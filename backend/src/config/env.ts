@@ -23,6 +23,11 @@ const envSchema = z
     // How long a session lasts without being renewed, in days.
     REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(30).default(7),
     TRUST_PROXY: z.coerce.number().int().min(0).default(0),
+    // Serves the API documentation in production too; outside production it is always served.
+    OPENAPI_ENABLED: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z.stringbool().default(false),
+    ),
     // Mail delivery through Resend; without both, mails are only logged outside production.
     RESEND_API_KEY: optionalText,
     // An address, alone or with a display name: "Librería Mi Sueño <no-reply@...>".

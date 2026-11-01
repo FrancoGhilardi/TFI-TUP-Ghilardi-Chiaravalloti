@@ -3514,6 +3514,10 @@ Tres tareas corren dentro de la misma aplicación, con `@nestjs/schedule`:
 
 Las tres son idempotentes, corren en segundo plano con `BackgroundTasks` —así el cierre de la aplicación espera la corrida en curso— y nunca interrumpen la aplicación ante una falla, que queda registrada en el log. Registran también su resultado: la de ofertas en cada corrida, y las de imágenes y sesiones solo cuando hicieron algo. La tienda y la autenticación no dependen de ellas para ser correctas: una oferta o una sesión vencidas ya se tratan como tales desde su vencimiento, y una imagen pendiente se procesa en cuanto se carga; las tareas cubren lo que quedó a medias y mantienen los datos al día. Se eligió no usar un servicio externo de colas ni de tareas, ya que el volumen es bajo y la aplicación corre en una sola instancia.
 
+### Documentación OpenAPI generada desde el código
+
+La especificación de la API se genera a partir de los DTOs y de los controladores con la librería de Swagger de NestJS, en lugar de escribirse a mano, para que no pueda desactualizarse sin que una prueba lo detecte. Como la capa de aplicación no puede depender de librerías externas, las respuestas se describen con clases propias de la capa de presentación que implementan cada resultado, de modo que el compilador avisa si se separan. En producción no se publica salvo que se habilite, para no exponer la superficie de la API sin una decisión explícita.
+
 ### Proveedor de envío de mails: Resend
 
 El sistema envía dos tipos de mail, ambos con la misma estructura: la clave temporal solicitada por el propio usuario mediante "olvidé mi contraseña" y la clave temporal generada cuando un administrador restablece la contraseña de otro usuario. En los dos casos, el volumen esperado es muy bajo.
@@ -3541,6 +3545,10 @@ Esta sección presenta el listado completo de los endpoints de la API REST, orga
 - **Acceso**: los niveles indicados son _Público_ (sin autenticación), _Autenticado_ (cualquier usuario con sesión iniciada), _ADMIN_ y _ADMIN, SELLER_ (roles habilitados para la operación). Como `RolesGuard` niega el acceso por defecto, los endpoints de nivel _Autenticado_ y _ADMIN, SELLER_ se declaran con `@Roles(ADMIN, SELLER)` o su equivalente `@AnyPanelRole()`.
 - **Caché**: las respuestas públicas del catálogo, las categorías y la búsqueda pueden guardarse 60 segundos (`Cache-Control: public, max-age=60`); las que llevan tokens, datos de la cuenta o enlaces firmados se envían con `Cache-Control: no-store`, igual que toda respuesta de error.
 - **Identificadores**: un identificador de la ruta que no tiene formato UUID se responde como un recurso inexistente (404), sin consultar la base de datos.
+
+### Documentación de la API
+
+La especificación OpenAPI de todos estos endpoints es el contrato con el frontend. Se genera desde el código: los DTOs de entrada y las clases de respuesta describen los datos, y cada endpoint declara sus estados de error y los `code` que puede devolver en cada uno, con el formato común de error; toda ruta suma además el 500 y, salvo las de salud, el 429. Fuera de producción la aplicación la publica en `/api/docs` (interfaz navegable) y `/api/docs-json`; en producción solo si se habilita con `OPENAPI_ENABLED`. Una copia se mantiene en el repositorio (`docs/openapi.json`) para que el frontend la use sin la API en ejecución, y las pruebas automatizadas fallan si falta una ruta o si la copia quedó desactualizada.
 
 ### Autenticación
 

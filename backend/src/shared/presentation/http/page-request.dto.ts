@@ -1,3 +1,4 @@
+import { ApiPropertyOptional } from "@nestjs/swagger";
 import { Type } from "class-transformer";
 import { IsInt, Max, Min } from "class-validator";
 import type { PageRequest } from "../../application/pagination.js";
@@ -11,11 +12,13 @@ const LIMIT_MESSAGE = limitMessage(100);
 
 /** The page of a panel listing in the query string: the first one of 20 when left out. */
 export class PageRequestDto implements PageRequest {
+  @ApiPropertyOptional({ type: Number, default: 1 })
   @Type(() => Number)
   @IsInt({ message: PAGE_MESSAGE })
   @Min(1, { message: PAGE_MESSAGE })
   page = 1;
 
+  @ApiPropertyOptional({ type: Number, default: 20 })
   @Type(() => Number)
   @IsInt({ message: LIMIT_MESSAGE })
   @Min(1, { message: LIMIT_MESSAGE })

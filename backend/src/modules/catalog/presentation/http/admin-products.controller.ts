@@ -1,4 +1,23 @@
 import {
+  ApiBody,
+  ApiConsumes,
+  ApiCreatedResponse,
+  ApiExtraModels,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+  getSchemaPath,
+} from "@nestjs/swagger";
+import {
+  ApiErrors,
+  VALIDATION_FAILED,
+} from "../../../../shared/presentation/http/openapi-decorators.js";
+import {
+  AdminProductDetailResponseDto,
+  AdminProductPageResponseDto,
+} from "./admin-product.response.dto.js";
+import {
   Body,
   Controller,
   Delete,
@@ -46,6 +65,9 @@ const saleOf = (body: { salePrice?: string; saleEndsAt?: string }) => ({
 const newMarkOf = (body: { newUntil?: string }) => ({ until: optionalDate(body.newUntil) });
 
 /** Product management in the admin panel, for admins and sellers. */
+@ApiTags("Products")
+@ApiExtraModels(CreateProductRequestDto)
+@ApiErrors({ 403: ["PASSWORD_CHANGE_REQUIRED"] })
 @Controller("admin/products")
 @AnyPanelRole()
 export class AdminProductsController {
@@ -61,6 +83,9 @@ export class AdminProductsController {
   /** Its thumbnails may be links that expire, so it is never kept. */
   @Get()
   @Header("Cache-Control", "no-store")
+  @ApiOperation({ summary: "List the products of the panel" })
+  @ApiOkResponse({ type: AdminProductPageResponseDto })
+  @ApiErrors({ 400: [VALIDATION_FAILED] })
   findAll(@Query() query: ListAdminProductsRequestDto): Promise<Page<AdminProductListItemResult>> {
     return this.listAdminProducts.execute({
       q: query.q,
@@ -80,6 +105,9 @@ export class AdminProductsController {
   /** Deleted or not, as the edit form shows it. Its preview links expire, so it is never kept. */
   @Get(":id")
   @Header("Cache-Control", "no-store")
+  @ApiOperation({ summary: "Get a product as the edit form shows it, deleted or not" })
+  @ApiOkResponse({ type: AdminProductDetailResponseDto })
+  @ApiErrors({ 404: ["PRODUCT_NOT_FOUND"] })
   findOne(@Param("id", PRODUCT_ID) id: string): Promise<AdminProductDetailResult> {
     return this.getAdminProduct.execute(id);
   }
@@ -87,6 +115,47 @@ export class AdminProductsController {
   /** `multipart/form-data`: the product as JSON in `data` and from 1 to 5 files in `images`. */
   @Post()
   @UseInterceptors(ProductFormInterceptor)
+  @ApiOperation({ summary: "Create a product with its first images" })
+  @ApiConsumes("multipart/form-data")
+  @ApiBody({
+    schema: {
+      type: "object",
+      required: ["data", "images"],
+      properties: {
+        data: {
+          type: "string",
+          description: `The product as JSON, as \`${getSchemaPath(CreateProductRequestDto)}\` describes it.`,
+        },
+        images: {
+          type: "array",
+          description:
+            "From 1 to 5 JPEG, PNG or WebP files of up to 10 MB, in the order they are shown.",
+          items: { type: "string", format: "binary" },
+        },
+      },
+    },
+  })
+  @ApiCreatedResponse({ type: AdminProductDetailResponseDto })
+  @ApiErrors({
+    400: [
+      VALIDATION_FAILED,
+      "INVALID_PRODUCT_TITLE",
+      "INVALID_DESCRIPTION",
+      "INVALID_MONEY",
+      "INVALID_PRICE",
+      "INVALID_STOCK",
+      "INVALID_SORT_ORDER",
+      "INVALID_SALE_END",
+      "INVALID_NEW_UNTIL",
+      "INVALID_CATEGORY_ASSIGNMENT",
+      "INVALID_RELATED_PRODUCTS",
+      "INVALID_SLUG",
+      "INVALID_IMAGE",
+      "INVALID_IMAGE_COUNT",
+    ],
+    422: ["SALE_PRICE_NOT_LOWER", "CATEGORY_UNAVAILABLE", "RELATED_PRODUCT_UNAVAILABLE"],
+    502: ["IMAGE_UPLOAD_FAILED"],
+  })
   create(
     @Body() body: CreateProductRequestDto,
     @UploadedFiles() files: Express.Multer.File[],
@@ -114,6 +183,31 @@ export class AdminProductsController {
   }
 
   @Patch(":id")
+  @ApiOperation({ summary: "Edit the fields sent; slug and SKU never change" })
+  @ApiOkResponse({ type: AdminProductDetailResponseDto })
+  @ApiErrors({
+    400: [
+      VALIDATION_FAILED,
+      "INVALID_PRODUCT_TITLE",
+      "INVALID_DESCRIPTION",
+      "INVALID_MONEY",
+      "INVALID_PRICE",
+      "INVALID_STOCK",
+      "INVALID_SORT_ORDER",
+      "INVALID_SALE_END",
+      "INVALID_NEW_UNTIL",
+      "INVALID_CATEGORY_ASSIGNMENT",
+      "INVALID_RELATED_PRODUCTS",
+    ],
+    404: ["PRODUCT_NOT_FOUND"],
+    422: [
+      "PRODUCT_DELETED",
+      "SALE_PRICE_NOT_LOWER",
+      "CATEGORY_UNAVAILABLE",
+      "RELATED_PRODUCT_UNAVAILABLE",
+      "SELF_RELATED_PRODUCT",
+    ],
+  })
   update(
     @Param("id", PRODUCT_ID) id: string,
     @Body() body: UpdateProductRequestDto,
@@ -142,12 +236,21 @@ export class AdminProductsController {
   /** A logical deletion: the product stays, with its images, and can be restored. */
   @Delete(":id")
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: "Delete the product logically; repeating it changes nothing" })
+  @ApiNoContentResponse()
+  @ApiErrors({ 404: ["PRODUCT_NOT_FOUND"] })
   remove(@Param("id", PRODUCT_ID) id: string, @CurrentUser() actor: AuthUser): Promise<void> {
     return this.deleteProduct.execute({ productId: id, actorId: actor.id });
   }
 
   @Post(":id/restore")
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Restore a deleted product, with the state and categories it had" })
+  @ApiOkResponse({ type: AdminProductDetailResponseDto })
+  @ApiErrors({
+    404: ["PRODUCT_NOT_FOUND"],
+    422: ["PRODUCT_NOT_DELETED", "PRODUCT_WITHOUT_CATEGORY"],
+  })
   restore(
     @Param("id", PRODUCT_ID) id: string,
     @CurrentUser() actor: AuthUser,
