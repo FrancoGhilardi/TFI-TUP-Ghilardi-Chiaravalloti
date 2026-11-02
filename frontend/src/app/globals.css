@@ -1,26 +1,133 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* The store has a light theme only: `dark:` utilities from shadcn apply under `.dark`, never set. */
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --color-cream: #fbf6ea;
+  --color-wheat: #f3e8cf;
+  --color-wheat-deep: #ecd6b1;
+  --color-surface: #ffffff;
+  --color-line: #e7d6b6;
+  --color-line-soft: #efe3c9;
+  --color-ink: #473826;
+  --color-ink-soft: #7c6a50;
+  --color-teal: #3e7370;
+  --color-teal-deep: #2d5754;
+  --color-teal-soft: #e0ebe8;
+  --color-gold: #e3b23c;
+  --color-gold-deep: #c58f23;
+  --color-gold-soft: #f7e9c5;
+  --color-coral: #c25a3a;
+  --color-coral-soft: #f6e0d5;
+  --color-wa: #1faf54;
+
+  /* Darker than the brand tone wherever text sits on them, to meet WCAG AA contrast. */
+  --color-wa-strong: #157a3a;
+  --color-wa-strong-hover: #136f35;
+  --color-coral-strong: #b5502f;
+  --color-footer-muted: #b8ac92;
+  --color-footer-text: #cbbfa6;
+
+  --shadow-soft: 0 1px 2px rgb(71 56 38 / 0.06), 0 8px 24px -12px rgb(71 56 38 / 0.18);
+  --shadow-raised: 0 2px 6px rgb(71 56 38 / 0.08), 0 24px 48px -20px rgb(71 56 38 / 0.28);
+
+  --radius-card: 18px;
+  --container-site: 1180px;
+
+  /* Width from which the header shows its full navigation instead of the menu button. */
+  --breakpoint-nav: 861px;
 }
 
 @theme inline {
+  --font-sans: var(--font-jakarta), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-serif: var(--font-fraunces), Georgia, "Times New Roman", serif;
+  --font-script: var(--font-caveat), "Segoe Script", cursive;
+  --font-heading: var(--font-serif);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* shadcn tokens mapped to the store palette. */
+:root {
+  --background: var(--color-cream);
+  --foreground: var(--color-ink);
+  --card: var(--color-surface);
+  --card-foreground: var(--color-ink);
+  --popover: var(--color-surface);
+  --popover-foreground: var(--color-ink);
+  --primary: var(--color-teal);
+  --primary-foreground: #ffffff;
+  --secondary: var(--color-wheat);
+  --secondary-foreground: var(--color-ink);
+  --muted: var(--color-wheat);
+  --muted-foreground: var(--color-ink-soft);
+  --accent: var(--color-wheat);
+  --accent-foreground: var(--color-ink);
+  --destructive: var(--color-coral);
+  --border: var(--color-line);
+  --input: var(--color-line);
+  --ring: var(--color-teal);
+  --radius: 0.75rem;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-heading;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-teal;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
