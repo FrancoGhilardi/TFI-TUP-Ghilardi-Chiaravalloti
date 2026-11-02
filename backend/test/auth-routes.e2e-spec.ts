@@ -57,11 +57,6 @@ const ERRORS = {
     code: "INVALID_SESSION",
     message: "Tu sesión terminó. Iniciá sesión de nuevo.",
   },
-  notImplemented: {
-    statusCode: 501,
-    code: "NOT_IMPLEMENTED",
-    message: "Esta función todavía no está disponible.",
-  },
 } as const;
 
 type Expected = (typeof ERRORS)[keyof typeof ERRORS];
@@ -112,14 +107,14 @@ describe("Authentication routes (e2e)", () => {
     await expectError(pending, ERRORS.invalidSession);
   };
   // What each account route answers once the token, pending change and role checks pass:
-  // change-password reaches its validation with an empty body, and /me is not built yet.
-  const expectPastAccessChecks = async (path: string, pending: request.Test) => {
+  // change-password reaches its validation with an empty body, and /me returns the user.
+  const expectPastAccessChecks = async (path: string, pending: request.Test, userId: string) => {
     if (path === "/api/v1/auth/change-password") {
       const body = (await pending.expect(400)).body as ErrorResponse;
       expect(body).toMatchObject({ statusCode: 400, code: "VALIDATION_FAILED" });
       return;
     }
-    await expectError(pending, ERRORS.notImplemented);
+    expect(((await pending.expect(200)).body as { id: string }).id).toBe(userId);
   };
   const call = (method: "GET" | "POST", path: string) =>
     method === "GET" ? http.get(path) : http.post(path);
@@ -157,7 +152,11 @@ describe("Authentication routes (e2e)", () => {
     it.each(accountRoutes)(
       "%s %s lets a user with a pending change through",
       async (method, path) => {
-        await expectPastAccessChecks(path, withToken(call(method, path), tokens.pending));
+        await expectPastAccessChecks(
+          path,
+          withToken(call(method, path), tokens.pending),
+          ids.pending,
+        );
       },
     );
 
@@ -192,7 +191,7 @@ describe("Authentication routes (e2e)", () => {
     });
 
     it.each(accountRoutes)("%s %s does not require an Origin", async (method, path) => {
-      await expectPastAccessChecks(path, withToken(call(method, path), tokens.ready));
+      await expectPastAccessChecks(path, withToken(call(method, path), tokens.ready), ids.ready);
     });
   });
 

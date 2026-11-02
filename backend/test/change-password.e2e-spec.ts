@@ -145,6 +145,7 @@ describe("Change password (e2e)", () => {
         .set("User-Agent", "Firefox")
         .expect(200);
 
+      expect(response.get("Cache-Control")).toBe("no-store");
       const body = response.body as { accessToken: string; expiresIn: number; user: unknown };
       expect(Object.keys(body).sort()).toEqual(["accessToken", "expiresIn", "user"]);
       expect(body.user).toEqual({
