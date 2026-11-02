@@ -187,22 +187,70 @@ describe("DrizzleSessionRepository (e2e)", () => {
     expect((await repository.findByTokenHash("other-login"))?.revokedAt).toBeUndefined();
   });
 
-  it("deletes the sessions that expired before a date and returns how many", async () => {
+  it("deletes the sessions expired by now, revoked or not, and the one expiring right now", async () => {
+    const cutoff = new Date("2026-10-21T00:00:00.000Z");
     await repository.save(start({ tokenHash: "old", expiresAt: new Date("2026-10-20T13:00:00Z") }));
     await repository.save(
-      start({ tokenHash: "older", expiresAt: new Date("2026-10-20T12:30:00Z") }),
+      start({ tokenHash: "rotated", expiresAt: new Date("2026-10-20T14:00:00Z") }),
     );
-    await repository.save(start({ tokenHash: "current" }));
+    await pool.query(
+      "UPDATE libreria.sessions SET revoked_at = $2, rotated_at = $2 WHERE refresh_token_hash = $1",
+      ["rotated", NOW],
+    );
+    await repository.save(start({ tokenHash: "right-now", expiresAt: cutoff }));
+    await repository.save(
+      start({ tokenHash: "one-ms-left", expiresAt: new Date(cutoff.getTime() + 1) }),
+    );
+    await repository.save(start({ tokenHash: "revoked-running" }));
+    await pool.query("UPDATE libreria.sessions SET revoked_at = $2 WHERE refresh_token_hash = $1", [
+      "revoked-running",
+      NOW,
+    ]);
+    await repository.save(start({ tokenHash: "running" }));
 
-    await expect(repository.deleteExpiredBefore(new Date("2026-10-21T00:00:00Z"))).resolves.toBe(2);
-    await expect(repository.findByTokenHash("old")).resolves.toBeNull();
-    await expect(repository.findByTokenHash("current")).resolves.not.toBeNull();
+    await expect(repository.deleteExpired(cutoff)).resolves.toBe(3);
+
+    const { rows } = await pool.query<{ refresh_token_hash: string }>(
+      "SELECT refresh_token_hash FROM libreria.sessions ORDER BY refresh_token_hash",
+    );
+    expect(rows.map((row) => row.refresh_token_hash)).toEqual([
+      "one-ms-left",
+      "revoked-running",
+      "running",
+    ]);
+    // Nothing is left to delete the second time.
+    await expect(repository.deleteExpired(cutoff)).resolves.toBe(0);
+  });
+
+  it("skips, without waiting, an expired session another transaction holds, until the next run", async () => {
+    await repository.save(
+      start({ tokenHash: "held", expiresAt: new Date("2026-10-20T13:00:00Z") }),
+    );
+    await repository.save(
+      start({ tokenHash: "free", expiresAt: new Date("2026-10-20T14:00:00Z") }),
+    );
+    const holder = await pool.connect();
+    try {
+      await holder.query("BEGIN");
+      await holder.query(
+        "SELECT id FROM libreria.sessions WHERE refresh_token_hash = 'held' FOR UPDATE",
+      );
+
+      await expect(repository.deleteExpired(IN_A_WEEK)).resolves.toBe(1);
+
+      await holder.query("COMMIT");
+    } finally {
+      holder.release();
+    }
+    await expect(repository.findByTokenHash("free")).resolves.toBeNull();
+    await expect(repository.deleteExpired(IN_A_WEEK)).resolves.toBe(1);
+    await expect(repository.findByTokenHash("held")).resolves.toBeNull();
   });
 
   it("deletes nothing when no session expired", async () => {
     await repository.save(start());
 
-    await expect(repository.deleteExpiredBefore(NOW)).resolves.toBe(0);
+    await expect(repository.deleteExpired(NOW)).resolves.toBe(0);
   });
 
   describe("locking", () => {

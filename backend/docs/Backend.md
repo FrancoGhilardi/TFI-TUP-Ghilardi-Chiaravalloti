@@ -592,7 +592,7 @@ classDiagram
         +save(session: Session) Promise~void~
         +revokeFamily(familyId: string, now: Date) Promise~void~
         +revokeAllForUser(userId: string, now: Date) Promise~void~
-        +deleteExpiredBefore(date: Date) Promise~number~
+        +deleteExpired(now: Date) Promise~number~
     }
 
     class SelfAdministrationError { <<BusinessRuleViolationError>> }
@@ -824,7 +824,7 @@ classDiagram
     class PurgeExpiredSessionsUseCase {
         -sessions: SessionRepository
         -clock: Clock
-        +execute() Promise~StaleImagesResult~
+        +execute() Promise~PurgedSessionsResult~
     }
 
     class ListUsersUseCase {
@@ -1144,7 +1144,7 @@ classDiagram
         +save(session: Session) Promise~void~
         +revokeFamily(familyId: string, now: Date) Promise~void~
         +revokeAllForUser(userId: string, now: Date) Promise~void~
-        +deleteExpiredBefore(date: Date) Promise~number~
+        +deleteExpired(now: Date) Promise~number~
     }
     class DrizzleUserQueries {
         <<queries>>
@@ -1326,7 +1326,7 @@ classDiagram
 - **`UsersController`**: expone los endpoints de administración de usuarios. Está restringido en su totalidad al rol `ADMIN`, mediante una única declaración a nivel de clase que se aplica a todos sus endpoints. Un identificador que no tiene formato UUID se responde como un usuario inexistente (`UserNotFoundError`, 404), sin consultar la base de datos. Si dos operaciones simultáneas asignan el mismo email, el índice único de la base frena la segunda y el repositorio la informa como `EmailAlreadyInUseError`, igual que el chequeo previo.
 - **`RefreshTokenCookie`**: centraliza la escritura, lectura y eliminación de la cookie que almacena el refresh token. La cookie se configura como `HttpOnly` (inaccesible desde JavaScript), `Secure` (solo se transmite por HTTPS), `SameSite=Strict` (no se envía en solicitudes originadas en otros sitios) y con alcance limitado a las rutas de autenticación. La lectura se apoya en `cookie-parser`, y la eliminación utiliza los mismos atributos que la escritura, ya que de lo contrario el navegador no la borra.
 - **`JwtAuthGuard`**: lee el access token del encabezado `Authorization: Bearer`, lo valida mediante `AccessTokenService` y, con `ResolveAuthenticatedUserUseCase`, obtiene los datos actualizados del usuario desde la base de datos. Se registra como guard global en `AppModule`.
-- **`SessionsCleanupScheduler`**: tarea programada que ejecuta periódicamente `PurgeExpiredSessionsUseCase` para eliminar las sesiones vencidas.
+- **`SessionsCleanupScheduler`**: tarea programada que ejecuta `PurgeExpiredSessionsUseCase` todos los días a las 03:00 (hora de Argentina) para eliminar las sesiones vencidas, es decir, aquellas cuyo vencimiento ya llegó, estén revocadas o no. Una sesión vigente nunca se toca, aunque esté revocada, porque se necesita para detectar la reutilización de su refresh token. Una sesión vencida ya no sirve para renovar, así que la limpieza solo mantiene chica la tabla: no corre al iniciar la aplicación. Si otra operación tiene bloqueada una sesión vencida, por ejemplo una renovación o una revocación de todas las sesiones de un usuario, la limpieza la saltea sin esperar y la elimina en la corrida siguiente, de modo que nunca se bloquean mutuamente. Repetirla no tiene efecto, registra en el log cuántas sesiones eliminó y una falla se registra sin interrumpir la aplicación.
 - **DTOs de solicitud**: validan los datos recibidos en cada endpoint mediante `class-validator`. Cada DTO contiene los mismos campos que el command o query que representa, salvo el identificador del usuario que realiza la acción, el identificador del usuario afectado y el dispositivo de origen. Estos datos los completa el controlador a partir del usuario autenticado, de la ruta y de los encabezados de la solicitud, y nunca se aceptan desde el cuerpo enviado por el cliente, lo que impide que un usuario se haga pasar por otro.
 - **`LoginRequestDto`**: solo exige que el email y la contraseña sean textos no vacíos y de longitud acotada, para no procesar entradas desmedidas. Elimina los espacios al inicio y al final del email, pero conserva la contraseña tal como fue ingresada. No valida el formato del email ni la política de contraseñas, ya que el inicio de sesión solo compara lo ingresado con lo almacenado: un email con formato inválido recibe la misma respuesta que uno inexistente. Sus mensajes de validación están en español, porque el panel los muestra al usuario.
 - **`AccessTokenResponseDto`**: estructura de la respuesta de los endpoints que inician o renuevan una sesión. Incluye el access token, su duración y los datos del usuario. El refresh token no forma parte de la respuesta, ya que se envía exclusivamente en la cookie.
