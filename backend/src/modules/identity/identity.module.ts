@@ -1,6 +1,5 @@
 import { Module } from "@nestjs/common";
 import { JwtModule } from "@nestjs/jwt";
-import { PassportModule } from "@nestjs/passport";
 import { AccessTokenService } from "./application/ports/access-token-service.js";
 import { ResolveAuthenticatedUserUseCase } from "./application/use-cases/resolve-authenticated-user.use-case.js";
 import { UserRepository } from "./domain/repositories/user.repository.js";
@@ -8,11 +7,10 @@ import { DrizzleUserRepository } from "./infrastructure/persistence/drizzle-user
 import { JwtAccessTokenService } from "./infrastructure/security/jwt-access-token.service.js";
 import { OriginGuard } from "./presentation/guards/origin.guard.js";
 import { AuthController } from "./presentation/http/auth.controller.js";
-import { JwtStrategy } from "./presentation/strategies/jwt.strategy.js";
 
 @Module({
-  // The secret and lifetime are passed on each signature by JwtAccessTokenService.
-  imports: [PassportModule, JwtModule.register({})],
+  // The secret and lifetime are passed on each call by JwtAccessTokenService.
+  imports: [JwtModule.register({})],
   controllers: [AuthController],
   providers: [
     OriginGuard,
@@ -23,8 +21,8 @@ import { JwtStrategy } from "./presentation/strategies/jwt.strategy.js";
       useFactory: (users: UserRepository) => new ResolveAuthenticatedUserUseCase(users),
       inject: [UserRepository],
     },
-    JwtStrategy,
   ],
-  exports: [AccessTokenService],
+  // JwtAuthGuard is registered globally in AppModule and needs both.
+  exports: [AccessTokenService, ResolveAuthenticatedUserUseCase],
 })
 export class IdentityModule {}

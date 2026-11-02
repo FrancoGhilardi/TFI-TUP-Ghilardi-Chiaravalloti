@@ -86,10 +86,21 @@ describe("validateEnv", () => {
   });
 
   it("converts JWT_ACCESS_TTL_SECONDS from a string", () => {
-    expect(validateEnv({ ...BASE, JWT_ACCESS_TTL_SECONDS: "60" }).JWT_ACCESS_TTL_SECONDS).toBe(60);
+    expect(validateEnv({ ...BASE, JWT_ACCESS_TTL_SECONDS: "120" }).JWT_ACCESS_TTL_SECONDS).toBe(
+      120,
+    );
   });
 
-  it.each(["0", "-1", "1.5"])("rejects JWT_ACCESS_TTL_SECONDS=%s", (value) => {
+  it.each([
+    ["one minute", "60", 60],
+    ["one hour", "3600", 3600],
+  ])("accepts an access token lifetime of %s", (_label, value, expected) => {
+    expect(validateEnv({ ...BASE, JWT_ACCESS_TTL_SECONDS: value }).JWT_ACCESS_TTL_SECONDS).toBe(
+      expected,
+    );
+  });
+
+  it.each(["0", "-1", "1.5", "59", "3601"])("rejects JWT_ACCESS_TTL_SECONDS=%s", (value) => {
     expect(() => validateEnv({ ...BASE, JWT_ACCESS_TTL_SECONDS: value })).toThrow(
       "JWT_ACCESS_TTL_SECONDS",
     );

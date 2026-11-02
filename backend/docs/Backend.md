@@ -675,6 +675,7 @@ classDiagram
     class AccessTokenService {
         <<abstract port>>
         +issue(user: User) AccessToken
+        +verify(token: string) AccessTokenClaims
     }
     class RefreshTokenService {
         <<abstract port>>
@@ -936,7 +937,7 @@ classDiagram
 
 - **`PasswordHasher`**: genera el hash de una contraseña y verifica si una contraseña coincide con un hash almacenado.
 - **`TemporaryPasswordGenerator`**: genera claves temporales aleatorias.
-- **`AccessTokenService`**: emite el access token (JWT) que el usuario utiliza para autenticarse en cada solicitud.
+- **`AccessTokenService`**: emite el access token (JWT) que el usuario utiliza para autenticarse en cada solicitud y lo valida cuando llega, devolviendo el identificador del usuario y el momento de emisión. Toda validación del token pasa por este contrato.
 - **`RefreshTokenService`**: genera los refresh tokens y calcula su hash, ya que en la base de datos nunca se almacena el token real.
 - **`PasswordResetNotifier`**: envía por mail las claves temporales.
 - **`UserQueries`**: resuelve las consultas de lectura de usuarios (listados paginados y consulta individual) sin reconstruir entidades.
@@ -1089,6 +1090,7 @@ classDiagram
         -jwtService: JwtService
         -settings: AuthSettings
         +issue(user: User) AccessToken
+        +verify(token: string) AccessTokenClaims
     }
     class Sha256RefreshTokenService {
         <<adapter>>
@@ -1146,10 +1148,11 @@ classDiagram
         +read(req: Request) string
         +clear(res: Response) void
     }
-    class JwtStrategy {
-        <<strategy>>
+    class JwtAuthGuard {
+        <<guard>>
+        -accessTokens: AccessTokenService
         -resolveUser: ResolveAuthenticatedUserUseCase
-        +validate(payload: JwtPayload) Promise~AuthUser~
+        +canActivate(context: ExecutionContext) Promise~boolean~
     }
     class SessionsCleanupScheduler {
         <<scheduler>>
@@ -1190,7 +1193,6 @@ classDiagram
     UsersController ..> ListUsersRequestDto
     IdentityModule --> AuthController
     IdentityModule --> UsersController
-    IdentityModule --> JwtStrategy
     IdentityModule --> SessionsCleanupScheduler
 ```
 
@@ -1206,7 +1208,7 @@ classDiagram
 
 - **`Argon2PasswordHasher`**: implementa `PasswordHasher` con el algoritmo Argon2id, recomendado actualmente para el almacenamiento de contraseñas por su resistencia a ataques de fuerza bruta.
 - **`CryptoTemporaryPasswordGenerator`**: implementa `TemporaryPasswordGenerator`. Genera claves de 12 caracteres mediante un generador criptográficamente seguro, excluyendo los caracteres que pueden confundirse visualmente (`0` y `O`, `1`, `l` e `I`), para facilitar su lectura y transcripción desde el mail.
-- **`JwtAccessTokenService`**: implementa `AccessTokenService`. Emite access tokens firmados con el algoritmo HS256, con una duración de 15 minutos, que contienen únicamente el identificador del usuario. El rol y el estado no se incluyen en el token, sino que se consultan en la base de datos en cada solicitud.
+- **`JwtAccessTokenService`**: implementa `AccessTokenService`. Emite access tokens firmados con el algoritmo HS256, con una duración configurable entre 1 minuto y 1 hora (15 minutos por defecto), que contienen únicamente el identificador del usuario. Al validarlos, acepta solo HS256, no admite tolerancia de reloj en el vencimiento y rechaza cualquier token sin identificador de usuario, fecha de emisión o vencimiento. El rol y el estado no se incluyen en el token, sino que se consultan en la base de datos en cada solicitud.
 - **`Sha256RefreshTokenService`**: implementa `RefreshTokenService`. Genera refresh tokens de 32 bytes aleatorios y almacena en la base de datos únicamente su hash SHA-256. A diferencia de las contraseñas, no requiere un algoritmo de hash lento, ya que el token es aleatorio y de alta entropía, lo que hace inviable un ataque de fuerza bruta.
 - **`ResendPasswordResetNotifier`**: implementa `PasswordResetNotifier` mediante el servicio Resend. Envía un mail, en formato de texto y HTML, con la clave temporal, su vencimiento y el enlace de acceso al panel.
 
@@ -1215,7 +1217,7 @@ classDiagram
 - **`AuthController`**: expone los endpoints de autenticación: inicio y cierre de sesión, renovación de sesión, recuperación y cambio de contraseña, y consulta de los datos del usuario autenticado.
 - **`UsersController`**: expone los endpoints de administración de usuarios. Está restringido en su totalidad al rol `ADMIN`, mediante una única declaración a nivel de clase que se aplica a todos sus endpoints.
 - **`RefreshTokenCookie`**: centraliza la escritura, lectura y eliminación de la cookie que almacena el refresh token. La cookie se configura como `HttpOnly` (inaccesible desde JavaScript), `Secure` (solo se transmite por HTTPS), `SameSite=Strict` (no se envía en solicitudes originadas en otros sitios) y con alcance limitado a las rutas de autenticación.
-- **`JwtStrategy`**: valida el access token de cada solicitud y, mediante `ResolveAuthenticatedUserUseCase`, obtiene los datos actualizados del usuario desde la base de datos.
+- **`JwtAuthGuard`**: lee el access token del encabezado `Authorization: Bearer`, lo valida mediante `AccessTokenService` y, con `ResolveAuthenticatedUserUseCase`, obtiene los datos actualizados del usuario desde la base de datos. Se registra como guard global en `AppModule`.
 - **`SessionsCleanupScheduler`**: tarea programada que ejecuta periódicamente `PurgeExpiredSessionsUseCase` para eliminar las sesiones vencidas.
 - **DTOs de solicitud**: validan los datos recibidos en cada endpoint mediante `class-validator`. Cada DTO contiene los mismos campos que el command o query que representa, salvo el identificador del usuario que realiza la acción, el identificador del usuario afectado y el dispositivo de origen. Estos datos los completa el controlador a partir del usuario autenticado, de la ruta y de los encabezados de la solicitud, y nunca se aceptan desde el cuerpo enviado por el cliente, lo que impide que un usuario se haga pasar por otro.
 - **`AccessTokenResponseDto`**: estructura de la respuesta de los endpoints que inician o renuevan una sesión. Incluye el access token, su duración y los datos del usuario. El refresh token no forma parte de la respuesta, ya que se envía exclusivamente en la cookie.
@@ -1232,7 +1234,7 @@ classDiagram
 
 - **Con el frontend**: el access token se entrega en el cuerpo de la respuesta y el frontend lo conserva únicamente en memoria. El refresh token viaja en la cookie, que el navegador envía automáticamente al renovar la sesión. Para que esto funcione, el frontend y la API deben compartir el mismo dominio (el sitio en el dominio principal y la API en el subdominio `api`).
 
-- **Con el resto de los módulos**: `JwtStrategy` y los guards globales protegen todos los endpoints del sistema, incluidos los del módulo `catalog`. De esta forma, el módulo `identity` provee la autenticación y la autorización para toda la API.
+- **Con el resto de los módulos**: `JwtAuthGuard` y el resto de los guards globales protegen todos los endpoints del sistema, incluidos los del módulo `catalog`. De esta forma, el módulo `identity` provee la autenticación y la autorización para toda la API.
 
 ---
 
@@ -2819,7 +2821,7 @@ Esta sección reúne las decisiones de diseño más relevantes del backend que n
 
 La autenticación combina dos tokens con características y formas de almacenamiento diferentes, con el objetivo de reducir el impacto de un eventual robo de credenciales.
 
-**Access token.** Se entrega en el cuerpo de la respuesta, tiene una duración de 15 minutos y el frontend lo conserva únicamente en memoria, nunca en `localStorage`. Se envía en cada solicitud mediante el encabezado `Authorization: Bearer`. Al no persistirse en el navegador, un script malicioso inyectado en la página no puede leerlo desde el almacenamiento local, y su corta duración limita el tiempo durante el cual podría utilizarse si fuera interceptado.
+**Access token.** Se entrega en el cuerpo de la respuesta, tiene una duración de 15 minutos (configurable entre 1 minuto y 1 hora) y el frontend lo conserva únicamente en memoria, nunca en `localStorage`. Se envía en cada solicitud mediante el encabezado `Authorization: Bearer`. Al no persistirse en el navegador, un script malicioso inyectado en la página no puede leerlo desde el almacenamiento local, y su corta duración limita el tiempo durante el cual podría utilizarse si fuera interceptado.
 
 **Refresh token.** Se entrega en una cookie con la siguiente configuración:
 

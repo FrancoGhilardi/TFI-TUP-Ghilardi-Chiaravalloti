@@ -2,15 +2,21 @@ import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import type { Env } from "../../../../config/env.js";
+import { InvalidAccessTokenError } from "../../application/errors/invalid-access-token-error.js";
 import {
   type AccessToken,
+  type AccessTokenClaims,
   AccessTokenService,
 } from "../../application/ports/access-token-service.js";
 import type { User } from "../../domain/entities/user.js";
 
+const ALGORITHM = "HS256";
+// User ids are uuids; anything else would fail in the database instead of as a bad token.
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
- * Signs access tokens with HS256. They carry only the user id: role and status are read
- * from the database on every request, so a change to the user applies immediately.
+ * Signs and verifies access tokens with HS256. They carry only the user id: role and status
+ * are read from the database on every request, so a change to the user applies immediately.
  */
 @Injectable()
 export class JwtAccessTokenService extends AccessTokenService {
@@ -25,12 +31,37 @@ export class JwtAccessTokenService extends AccessTokenService {
     const expiresInSeconds = this.config.get("JWT_ACCESS_TTL_SECONDS", { infer: true });
     const token = this.jwt.sign(
       { sub: user.getId() },
-      {
-        secret: this.config.get("JWT_ACCESS_SECRET", { infer: true }),
-        algorithm: "HS256",
-        expiresIn: expiresInSeconds,
-      },
+      { secret: this.secret(), algorithm: ALGORITHM, expiresIn: expiresInSeconds },
     );
     return { token, expiresInSeconds };
+  }
+
+  verify(token: string): AccessTokenClaims {
+    let payload: Record<string, unknown>;
+    try {
+      // Only HS256 is accepted, so an unsigned token or another algorithm never passes;
+      // with no clock tolerance the token expires exactly at `exp`.
+      payload = this.jwt.verify<Record<string, unknown>>(token, {
+        secret: this.secret(),
+        algorithms: [ALGORITHM],
+      });
+    } catch {
+      throw new InvalidAccessTokenError();
+    }
+
+    const { sub, iat, exp } = payload;
+    if (
+      typeof sub !== "string" ||
+      !UUID_PATTERN.test(sub) ||
+      typeof iat !== "number" ||
+      typeof exp !== "number"
+    ) {
+      throw new InvalidAccessTokenError();
+    }
+    return { userId: sub, issuedAt: new Date(iat * 1000) };
+  }
+
+  private secret(): string {
+    return this.config.get("JWT_ACCESS_SECRET", { infer: true });
   }
 }
