@@ -35,22 +35,25 @@ const DOMAIN_ERROR_STATUS: [typeof DomainError, HttpStatus][] = [
   [BusinessRuleViolationError, HttpStatus.UNPROCESSABLE_ENTITY],
 ];
 
+/** Shown to end users as is, so they are written in Spanish and free of technical terms. */
+export const DATABASE_ERROR_MESSAGES = {
+  UNIQUE_VIOLATION:
+    "Ya existe un registro con estos datos. Revisá la información e intentá de nuevo.",
+  FOREIGN_KEY_VIOLATION:
+    "No se pudo completar la operación porque hace referencia a datos que no existen o que todavía se están usando en otro lugar.",
+  CHECK_VIOLATION: "No se pudo completar la operación porque no cumple con las reglas del sistema.",
+} as const;
+
+type DatabaseErrorCode = keyof typeof DATABASE_ERROR_MESSAGES;
+
+function databaseError(statusCode: HttpStatus, code: DatabaseErrorCode): ErrorBody {
+  return { statusCode, code, message: DATABASE_ERROR_MESSAGES[code] };
+}
+
 const SQL_STATE_ERRORS: Record<string, ErrorBody> = {
-  "23505": {
-    statusCode: HttpStatus.CONFLICT,
-    code: "UNIQUE_VIOLATION",
-    message: "The resource conflicts with an existing one",
-  },
-  "23503": {
-    statusCode: HttpStatus.CONFLICT,
-    code: "FOREIGN_KEY_VIOLATION",
-    message: "The resource is referenced by or references another resource",
-  },
-  "23514": {
-    statusCode: HttpStatus.UNPROCESSABLE_ENTITY,
-    code: "CHECK_VIOLATION",
-    message: "The data violates a business rule",
-  },
+  "23505": databaseError(HttpStatus.CONFLICT, "UNIQUE_VIOLATION"),
+  "23503": databaseError(HttpStatus.CONFLICT, "FOREIGN_KEY_VIOLATION"),
+  "23514": databaseError(HttpStatus.UNPROCESSABLE_ENTITY, "CHECK_VIOLATION"),
 };
 
 const HTTP_STATUS_CODES: Record<number, string> = {

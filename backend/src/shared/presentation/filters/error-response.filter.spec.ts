@@ -141,29 +141,55 @@ describe("ErrorResponseFilter", () => {
   });
 
   describe("PostgreSQL errors", () => {
+    // Literal texts on purpose: they are user-facing copy, so a change must be deliberate
     it.each([
-      ["23505", 409, "UNIQUE_VIOLATION"],
-      ["23503", 409, "FOREIGN_KEY_VIOLATION"],
-      ["23514", 422, "CHECK_VIOLATION"],
-    ])("maps SQLSTATE %s to %i", (sqlState, status, code) => {
+      [
+        "23505",
+        409,
+        "UNIQUE_VIOLATION",
+        "Ya existe un registro con estos datos. Revisá la información e intentá de nuevo.",
+      ],
+      [
+        "23503",
+        409,
+        "FOREIGN_KEY_VIOLATION",
+        "No se pudo completar la operación porque hace referencia a datos que no existen o que todavía se están usando en otro lugar.",
+      ],
+      [
+        "23514",
+        422,
+        "CHECK_VIOLATION",
+        "No se pudo completar la operación porque no cumple con las reglas del sistema.",
+      ],
+    ])("maps SQLSTATE %s to %i", (sqlState, status, code, message) => {
       const direct = setup().run(pgError(sqlState));
       const wrapped = setup().run(drizzleError(sqlState));
 
       for (const result of [direct, wrapped]) {
         expect(result.status).toBe(status);
-        expect(result.body.code).toBe(code);
+        expect(result.body).toMatchObject({ statusCode: status, code, message });
         expect(JSON.stringify(result.body)).not.toMatch(/users|constraint|insert|duplicate/i);
       }
     });
 
-    it("maps unmapped SQLSTATE to a 500 without details", () => {
-      const { body, status } = setup().run(drizzleError("22012"));
+    it.each(["22012", "23502"])(
+      "maps unmapped SQLSTATE %s to a 500 without details",
+      (sqlState) => {
+        const direct = setup().run(pgError(sqlState));
+        const wrapped = setup().run(drizzleError(sqlState));
 
-      expect(status).toBe(500);
-      expect(body.code).toBe("INTERNAL_ERROR");
-      expect(JSON.stringify(body)).not.toMatch(/users|insert/i);
-      expect(logError).toHaveBeenCalled();
-    });
+        for (const result of [direct, wrapped]) {
+          expect(result.status).toBe(500);
+          expect(result.body).toMatchObject({
+            statusCode: 500,
+            code: "INTERNAL_ERROR",
+            message: "Internal server error",
+          });
+          expect(JSON.stringify(result.body)).not.toMatch(/users|constraint|insert|duplicate/i);
+        }
+        expect(logError).toHaveBeenCalledTimes(2);
+      },
+    );
   });
 
   describe("HttpException", () => {

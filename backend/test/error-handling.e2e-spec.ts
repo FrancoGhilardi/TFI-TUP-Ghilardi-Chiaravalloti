@@ -16,8 +16,11 @@ import {
   ForbiddenActionError,
   InvalidValueError,
 } from "./../src/shared/domain/errors/index.js";
+import { DATABASE_ERROR_MESSAGES } from "./../src/shared/presentation/filters/error-response.filter.js";
 import type { ErrorResponse } from "./../src/shared/presentation/http/error-response.js";
 import { DrizzleClient } from "./../src/shared/infrastructure/database/drizzle.client.js";
+
+type ProbeTransaction = Parameters<Parameters<DrizzleClient["db"]["transaction"]>[0]>[0];
 
 class ProbeInvalidValueError extends InvalidValueError {
   constructor() {
@@ -93,9 +96,17 @@ class ErrorProbeController {
     return dto;
   }
 
+  /** Runs statements expected to fail; if they succeed, it throws so nothing is ever committed. */
+  private expectingFailure(work: (tx: ProbeTransaction) => Promise<unknown>) {
+    return this.drizzle.db.transaction(async (tx) => {
+      await work(tx);
+      throw new Error("The probe statements did not fail");
+    });
+  }
+
   @Get("unique-violation")
   uniqueViolation() {
-    return this.drizzle.db.transaction(async (tx) => {
+    return this.expectingFailure(async (tx) => {
       const insert = (name: string) =>
         tx.execute(
           sql`INSERT INTO libreria.categories (name, slug) VALUES (${name}, 'probe-slug')`,
@@ -107,7 +118,7 @@ class ErrorProbeController {
 
   @Get("check-violation")
   checkViolation() {
-    return this.drizzle.db.transaction((tx) =>
+    return this.expectingFailure((tx) =>
       tx.execute(
         sql`INSERT INTO libreria.categories (name, slug) VALUES ('Probe check', 'Not A Slug')`,
       ),
@@ -116,11 +127,58 @@ class ErrorProbeController {
 
   @Get("foreign-key-violation")
   foreignKeyViolation() {
-    return this.drizzle.db.transaction((tx) =>
+    return this.expectingFailure((tx) =>
       tx.execute(sql`
         INSERT INTO libreria.product_categories (product_id, category_id, is_primary)
         VALUES (gen_random_uuid(), gen_random_uuid(), true)
       `),
+    );
+  }
+
+  @Get("immutable-column")
+  immutableColumn() {
+    return this.expectingFailure(async (tx) => {
+      await tx.execute(
+        sql`INSERT INTO libreria.categories (name, slug) VALUES ('Probe immutable', 'probe-immutable')`,
+      );
+      await tx.execute(
+        sql`UPDATE libreria.categories SET slug = 'probe-changed' WHERE slug = 'probe-immutable'`,
+      );
+    });
+  }
+
+  @Get("last-admin-removal")
+  lastAdminRemoval() {
+    return this.expectingFailure(async (tx) => {
+      await tx.execute(sql`
+        INSERT INTO libreria.users (email, name, password_hash, role)
+        VALUES ('probe-' || gen_random_uuid() || '@example.com', 'Probe admin', 'hash', 'ADMIN')
+      `);
+      // Row-level triggers see the rows already updated by the same statement, so the last one fails
+      await tx.execute(sql`
+        UPDATE libreria.users SET is_active = false
+        WHERE role = 'ADMIN' AND is_active AND deleted_at IS NULL
+      `);
+    });
+  }
+
+  @Get("deferred-check-violation")
+  deferredCheckViolation() {
+    // The category and image constraint triggers are deferred, so the violation surfaces at COMMIT;
+    // this probe needs the commit and cannot use expectingFailure. A random slug keeps a leftover
+    // row from breaking later runs, and the suite removes any leftover afterwards.
+    return this.drizzle.db.transaction((tx) =>
+      tx.execute(sql`
+        INSERT INTO libreria.products (title, slug, price)
+        VALUES ('Probe deferred', 'probe-deferred-' || substr(md5(random()::text), 1, 8), 10)
+      `),
+    );
+  }
+
+  @Get("missing-required-value")
+  missingRequiredValue() {
+    return this.expectingFailure((tx) =>
+      tx.execute(sql`INSERT INTO libreria.categories (name, slug) VALUES (NULL, 'probe-missing')`),
     );
   }
 
@@ -160,6 +218,9 @@ describe("Error handling (e2e)", () => {
   });
 
   afterAll(async () => {
+    await app
+      .get(DrizzleClient)
+      .db.execute(sql`DELETE FROM libreria.products WHERE slug LIKE 'probe-deferred-%'`);
     await app.close();
   });
 
@@ -224,25 +285,55 @@ describe("Error handling (e2e)", () => {
   });
 
   describe("PostgreSQL errors", () => {
-    const leaks = /categories|product_categories|uq_|chk_|INSERT|constraint|probe-slug/i;
+    // Identifiers and texts that only the database produces: tables, constraints, SQL, RAISE messages, ids
+    const leaks =
+      /\b(categories|product_categories|products|product_images|users)\b|\b(uq|chk|fk|pk)_|\b(INSERT|UPDATE|SELECT|COMMIT)\b|constraint|immutable|administrator|must have|probe-|[0-9a-f]{8}-[0-9a-f]{4}-/i;
+    // The path echoes the probe route, which is not data coming from the database
+    const exposed = (body: ErrorResponse) => JSON.stringify({ ...body, path: undefined });
 
     it.each([
       ["unique-violation", 409, "UNIQUE_VIOLATION"],
       ["foreign-key-violation", 409, "FOREIGN_KEY_VIOLATION"],
       ["check-violation", 422, "CHECK_VIOLATION"],
-    ])("maps a real %s to %i", async (route, status, code) => {
+      ["immutable-column", 422, "CHECK_VIOLATION"],
+      ["last-admin-removal", 422, "CHECK_VIOLATION"],
+      ["deferred-check-violation", 422, "CHECK_VIOLATION"],
+    ] as const)("maps a real %s to %i", async (route, status, code) => {
       const body = await bodyOf(http.get(`/api/v1/error-probe/${route}`).expect(status));
 
-      expect(body.code).toBe(code);
-      expect(JSON.stringify(body)).not.toMatch(leaks);
+      expect(body).toMatchObject({
+        statusCode: status,
+        code,
+        message: DATABASE_ERROR_MESSAGES[code],
+      });
+      expect(exposed(body)).not.toMatch(leaks);
       expect(Object.keys(body).sort()).toEqual(ERROR_KEYS);
     });
 
     it("answers an unmapped SQL error with a 500 and no details", async () => {
       const body = await bodyOf(http.get("/api/v1/error-probe/unmapped-sql-error").expect(500));
 
-      expect(body).toMatchObject({ code: "INTERNAL_ERROR", message: "Internal server error" });
-      expect(JSON.stringify(body)).not.toMatch(/division|SELECT/i);
+      expect(body).toMatchObject({
+        statusCode: 500,
+        code: "INTERNAL_ERROR",
+        message: "Internal server error",
+      });
+      expect(exposed(body)).not.toMatch(/division/i);
+      expect(exposed(body)).not.toMatch(leaks);
+      expect(Object.keys(body).sort()).toEqual(ERROR_KEYS);
+    });
+
+    it("answers an unmapped integrity violation with a 500 and no details", async () => {
+      const body = await bodyOf(http.get("/api/v1/error-probe/missing-required-value").expect(500));
+
+      expect(body).toMatchObject({
+        statusCode: 500,
+        code: "INTERNAL_ERROR",
+        message: "Internal server error",
+      });
+      expect(exposed(body)).not.toMatch(/null|\bname\b/i);
+      expect(exposed(body)).not.toMatch(leaks);
+      expect(Object.keys(body).sort()).toEqual(ERROR_KEYS);
     });
   });
 });
