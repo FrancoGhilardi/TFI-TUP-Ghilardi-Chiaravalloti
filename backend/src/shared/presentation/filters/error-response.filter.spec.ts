@@ -87,8 +87,10 @@ function drizzleError(code: string): Error {
 
 function setup(options: { headersSent?: boolean; url?: string } = {}) {
   const reply = vi.fn();
+  const setHeader = vi.fn();
   const adapter = {
     reply,
+    setHeader,
     isHeadersSent: vi.fn().mockReturnValue(options.headersSent ?? false),
     getRequestUrl: vi.fn().mockReturnValue(options.url ?? "/api/v1/things?token=secret"),
   };
@@ -105,7 +107,7 @@ function setup(options: { headersSent?: boolean; url?: string } = {}) {
     const [, body, status] = (reply.mock.calls[0] ?? []) as [unknown, ErrorResponse, number];
     return { body, status };
   };
-  return { run, reply };
+  return { run, reply, setHeader };
 }
 
 describe("ErrorResponseFilter", () => {
@@ -334,6 +336,14 @@ describe("ErrorResponseFilter", () => {
       setup().run(new TestEntityNotFoundError());
 
       expect(logError).not.toHaveBeenCalled();
+    });
+
+    it("marks every error as not to be kept by any cache", () => {
+      const { run, setHeader } = setup();
+
+      run(new TestConflictError());
+
+      expect(setHeader).toHaveBeenCalledWith(expect.anything(), "Cache-Control", "no-store");
     });
 
     it("does not reply when headers were already sent", () => {

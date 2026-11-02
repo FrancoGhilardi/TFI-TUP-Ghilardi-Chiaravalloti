@@ -94,7 +94,7 @@ describe("Product", () => {
     });
   });
 
-  describe("price and sale (CA-1)", () => {
+  describe("price and sale", () => {
     it("starts a sale below the price, with or without an end", () => {
       const product = create();
 
@@ -176,7 +176,7 @@ describe("Product", () => {
     });
   });
 
-  describe("sale and new mark end when due (CA-2)", () => {
+  describe("sale and new mark end when due", () => {
     it("applies a sale until just before its end, and not from then on", () => {
       const product = create();
       product.startSale(pesos("800"), LATER, NOW);

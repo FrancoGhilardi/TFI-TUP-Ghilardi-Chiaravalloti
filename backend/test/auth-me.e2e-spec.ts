@@ -115,8 +115,9 @@ describe("GET /auth/me (e2e)", () => {
       expect((response.body as ErrorResponse).code).toBe("INVALID_ACCESS_TOKEN");
     };
 
-    it("without an access token", async () => {
+    it("without an access token, marking the error as not to be cached", async () => {
       await expectRejected(me());
+      expect((await me()).get("Cache-Control")).toBe("no-store");
     });
 
     it("with an invalid access token", async () => {
