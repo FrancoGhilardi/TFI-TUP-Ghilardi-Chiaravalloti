@@ -1,3 +1,4 @@
+import type { MockInstance } from "vitest";
 import {
   BadRequestException,
   ConflictException,
@@ -17,6 +18,7 @@ import {
   ConflictError,
   DomainError,
   EntityNotFoundError,
+  ExternalServiceError,
   ForbiddenActionError,
   InvalidValueError,
 } from "../../domain/errors/index.js";
@@ -53,6 +55,11 @@ class TestConflictError extends ConflictError {
 class TestBusinessRuleViolationError extends BusinessRuleViolationError {
   constructor() {
     super("RULE_BROKEN", "Rule broken");
+  }
+}
+class TestExternalServiceError extends ExternalServiceError {
+  constructor(cause?: unknown) {
+    super("PROVIDER_FAILED", "No se pudo completar. Probá de nuevo.", { cause });
   }
 }
 class TestUnmappedDomainError extends DomainError {
@@ -102,7 +109,7 @@ function setup(options: { headersSent?: boolean; url?: string } = {}) {
 }
 
 describe("ErrorResponseFilter", () => {
-  let logError: ReturnType<typeof vi.spyOn>;
+  let logError: MockInstance<Logger["error"]>;
 
   beforeEach(() => {
     logError = vi.spyOn(Logger.prototype, "error").mockImplementation(() => undefined);
@@ -163,6 +170,33 @@ describe("ErrorResponseFilter", () => {
       setup().run(new NotImplementedYetError());
 
       expect(logError).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("failing external services", () => {
+    it("answers a 502 with its code and message", () => {
+      const { body, status } = setup().run(new TestExternalServiceError());
+
+      expect(status).toBe(502);
+      expect(body).toMatchObject({
+        statusCode: 502,
+        code: "PROVIDER_FAILED",
+        message: "No se pudo completar. Probá de nuevo.",
+      });
+    });
+
+    it("logs it with the stack of what caused it", () => {
+      const cause = new Error("socket hang up", { cause: new Error("ECONNRESET") });
+      const error = new TestExternalServiceError(cause);
+
+      setup().run(error);
+
+      const [message, stack] = logError.mock.calls[0] as [string, string];
+      // Named by class and code: the message is the user's Spanish text.
+      expect(message).toBe("TestExternalServiceError PROVIDER_FAILED");
+      expect(stack).toContain(error.stack);
+      expect(stack).toContain(`Caused by: ${cause.stack}`);
+      expect(stack).toContain("Caused by: Error: ECONNRESET");
     });
   });
 
@@ -279,7 +313,7 @@ describe("ErrorResponseFilter", () => {
 
       expect(status).toBe(500);
       expect(body).toMatchObject({ code: "INTERNAL_ERROR", message: "Internal server error" });
-      expect(logError).toHaveBeenCalledWith("secret unmapped failure", error.stack);
+      expect(logError).toHaveBeenCalledWith("TestUnmappedDomainError UNMAPPED", error.stack);
     });
   });
 

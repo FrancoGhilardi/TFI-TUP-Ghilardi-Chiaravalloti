@@ -117,6 +117,10 @@ class RecordingNotifier extends PasswordResetNotifier {
     this.sent.push({ to, name, temporaryPassword, expiresAt });
     return Promise.resolve();
   }
+
+  sendAssignedPassword(): Promise<void> {
+    return Promise.reject(new Error("Not used by RequestPasswordResetUseCase"));
+  }
 }
 
 class RecordingTransaction extends TransactionManager {
@@ -297,9 +301,13 @@ describe("RequestPasswordResetUseCase", () => {
         },
       });
 
-      await expect(request("ana@example.com")).rejects.toThrow(
-        "The temporary password mail failed (mail provider down) and the password was kept",
-      );
+      const error = await request("ana@example.com").catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(AggregateError);
+      expect(error).toMatchObject({
+        message: "The temporary password mail failed and the password could not be withdrawn",
+        errors: [new Error("mail provider down"), new Error("database down")],
+      });
     });
   });
 

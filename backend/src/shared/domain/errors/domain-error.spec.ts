@@ -4,6 +4,7 @@ import {
   ConflictError,
   DomainError,
   EntityNotFoundError,
+  ExternalServiceError,
   ForbiddenActionError,
   InvalidValueError,
 } from "./index.js";
@@ -39,6 +40,12 @@ class NotAllowedError extends ForbiddenActionError {
   }
 }
 
+class ProviderDownError extends ExternalServiceError {
+  constructor(cause?: unknown) {
+    super("PROVIDER_DOWN", "Provider down", { cause });
+  }
+}
+
 const cases = [
   [new ProductNotFoundError(), EntityNotFoundError, "ProductNotFoundError", "PRODUCT_NOT_FOUND"],
   [new EmailTakenError(), ConflictError, "EmailTakenError", "EMAIL_TAKEN"],
@@ -46,6 +53,7 @@ const cases = [
   [new BadValueError(), InvalidValueError, "BadValueError", "BAD_VALUE"],
   [new BadCredentialsError(), AuthenticationError, "BadCredentialsError", "BAD_CREDENTIALS"],
   [new NotAllowedError(), ForbiddenActionError, "NotAllowedError", "NOT_ALLOWED"],
+  [new ProviderDownError(), ExternalServiceError, "ProviderDownError", "PROVIDER_DOWN"],
 ] as const;
 
 describe("DomainError hierarchy", () => {
@@ -57,7 +65,13 @@ describe("DomainError hierarchy", () => {
     expect(error.message).not.toBe("");
   });
 
-  it("discriminates between the six branches", () => {
+  it("keeps the failure that caused it", () => {
+    const cause = new Error("socket hang up");
+
+    expect(new ProviderDownError(cause).cause).toBe(cause);
+  });
+
+  it("discriminates between the seven branches", () => {
     const bases = cases.map(([, base]) => base);
     for (const [error, base] of cases) {
       for (const other of bases) {
