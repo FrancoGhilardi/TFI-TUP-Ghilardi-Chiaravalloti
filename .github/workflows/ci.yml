@@ -101,6 +101,9 @@ jobs:
 
       - run: pnpm format:check
       - run: pnpm lint
+      - run: pnpm test
+      # The build validates the environment, so it needs the example values.
+      - run: cp .env.example .env.local
       - run: pnpm build
 
   # Single check to require in the branch ruleset: it passes when the jobs that ran passed
