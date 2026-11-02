@@ -1,3 +1,4 @@
+import { ImageNotFailedError } from "../errors/image-not-failed-error.js";
 import { InvalidImageError } from "../errors/invalid-image-error.js";
 import { ImageStatus } from "../image-status.js";
 import { type NewProductImageProps, ProductImage } from "./product-image.js";
@@ -116,6 +117,63 @@ describe("ProductImage", () => {
       expect(() => processed.markProcessed(PROCESSED)).toThrow("not pending");
       expect(() => processed.markFailed()).toThrow("not pending");
       expect(() => failed.markProcessed(PROCESSED)).toThrow("not pending");
+    });
+  });
+
+  describe("editing", () => {
+    it("changes the alt text, trimmed, telling whether it changed", () => {
+      const image = register({ altText: "Tapa" });
+
+      expect(image.changeAltText(" Tapa ")).toBe(false);
+      expect(image.changeAltText(" Contratapa ")).toBe(true);
+      expect(image.altText).toBe("Contratapa");
+      expect(image.changeAltText("  ")).toBe(true);
+      expect(image.altText).toBeUndefined();
+    });
+
+    it("refuses a long alt text speaking of the image edited", () => {
+      expect(() => register({ position: 3 }).changeAltText("a".repeat(256))).toThrow(
+        "La imagen no puede tener un texto alternativo de más de 255 caracteres.",
+      );
+    });
+
+    it.each([0, 6, 1.5])("never moves to the position %o", (position) => {
+      expect(() => register().moveTo(position)).toThrow(RangeError);
+    });
+
+    it("waits to process a new original, keeping its public version until then", () => {
+      const image = register();
+      image.markProcessed({
+        publicKey: "products/product-1/image-1-v1.webp",
+        width: 800,
+        height: 1000,
+      });
+
+      const previous = image.replaceOriginal({
+        originalKey: "products/product-1/image-1-v2.png",
+        mimeType: "image/png",
+        sizeBytes: 4096,
+      });
+
+      expect(previous).toBe("products/product-1/image-1.jpg");
+      expect(image).toMatchObject({
+        status: ImageStatus.PENDING,
+        originalKey: "products/product-1/image-1-v2.png",
+        mimeType: "image/png",
+        sizeBytes: 4096,
+        publicKey: "products/product-1/image-1-v1.webp",
+        width: 800,
+        height: 1000,
+      });
+    });
+
+    it("sends only a failed image back to wait for processing", () => {
+      const failed = register();
+      failed.markFailed();
+      failed.retryProcessing();
+
+      expect(failed.status).toBe(ImageStatus.PENDING);
+      expect(() => failed.retryProcessing()).toThrow(ImageNotFailedError);
     });
   });
 });

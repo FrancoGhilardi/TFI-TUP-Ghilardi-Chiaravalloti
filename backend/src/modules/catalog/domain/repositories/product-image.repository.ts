@@ -8,6 +8,9 @@ export abstract class ProductImageRepository {
   /** The image with that id, or `null`. Inside a transaction it is locked. */
   abstract findById(id: string): Promise<ProductImage | null>;
 
+  /** The product's images, by position. Inside a transaction they are locked. */
+  abstract findByProduct(productId: string): Promise<ProductImage[]>;
+
   /** How many images the product has, in any state. */
   abstract countByProduct(productId: string): Promise<number>;
 }

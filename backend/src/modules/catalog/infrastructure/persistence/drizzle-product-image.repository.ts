@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { count, eq, sql } from "drizzle-orm";
+import { asc, count, eq, sql } from "drizzle-orm";
 import { DrizzleExecutor } from "../../../../shared/infrastructure/database/drizzle.executor.js";
 import { productImages } from "../../../../shared/infrastructure/database/schema/index.js";
 import type { ProductImage } from "../../domain/entities/product-image.js";
@@ -47,6 +47,18 @@ export class DrizzleProductImageRepository extends ProductImageRepository {
       .limit(1);
     const [row] = this.executor.hasActiveTransaction() ? await query.for("update") : await query;
     return row ? ProductImageMapper.toDomain(row) : null;
+  }
+
+  /** Inside a transaction the rows are locked, in position order like every other reader. */
+  async findByProduct(productId: string): Promise<ProductImage[]> {
+    const query = this.executor
+      .current()
+      .select()
+      .from(productImages)
+      .where(eq(productImages.productId, productId))
+      .orderBy(asc(productImages.position));
+    const rows = this.executor.hasActiveTransaction() ? await query.for("update") : await query;
+    return rows.map((row) => ProductImageMapper.toDomain(row));
   }
 
   async countByProduct(productId: string): Promise<number> {
