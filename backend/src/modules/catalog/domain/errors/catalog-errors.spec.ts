@@ -19,6 +19,7 @@ import { InvalidImageError } from "./invalid-image-error.js";
 import { InvalidNewUntilError } from "./invalid-new-until-error.js";
 import { InvalidPriceError } from "./invalid-price-error.js";
 import { InvalidProductTitleError } from "./invalid-product-title-error.js";
+import { InvalidRelatedProductsError } from "./invalid-related-products-error.js";
 import { InvalidSaleEndError } from "./invalid-sale-end-error.js";
 import { InvalidSkuError } from "./invalid-sku-error.js";
 import { InvalidSortOrderError } from "./invalid-sort-order-error.js";
@@ -45,6 +46,18 @@ const CASES: [DomainError, Base, string, string][] = [
     BusinessRuleViolationError,
     "RELATED_PRODUCT_UNAVAILABLE",
     "Alguno de los productos similares elegidos no existe o fue dado de baja.",
+  ],
+  [
+    new InvalidRelatedProductsError("duplicated"),
+    InvalidValueError,
+    "INVALID_RELATED_PRODUCTS",
+    "Los productos similares no pueden repetirse.",
+  ],
+  [
+    new InvalidRelatedProductsError("tooMany"),
+    InvalidValueError,
+    "INVALID_RELATED_PRODUCTS",
+    "Elegí hasta 4 productos similares.",
   ],
   [
     new InvalidImageCountError(),

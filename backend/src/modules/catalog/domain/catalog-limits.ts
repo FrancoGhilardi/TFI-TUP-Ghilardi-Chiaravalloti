@@ -12,5 +12,7 @@ export const CATEGORY_SLUG_MAX_LENGTH = 120;
 export const PRODUCT_IMAGES_MIN = 1;
 export const PRODUCT_IMAGES_MAX = 5;
 export const IMAGE_ALT_TEXT_MAX_LENGTH = 255;
+// Related products set by hand: as many as a product page shows.
+export const RELATED_PRODUCTS_MAX = 4;
 // The heaviest image file accepted: 10 MB, as the panel checks it before uploading.
 export const PRODUCT_IMAGE_MAX_BYTES = 10 * 1024 * 1024;

@@ -1,0 +1,2 @@
+ALTER TABLE "libreria"."related_products" ADD CONSTRAINT "uq_related_products_sort_order" UNIQUE("product_id","sort_order");--> statement-breakpoint
+ALTER TABLE "libreria"."related_products" ADD CONSTRAINT "chk_related_products_sort_order_range" CHECK (sort_order BETWEEN 0 AND 3);

@@ -97,7 +97,7 @@ erDiagram
     related_products {
         uuid product_id PK, FK
         uuid related_product_id PK, FK "CHECK distinto de product_id"
-        smallint sort_order
+        smallint sort_order "0 a 3, único por producto"
     }
 
     product_images {
@@ -142,7 +142,7 @@ Es la tabla intermedia que resuelve la relación muchos a muchos entre `products
 
 ### `related_products`
 
-Modela la relación de "productos similares" como una relación muchos a muchos del producto consigo mismo: cada fila conecta un producto (`product_id`) con otro que se muestra como similar (`related_product_id`). Se carga a mano desde el panel, por eso necesita su propia tabla en lugar de inferirse solo por categoría.
+Modela la relación de "productos similares" como una relación muchos a muchos del producto consigo mismo: cada fila conecta un producto (`product_id`) con otro que se muestra como similar (`related_product_id`). Se carga a mano desde el panel, por eso necesita su propia tabla en lugar de inferirse solo por categoría. La relación es unidireccional: que A muestre a B como similar no hace que B muestre a A. Cada producto tiene hasta 4 similares, los mismos que muestra la ficha, ordenados por `sort_order`: la posición va de 0 a 3 y no se repite dentro del producto, y la clave primaria impide cargar dos veces el mismo similar.
 
 ### `product_images`
 
@@ -582,7 +582,11 @@ CREATE TABLE libreria.related_products (
 
   CONSTRAINT pk_related_products PRIMARY KEY (product_id, related_product_id),
   CONSTRAINT chk_related_products_not_self
-    CHECK (product_id <> related_product_id)
+    CHECK (product_id <> related_product_id),
+  -- Hasta 4 por producto, los que muestra la ficha: una posición de 0 a 3 para cada uno
+  CONSTRAINT chk_related_products_sort_order_range
+    CHECK (sort_order BETWEEN 0 AND 3),
+  CONSTRAINT uq_related_products_sort_order UNIQUE (product_id, sort_order)
 );
 
 CREATE INDEX idx_related_products_related_product_id
