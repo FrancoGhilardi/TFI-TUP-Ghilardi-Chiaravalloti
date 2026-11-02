@@ -9,19 +9,24 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UploadedFiles,
   UseInterceptors,
 } from "@nestjs/common";
 import type { AuthUser } from "../../../identity/presentation/auth-user.js";
 import { CurrentUser } from "../../../identity/presentation/decorators/current-user.decorator.js";
 import { AnyPanelRole } from "../../../identity/presentation/decorators/roles.decorator.js";
+import type { Page } from "../../../../shared/application/pagination.js";
 import type { AdminProductDetailResult } from "../../application/dto/admin-product-detail.result.js";
+import type { AdminProductListItemResult } from "../../application/dto/admin-product-list-item.result.js";
 import { CreateProductUseCase } from "../../application/use-cases/create-product.use-case.js";
 import { DeleteProductUseCase } from "../../application/use-cases/delete-product.use-case.js";
 import { GetAdminProductUseCase } from "../../application/use-cases/get-admin-product.use-case.js";
+import { ListAdminProductsUseCase } from "../../application/use-cases/list-admin-products.use-case.js";
 import { RestoreProductUseCase } from "../../application/use-cases/restore-product.use-case.js";
 import { UpdateProductUseCase } from "../../application/use-cases/update-product.use-case.js";
 import { CreateProductRequestDto } from "./create-product.request.dto.js";
+import { ListAdminProductsRequestDto } from "./list-admin-products.request.dto.js";
 import { ProductFormInterceptor } from "./product-form.interceptor.js";
 import { PRODUCT_ID } from "./product-id.pipe.js";
 import { UpdateProductRequestDto } from "./update-product.request.dto.js";
@@ -50,7 +55,27 @@ export class AdminProductsController {
     private readonly deleteProduct: DeleteProductUseCase,
     private readonly restoreProduct: RestoreProductUseCase,
     private readonly getAdminProduct: GetAdminProductUseCase,
+    private readonly listAdminProducts: ListAdminProductsUseCase,
   ) {}
+
+  /** Its thumbnails may be links that expire, so it is never kept. */
+  @Get()
+  @Header("Cache-Control", "no-store")
+  findAll(@Query() query: ListAdminProductsRequestDto): Promise<Page<AdminProductListItemResult>> {
+    return this.listAdminProducts.execute({
+      q: query.q,
+      categoryId: query.categoryId,
+      status: query.status,
+      isFeatured: query.isFeatured,
+      isOnSale: query.isOnSale,
+      isNew: query.isNew,
+      maxStock: query.maxStock,
+      sortBy: query.sortBy,
+      sortDir: query.sortDir,
+      page: query.page,
+      limit: query.limit,
+    });
+  }
 
   /** Deleted or not, as the edit form shows it. Its preview links expire, so it is never kept. */
   @Get(":id")

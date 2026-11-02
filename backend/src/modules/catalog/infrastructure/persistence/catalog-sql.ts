@@ -27,6 +27,15 @@ export const VISIBLE_CATEGORIES = sql`
 export const endedBy = (column: SQL, now: Date): SQL =>
   sql`date_trunc('milliseconds', ${column}) <= ${now.toISOString()}::timestamptz`;
 
+/** A sale of the product `p` that still runs at `now`, as `Product.isSaleActive` says. */
+export const saleRunsAt = (now: Date): SQL =>
+  sql`(p.is_on_sale AND p.sale_price IS NOT NULL
+    AND (p.sale_ends_at IS NULL OR NOT ${endedBy(sql`p.sale_ends_at`, now)}))`;
+
+/** A "new" mark of the product `p` that still runs at `now`, as `Product.isNewActive` says. */
+export const newMarkRunsAt = (now: Date): SQL =>
+  sql`(p.is_new AND (p.new_until IS NULL OR NOT ${endedBy(sql`p.new_until`, now)}))`;
+
 /** Case and accents never change a match, so "lapiz" finds "Lápiz". */
 export const unaccentedLike = (column: SQL, pattern: string): SQL =>
   sql`libreria.immutable_unaccent(${column}) ILIKE libreria.immutable_unaccent(${pattern})`;

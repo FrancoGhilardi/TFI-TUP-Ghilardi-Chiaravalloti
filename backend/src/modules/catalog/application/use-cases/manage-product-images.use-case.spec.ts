@@ -265,6 +265,10 @@ class StubQueries extends AdminProductQueries {
   findImagesByProduct(productId: string): Promise<AdminProductImageResult[]> {
     return Promise.resolve([{ id: `images of ${productId}` } as AdminProductImageResult]);
   }
+
+  findPage(): Promise<never> {
+    return Promise.reject(new Error("Not used"));
+  }
 }
 
 function setUp() {
