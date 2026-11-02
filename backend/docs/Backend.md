@@ -534,12 +534,13 @@ classDiagram
         <<entity>>
         -userId: string
         -refreshTokenHash: string
+        -familyId: string
         -expiresAt: Date
         -revokedAt?: Date
         -rotatedAt?: Date
         -userAgent?: string
         -createdAt: Date
-        +start(userId: string, refreshTokenHash: string, expiresAt: Date, userAgent: string, now: Date)$ Session
+        +start(userId: string, refreshTokenHash: string, familyId: string, expiresAt: Date, userAgent: string, now: Date)$ Session
         +reconstitute(props: SessionProps)$ Session
         +isActive(now: Date) boolean
         +isExpired(now: Date) boolean
@@ -570,6 +571,7 @@ classDiagram
         +findByTokenHash(tokenHash: string) Promise~Session~
         +findByTokenHashForUpdate(tokenHash: string) Promise~Session~
         +save(session: Session) Promise~void~
+        +revokeFamily(familyId: string, now: Date) Promise~void~
         +revokeAllForUser(userId: string, now: Date) Promise~void~
         +deleteExpiredBefore(date: Date) Promise~number~
     }
@@ -749,7 +751,7 @@ classDiagram
         -refreshTokens: RefreshTokenService
         -clock: Clock
         -settings: AuthSettings
-        +issue(user: User, userAgent: string) Promise~AuthSessionResult~
+        +issue(user: User, userAgent: string, familyId: string) Promise~AuthSessionResult~
     }
 
     class LoginUseCase {
@@ -772,7 +774,9 @@ classDiagram
     }
     class LogoutUseCase {
         -sessions: SessionRepository
+        -users: UserRepository
         -refreshTokens: RefreshTokenService
+        -transaction: TransactionManager
         -clock: Clock
         +execute(command: LogoutCommand) Promise~void~
     }
@@ -858,11 +862,11 @@ classDiagram
         +userAgent: string
     }
     class RefreshSessionCommand {
-        +refreshToken: string
+        +refreshToken?: string
         +userAgent: string
     }
     class LogoutCommand {
-        +refreshToken: string
+        +refreshToken?: string
     }
     class RequestPasswordResetCommand {
         +email: string
@@ -1024,7 +1028,7 @@ Por seguridad, ante un email inexistente o con formato inválido, una contraseñ
 2. Dentro de una transacción, se bloquea primero al usuario y después la sesión, que se vuelve a leer por si cambió entre tanto. Es el mismo orden en que la base de datos revoca las sesiones al cambiar la contraseña, de modo que ambas operaciones no se bloqueen mutuamente.
 3. Si la sesión ya había sido rotada por una renovación anterior, se interpreta como un posible robo del token: se revocan todas las sesiones del usuario, se registra el evento mediante `SecurityEventLog` y se rechaza la solicitud. La revocación se confirma antes de responder.
 4. Si la sesión fue revocada por otro motivo —un cierre de sesión, o un cambio de contraseña, de rol o de estado del usuario—, solo se rechaza la solicitud. Así, un dispositivo que quedó con un token viejo no cierra las sesiones que el usuario inició después.
-5. Si la sesión es válida, se marca como rotada (lo que también la revoca), se verifica que el usuario siga habilitado y se emite una sesión nueva con un nuevo refresh token, con la duración completa desde ese momento.
+5. Si la sesión es válida, se marca como rotada (lo que también la revoca), se verifica que el usuario siga habilitado y se emite una sesión nueva con un nuevo refresh token, con la duración completa desde ese momento. La sesión nueva pertenece a la misma familia que la anterior: todas las sesiones que nacen de un mismo inicio de sesión comparten una familia.
 
 De esta forma, cada refresh token puede utilizarse una única vez, y cualquier intento de reutilización cierra todas las sesiones del usuario. Dos renovaciones simultáneas con el mismo token se resuelven de a una: la segunda encuentra la sesión revocada y se trata como una reutilización, por lo que el frontend debe realizar una única renovación compartida entre pestañas.
 
@@ -1032,7 +1036,11 @@ Ante cualquier falla —sin cookie, token desconocido, vencido, revocado o reuti
 
 #### Cierre de sesión
 
-Se revoca la sesión asociada al refresh token recibido. La operación es idempotente: si el token no existe o ya fue revocado, finaliza sin error.
+Se revocan la sesión asociada al refresh token recibido y todas las de su familia, y se elimina la cookie. Así, aunque el token ya haya sido rotado —por una renovación simultánea al cierre de sesión o por alguien que lo robó—, también se cierra la sesión que lo reemplazó. Las sesiones iniciadas desde otros inicios de sesión, por ejemplo en otros dispositivos, no se modifican, y no se registra ningún evento de seguridad.
+
+La revocación se realiza dentro de una transacción que bloquea primero al usuario, igual que la renovación. De este modo, si hay una renovación en curso, el cierre de sesión espera a que termine y revoca también la sesión que esta haya creado; si el cierre de sesión llega primero, la renovación encuentra la sesión revocada y se rechaza.
+
+La operación es idempotente: si no llega la cookie, si el token no existe o si la familia ya fue revocada, finaliza sin error y también elimina la cookie. Si la revocación falla, la cookie se conserva, de modo que el frontend pueda reintentar el cierre de sesión.
 
 #### Recuperación de contraseña olvidada
 
@@ -1105,6 +1113,7 @@ classDiagram
         +findByTokenHash(tokenHash: string) Promise~Session~
         +findByTokenHashForUpdate(tokenHash: string) Promise~Session~
         +save(session: Session) Promise~void~
+        +revokeFamily(familyId: string, now: Date) Promise~void~
         +revokeAllForUser(userId: string, now: Date) Promise~void~
         +deleteExpiredBefore(date: Date) Promise~number~
     }
@@ -2890,7 +2899,7 @@ La autenticación combina dos tokens con características y formas de almacenami
 | Nombre     | `__Secure-refresh_token` | El prefijo `__Secure-` obliga al navegador a rechazar la cookie si no fue establecida mediante HTTPS.                                |
 | Duración   | 7 días por defecto       | Configurable entre 1 y 30 días mediante `REFRESH_TOKEN_TTL_DAYS`. Rota en cada uso, con detección de reutilización.                  |
 
-Cuando la renovación de la sesión falla, la respuesta elimina la cookie, de modo que el navegador no siga enviando un token que ya no es válido.
+Cuando la renovación de la sesión falla, la respuesta elimina la cookie, de modo que el navegador no siga enviando un token que ya no es válido. El cierre de sesión también la elimina, una vez revocada la sesión.
 
 **Endpoints de renovación y cierre de sesión.** Estos dos endpoints leen la cookie y no requieren el access token. Esto permite, por ejemplo, cerrar la sesión aun cuando el access token ya venció. Como defensa adicional ante ataques CSRF, ambos aplican `OriginGuard`, que rechaza toda solicitud cuyo origen no corresponda al dominio del frontend. El origen se toma del encabezado `Origin` y, si no está presente, del encabezado `Referer`; cuando no llega ninguno de los dos, la solicitud se rechaza, ya que no es posible verificar de dónde proviene.
 

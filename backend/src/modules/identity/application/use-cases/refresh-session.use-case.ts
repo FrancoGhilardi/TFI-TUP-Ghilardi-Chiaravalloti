@@ -69,7 +69,10 @@ export class RefreshSessionUseCase implements UseCase<RefreshSessionCommand, Aut
       if (!user?.canLogin()) {
         return { kind: "rejected" };
       }
-      return { kind: "issued", session: await this.sessionIssuer.issue(user, command.userAgent) };
+      return {
+        kind: "issued",
+        session: await this.sessionIssuer.issue(user, command.userAgent, session.familyId),
+      };
     });
 
     if (outcome.kind === "issued") {

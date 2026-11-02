@@ -5,6 +5,8 @@ export interface SessionProps {
   userId: string;
   /** Only the hash of the refresh token is ever stored. */
   refreshTokenHash: string;
+  /** Shared with the sessions it replaced and the ones that replace it through a refresh. */
+  familyId: string;
   expiresAt: Date;
   revokedAt?: Date;
   /** When a refresh replaced the session; always revoked by then. */
@@ -17,6 +19,8 @@ export interface NewSessionProps {
   id: string;
   userId: string;
   refreshTokenHash: string;
+  /** The family of the session a refresh replaces; without it, a new family starts. */
+  familyId?: string;
   expiresAt: Date;
   userAgent?: string;
   now: Date;
@@ -38,6 +42,7 @@ export class Session extends Entity {
       id: input.id,
       userId: input.userId,
       refreshTokenHash: input.refreshTokenHash,
+      familyId: input.familyId ?? input.id,
       expiresAt: input.expiresAt,
       userAgent: input.userAgent,
       createdAt: input.now,
@@ -54,6 +59,10 @@ export class Session extends Entity {
 
   get refreshTokenHash(): string {
     return this.props.refreshTokenHash;
+  }
+
+  get familyId(): string {
+    return this.props.familyId;
   }
 
   get expiresAt(): Date {
