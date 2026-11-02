@@ -284,6 +284,19 @@ describe("DrizzleCategoryRepository (e2e)", () => {
     });
   });
 
+  describe("findCurrentIds", () => {
+    it("returns the ids of the current ones, active or not", async () => {
+      const visible = await insert({ name: "Cuadernos" });
+      const inactive = await insert({ name: "Lápices", isActive: false });
+      const deleted = await insert({ name: "Gomas", deleted: true });
+
+      const found = await repository.findCurrentIds([visible, inactive, deleted, UNKNOWN_ID]);
+
+      expect(found.sort()).toEqual([visible, inactive].sort());
+      await expect(repository.findCurrentIds([])).resolves.toEqual([]);
+    });
+  });
+
   describe("lockHierarchy", () => {
     it("makes a second transaction wait until the first ends", async () => {
       const events: string[] = [];

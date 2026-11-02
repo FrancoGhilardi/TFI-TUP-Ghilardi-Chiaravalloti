@@ -10,6 +10,7 @@ import { InvalidSortOrderError } from "../errors/invalid-sort-order-error.js";
 import { InvalidStockError } from "../errors/invalid-stock-error.js";
 import { ProductDeletedError } from "../errors/product-deleted-error.js";
 import { ProductNotDeletedError } from "../errors/product-not-deleted-error.js";
+import { ProductWithoutCategoryError } from "../errors/product-without-category-error.js";
 import { SalePriceNotLowerError } from "../errors/sale-price-not-lower-error.js";
 import { SelfRelatedProductError } from "../errors/self-related-product-error.js";
 import { CategoryAssignment } from "../value-objects/category-assignment.js";
@@ -334,13 +335,20 @@ describe("Product", () => {
       product.deactivate();
       product.softDelete("admin-2", NOW);
 
-      product.restore("admin-3");
+      product.restore("admin-3", true);
 
       expect(product).toMatchObject({ deletedAt: undefined, updatedBy: "admin-3", active: false });
     });
 
     it("refuses to restore a product that is not deleted", () => {
-      expect(() => create().restore("admin-2")).toThrow(ProductNotDeletedError);
+      expect(() => create().restore("admin-2", true)).toThrow(ProductNotDeletedError);
+    });
+
+    it("refuses to restore a product without a current category, leaving it deleted", () => {
+      const product = deleted();
+
+      expect(() => product.restore("admin-3", false)).toThrow(ProductWithoutCategoryError);
+      expect(product.isDeleted()).toBe(true);
     });
 
     it.each([
