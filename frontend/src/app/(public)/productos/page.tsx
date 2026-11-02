@@ -1,11 +1,7 @@
-import { Container } from "@/modules/core/ui/Container";
+import { CatalogPage } from "@/modules/catalog";
 
-const ProductsPage = () => {
-  return (
-    <Container className="py-12">
-      <h1 className="text-4xl font-semibold">Nuestros productos</h1>
-    </Container>
-  );
+const ProductsPage = async ({ searchParams }: PageProps<"/productos">) => {
+  return <CatalogPage searchParams={await searchParams} />;
 };
 
 export default ProductsPage;

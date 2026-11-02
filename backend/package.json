@@ -33,6 +33,7 @@
     "db:check": "drizzle-kit check",
     "db:studio": "drizzle-kit studio",
     "db:seed-admin": "node --env-file-if-exists=${ENV_FILE:-.env} dist/cli/seed-admin.js",
+    "db:seed-catalog": "node --env-file-if-exists=${ENV_FILE:-.env} dist/cli/seed-catalog.js",
     "db:smoke": "node --env-file-if-exists=${ENV_FILE:-.env} dist/cli/db-smoke.js",
     "openapi:metadata": "tsx scripts/openapi-metadata.ts",
     "openapi:export": "pnpm openapi:metadata && pnpm build && node --env-file-if-exists=${ENV_FILE:-.env} dist/cli/export-openapi.js",

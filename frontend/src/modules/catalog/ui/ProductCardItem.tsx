@@ -7,16 +7,15 @@ import { productHref } from "../domain/product-routes";
 import { ProductBadges } from "./ProductBadges";
 import { ProductPrice } from "./ProductPrice";
 
-/** Image width per grid column: 2 columns on phones, 3 on tablets, 5 on desktop. */
-const IMAGE_SIZES = "(min-width: 1024px) 236px, (min-width: 681px) 33vw, 50vw";
-
 interface ProductCardItemProps {
   product: ProductCard;
+  /** `sizes` of the image for the grid the card is in. */
+  imageSizes: string;
   /** Control below the price, such as "Agregar"; it stays clickable over the card link. */
   action?: ReactNode;
 }
 
-export const ProductCardItem = ({ product, action }: ProductCardItemProps) => {
+export const ProductCardItem = ({ product, imageSizes, action }: ProductCardItemProps) => {
   return (
     <article className="group relative flex h-full flex-col overflow-hidden rounded-card border border-line-soft bg-surface transition focus-within:border-line hover:-translate-y-1 hover:border-line hover:shadow-raised">
       <div className="relative aspect-4/5 bg-wheat">
@@ -24,7 +23,7 @@ export const ProductCardItem = ({ product, action }: ProductCardItemProps) => {
           src={product.image.url}
           alt={product.image.alt}
           fill
-          sizes={IMAGE_SIZES}
+          sizes={imageSizes}
           // An image from another host skips the optimizer instead of breaking the page.
           unoptimized={!product.image.optimizable}
           className="object-cover"

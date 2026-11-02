@@ -42,6 +42,7 @@ cp .env.example .env
 pnpm db:start        # local Postgres, pooler and Storage (with its buckets) in Docker
 pnpm db:migrate      # applies drizzle/*.sql
 pnpm db:seed-admin   # needs SEED_ADMIN_* in .env
+pnpm db:seed-catalog # local only: sample categories and products with small images
 pnpm db:smoke        # read-only sanity check, safe against any target
 ```
 

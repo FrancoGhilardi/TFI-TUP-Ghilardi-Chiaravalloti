@@ -19,7 +19,7 @@ export const ProductShowcase = ({ id, eyebrow, title, more, products }: ProductS
   return (
     <section aria-labelledby={id}>
       <SectionHeading id={id} eyebrow={eyebrow} title={title} more={more} />
-      <ProductGrid products={products} />
+      <ProductGrid products={products} layout="home" />
     </section>
   );
 };
