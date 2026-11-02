@@ -12,21 +12,12 @@ import type { ProductPage } from "../../application/dto/product-detail.result.js
 import type { SearchCatalogQuery } from "../../application/dto/search-catalog.query.js";
 import { CatalogQueries } from "../../application/ports/catalog-queries.js";
 import { runsAt } from "../../domain/runs-at.js";
-
-/**
- * The categories the store shows: reached from a root through active, current categories
- * only, so a hidden one hides its whole branch and one in a loop is never reached.
- */
-const VISIBLE_CATEGORIES = sql`
-  visible_categories AS (
-    SELECT id, parent_id FROM libreria.categories
-    WHERE parent_id IS NULL AND is_active AND deleted_at IS NULL
-    UNION
-    SELECT child.id, child.parent_id
-    FROM libreria.categories child
-    JOIN visible_categories parent ON child.parent_id = parent.id
-    WHERE child.is_active AND child.deleted_at IS NULL
-  )`;
+import {
+  matchesEveryWord,
+  sortableName,
+  startsWithText,
+  VISIBLE_CATEGORIES,
+} from "./catalog-sql.js";
 
 // Active and not deleted; `p` is the product. The card queries need nothing else, since their
 // join on the first processed image already leaves out a product without one.
@@ -243,7 +234,7 @@ export class DrizzleCatalogQueries extends CatalogQueries {
           WHERE assignment.product_id = ${row.id}
           -- Like the category tree: ignoring case and accents.
           ORDER BY assignment.is_primary DESC,
-            lower(libreria.immutable_unaccent(category.name)), category.id`),
+            ${sortableName(sql`category.name`)}, category.id`),
       ),
     ]);
     const primary = assigned.find((category) => category.is_primary && category.is_visible);
@@ -311,6 +302,21 @@ export class DrizzleCatalogQueries extends CatalogQueries {
         WHERE same.product_id = p.id AND same.is_primary AND same.category_id = ${categoryId}
       )`,
       sql`${STORE_ORDER} LIMIT ${limit}`,
+    );
+    return rows.map((row) => this.cardOf(row, now));
+  }
+
+  async searchCards(
+    words: readonly string[],
+    text: string,
+    limit: number,
+    now: Date,
+  ): Promise<ProductCardResult[]> {
+    const rows = await this.cardRows(
+      sql`WITH RECURSIVE ${VISIBLE_CATEGORIES}`,
+      sql`libreria.products p`,
+      sql`${IS_LISTED} AND ${matchesEveryWord(sql`p.title`, words)}`,
+      sql`${startsWithText(sql`p.title`, text)} DESC, ${STORE_ORDER} LIMIT ${limit}`,
     );
     return rows.map((row) => this.cardOf(row, now));
   }

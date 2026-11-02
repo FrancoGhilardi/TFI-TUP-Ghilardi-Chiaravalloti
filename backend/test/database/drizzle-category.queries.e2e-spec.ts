@@ -26,7 +26,7 @@ interface Row {
   slug?: string;
 }
 
-describe("DrizzleCategoryQueries admin listing (e2e)", () => {
+describe("DrizzleCategoryQueries (e2e)", () => {
   let pool: Pool;
   let client: DrizzleClient;
   let queries: DrizzleCategoryQueries;
@@ -232,6 +232,57 @@ describe("DrizzleCategoryQueries admin listing (e2e)", () => {
       ]);
 
       await expect(names()).resolves.toEqual(["Escritura"]);
+    });
+  });
+
+  describe("searchVisible", () => {
+    const search = (words: string[], text = words.join(" "), limit = 5) =>
+      queries.searchVisible(words, text, limit);
+
+    const namesOf = (categories: { name: string }[]) => categories.map((item) => item.name);
+
+    it("finds every word in the name, in any order, ignoring case and accents", async () => {
+      const root = await insert({ name: "Útiles escolares" });
+      const id = await insert({ name: "Lápices de colores", parentId: root });
+      await insert({ name: "Lápices negros", parentId: root });
+
+      await expect(search(["COLORES", "lapi"])).resolves.toEqual([
+        { id, name: "Lápices de colores", slug: "lapices-de-colores" },
+      ]);
+    });
+
+    it("finds only the categories visible in the store tree", async () => {
+      await insert({ name: "Cuadernos" });
+      const hidden = await insert({ name: "Cuadernos ocultos", isActive: false });
+      await insert({ name: "Cuadernos bajo uno oculto", parentId: hidden });
+      await insert({ name: "Cuadernos borrados", deleted: true });
+
+      await expect(search(["cuadernos"]).then(namesOf)).resolves.toEqual(["Cuadernos"]);
+    });
+
+    it("lists first the names that start with the whole text, then by name, up to the limit", async () => {
+      await insert({ name: "Mini cuadernos" });
+      await insert({ name: "Cuadernos rayados" });
+      await insert({ name: "Agendas y cuadernos" });
+      await insert({ name: "cuadernos" });
+
+      await expect(search(["cuadernos"]).then(namesOf)).resolves.toEqual([
+        "cuadernos",
+        "Cuadernos rayados",
+        "Agendas y cuadernos",
+        "Mini cuadernos",
+      ]);
+      await expect(search(["cuadernos"], "cuadernos", 2).then(namesOf)).resolves.toEqual([
+        "cuadernos",
+        "Cuadernos rayados",
+      ]);
+    });
+
+    it("takes the wildcards as text", async () => {
+      await insert({ name: "Ofertas 50%", slug: "ofertas-50" });
+      await insert({ name: "Ofertas 500", slug: "ofertas-500" });
+
+      await expect(search(["50%"]).then(namesOf)).resolves.toEqual(["Ofertas 50%"]);
     });
   });
 });

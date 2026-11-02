@@ -1,5 +1,5 @@
 import type { Page } from "../../../../shared/application/pagination.js";
-import type { AdminCategoryResult } from "../dto/admin-category.result.js";
+import type { AdminCategoryResult, CategorySummaryResult } from "../dto/admin-category.result.js";
 import type { ListAdminCategoriesQuery } from "../dto/list-admin-categories.query.js";
 import type { CategoryTreeRow } from "../services/category-tree.js";
 
@@ -12,4 +12,14 @@ export abstract class CategoryQueries {
 
   /** The category with that id, deleted or not, or `null`. */
   abstract findAdminById(id: string): Promise<AdminCategoryResult | null>;
+
+  /**
+   * Categories visible in the store tree whose name has every word, in any order and ignoring
+   * case and accents. Those whose name starts with `text` come first, then by name.
+   */
+  abstract searchVisible(
+    words: readonly string[],
+    text: string,
+    limit: number,
+  ): Promise<CategorySummaryResult[]>;
 }
