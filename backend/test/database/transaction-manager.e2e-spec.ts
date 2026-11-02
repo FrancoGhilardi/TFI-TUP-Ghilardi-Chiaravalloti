@@ -26,14 +26,14 @@ describe("DrizzleTransactionManager (e2e)", () => {
   };
 
   beforeAll(async () => {
-    const values: Record<string, unknown> = {
+    const envValues: Record<string, unknown> = {
       DATABASE_URL: process.env.DATABASE_MIGRATION_URL,
       DATABASE_SSL_MODE: process.env.DATABASE_SSL_MODE ?? "disable",
       DATABASE_SSL_CA: process.env.DATABASE_SSL_CA,
       // A single connection keeps the temporary table visible to every statement.
       DATABASE_POOL_MAX: 1,
     };
-    const config = { get: (key: string) => values[key] } as ConfigService<Env, true>;
+    const config = { get: (key: string) => envValues[key] } as ConfigService<Env, true>;
     client = new DrizzleClient(config);
     executor = new DrizzleExecutor(client);
     manager = new DrizzleTransactionManager(client, executor);

@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -119,9 +119,10 @@ describe("OpenAPI document (e2e)", () => {
   it("keeps the generated metadata up to date", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "openapi-metadata-"));
     try {
-      execFileSync("pnpm", ["exec", "tsx", "scripts/openapi-metadata.ts", dir], {
-        stdio: "ignore",
+      const run = spawnSync("pnpm", ["exec", "tsx", "scripts/openapi-metadata.ts", dir], {
+        encoding: "utf8",
       });
+      expect(run.status, `${run.stdout}\n${run.stderr}\n${run.error ?? ""}`).toBe(0);
 
       // If this fails, run `pnpm openapi:metadata`.
       expect(readFileSync(path.join(dir, "openapi-metadata.ts"), "utf8")).toBe(
