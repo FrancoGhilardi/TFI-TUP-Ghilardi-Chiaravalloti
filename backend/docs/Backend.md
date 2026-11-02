@@ -468,11 +468,13 @@ classDiagram
         +isInCooldown(now: Date, ttlMinutes: number, cooldownMinutes: number) boolean
     }
 
-    class PasswordPolicy {
-        <<domain service>>
+    class Password {
+        <<value object>>
+        -value: string
         +MIN_LENGTH: number$
         +MAX_LENGTH: number$
-        +assertValid(plain: string)$ void
+        +create(plain: string)$ Password
+        +reveal() string
     }
 
     class User {
@@ -561,7 +563,7 @@ classDiagram
     User --> Email
     User --> UserRole
     User --> TemporaryPassword
-    User ..> PasswordPolicy
+    User ..> Password
     UserAdministrationPolicy ..> User
     UserAdministrationPolicy ..> SelfAdministrationError : lanza
     UserAdministrationPolicy ..> LastActiveAdminError : lanza
@@ -583,11 +585,11 @@ classDiagram
 
 - **`TemporaryPassword`**: representa la clave temporal generada por el flujo de "olvidé mi contraseña", compuesta por su hash y su fecha de vencimiento. Permite verificar si la clave está vencida y si se encuentra dentro del período de espera que impide solicitar una nueva clave de forma reiterada.
 
+- **`Password`**: representa una contraseña en texto plano que cumple la política del sistema: entre 8 y 128 caracteres. Los caracteres se cuentan como puntos de código Unicode: un emoji simple o una letra con tilde precompuesta valen uno, mientras que una letra escrita como base más tilde o un emoji compuesto (por ejemplo, una familia) valen varios. El texto se conserva tal como se escribió, sin recortar espacios ni normalizarlo, y se rechaza si no es Unicode válido, ya que al generar el hash dos contraseñas distintas podrían producir el mismo resultado. Solo puede crearse a través de su validación, por lo que toda contraseña que llega a generar un hash ya cumple las reglas. El texto únicamente se obtiene de forma explícita al generar el hash; si el objeto se registra o se serializa por error, se muestra un valor fijo en lugar de la contraseña.
+
 - **`UserRole`**: enumeración con los dos roles del sistema: `ADMIN` y `SELLER`.
 
 #### Servicios de dominio
-
-- **`PasswordPolicy`**: define los requisitos que debe cumplir toda contraseña.
 
 - **`UserAdministrationPolicy`**: concentra las reglas que involucran a más de un usuario, como las acciones que un administrador no puede realizar sobre sí mismo o la obligación de que siempre exista al menos un administrador activo.
 
@@ -640,7 +642,7 @@ El dominio de `identity` es la base sobre la que se construyen la autenticación
 
 - **Con la capa de aplicación**: los casos de uso del módulo —como el inicio de sesión, la renovación de la sesión, el alta, edición, baja y reactivación de usuarios, o el reseteo de contraseñas— obtienen las entidades a través de los repositorios, ejecutan sus métodos y aplican las políticas de dominio antes de guardar los cambios. El dominio define qué operaciones son válidas; la aplicación decide cuándo y en qué orden se ejecutan.
 
-- **Con la capa de infraestructura**: los repositorios se implementan con Drizzle ORM sobre las tablas `users` y `sessions`. Las contraseñas se validan con `PasswordPolicy` y luego se transforman en hash mediante Argon2id, de modo que el dominio nunca maneja ni almacena contraseñas en texto plano.
+- **Con la capa de infraestructura**: los repositorios se implementan con Drizzle ORM sobre las tablas `users` y `sessions`. Las contraseñas se validan con `Password` y luego se transforman en hash mediante Argon2id; como `PasswordHasher` solo acepta un `Password`, no es posible generar el hash de una contraseña sin validarla, de modo que el dominio nunca maneja ni almacena contraseñas en texto plano.
 
 - **Con la capa de presentación**: los datos del usuario autenticado —su rol y la obligación de cambiar la contraseña— son los que utilizan los guards globales para autorizar o bloquear cada solicitud. Además, el identificador del usuario que realiza cada acción se obtiene siempre de la sesión autenticada y nunca de los datos enviados por el cliente, lo que impide suplantar al autor de una operación.
 
@@ -665,7 +667,7 @@ Además del diagrama de clases, la sección describe paso a paso los flujos prin
 classDiagram
     class PasswordHasher {
         <<abstract port>>
-        +hash(plain: string) Promise~string~
+        +hash(password: Password) Promise~string~
         +verify(hash: string, plain: string) Promise~boolean~
     }
     class TemporaryPasswordGenerator {
@@ -996,7 +998,7 @@ Se revoca la sesión asociada al refresh token recibido. La operación es idempo
 
 #### Cambio de contraseña
 
-Disponible para cualquier rol. Se verifica la contraseña actual, se valida que la nueva cumpla los requisitos de `PasswordPolicy` y que sea distinta de la anterior, y se guarda el cambio. Como la base de datos revoca automáticamente las sesiones existentes, se emite una sesión nueva después de guardar, para que el usuario no deba volver a iniciar sesión.
+Disponible para cualquier rol. Se verifica la contraseña actual, se valida que la nueva cumpla los requisitos de `Password` y que sea distinta de la anterior, y se guarda el cambio. Como la base de datos revoca automáticamente las sesiones existentes, se emite una sesión nueva después de guardar, para que el usuario no deba volver a iniciar sesión.
 
 #### Validación del usuario autenticado
 
@@ -1078,7 +1080,7 @@ classDiagram
     }
     class Argon2PasswordHasher {
         <<adapter>>
-        +hash(plain: string) Promise~string~
+        +hash(password: Password) Promise~string~
         +verify(hash: string, plain: string) Promise~boolean~
     }
     class CryptoTemporaryPasswordGenerator {
@@ -2986,7 +2988,7 @@ Cuando una capa no interviene en una regla, se indica como _No aplica_. Los nomb
 | Solo el rol ADMIN gestiona usuarios                                                        | `RolesGuard` y restricción de `UsersController` al rol ADMIN                                                          | No aplica                                                               | No aplica                                               |
 | El rol SELLER solo puede cambiar su propia contraseña                                      | Los endpoints de usuarios están restringidos al rol ADMIN; el cambio de contraseña es el único disponible para SELLER | `ChangePasswordUseCase` opera solo sobre el usuario autenticado         | No aplica                                               |
 | Email único entre usuarios vigentes                                                        | Validación de formato en el DTO                                                                                       | `Email`, `CreateUserUseCase`, `UpdateUserUseCase`, `RestoreUserUseCase` | `chk_users_email_format` y `uq_users_email_not_deleted` |
-| Contraseña de entre 8 y 128 caracteres                                                     | Validación del DTO                                                                                                    | `PasswordPolicy`                                                        | No aplica                                               |
+| Contraseña de entre 8 y 128 caracteres                                                     | Validación del DTO                                                                                                    | `Password`                                                              | No aplica                                               |
 | Cambio obligatorio de contraseña tras recibir una clave temporal                           | `MustChangePasswordGuard`                                                                                             | `User.assignTemporaryPassword` y `User.consumeTemporaryPassword`        | No aplica                                               |
 | La clave temporal por olvido no invalida la contraseña actual                              | No aplica                                                                                                             | `User.issueTemporaryPassword` y `LoginUseCase`                          | `chk_users_temporary_password_pair`                     |
 | La clave temporal es de un solo uso y vence a los 30 minutos                               | No aplica                                                                                                             | `TemporaryPassword` y `User.consumeTemporaryPassword`                   | No aplica                                               |
