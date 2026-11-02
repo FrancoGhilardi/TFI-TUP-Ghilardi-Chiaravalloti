@@ -52,19 +52,32 @@ Each feature is a module in `src/modules/<module>/` with `domain/`, `application
 `infrastructure/` and `ui/` layers; the routes in `src/app/` only compose modules. A module's
 `index.ts` is its public surface: other modules import `@/modules/<module>`, never its folders.
 
-| Module          | Holds                                                                                                                                                                                                                                    |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `core`          | `config/` (validated `publicConfig`, `siteConfig`), `http/` (API client and errors), `lib/utils.ts` (`cn`), `hooks/` (hooks shared by every module), `ui/` (shared components, fonts, icons) and `ui/primitives/` (shadcn/ui components) |
-| `catalog`       | Category tree, product cards (`getFeaturedProducts`, `getNewProducts`), `ProductGrid`, `CategoryGrid` and the catalog URLs                                                                                                               |
-| `site-layout`   | `StoreShell`: header, navigation, mobile menu and footer of the public pages                                                                                                                                                             |
-| `home`          | Home page: hero with search, services strip and the product and category sections                                                                                                                                                        |
-| `institutional` | Store copy blocks such as `AboutTeaser`, with their text in `content/`                                                                                                                                                                   |
-| `whatsapp`      | `wa.me` links (`generalInquiryUrl`)                                                                                                                                                                                                      |
+| Module          | Holds                                                                                                                                                                                                                                                                                                                             |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `core`          | `config/` (validated `publicConfig`, `siteConfig`), `http/` (API client and errors), `lib/utils.ts` (`cn`), `hooks/` (shared hooks such as `useHydrated`), `lib/pagination.ts`, `ui/` (shared components such as `Pagination`, `StatusMessage`, `ExternalLink`, plus fonts and icons) and `ui/primitives/` (shadcn/ui components) |
+| `catalog`       | Category tree, product cards, the catalog page (`CatalogPage`: filters, sort, pagination, states), `ProductGrid`, `CategoryGrid` and the catalog URLs                                                                                                                                                                             |
+| `site-layout`   | `StoreShell`: header, navigation, mobile menu and footer of the public pages                                                                                                                                                                                                                                                      |
+| `home`          | Home page: hero with search, services strip and the product and category sections                                                                                                                                                                                                                                                 |
+| `institutional` | Store copy blocks such as `AboutTeaser`, with their text in `content/`                                                                                                                                                                                                                                                            |
+| `whatsapp`      | `wa.me` links (`generalInquiryUrl`)                                                                                                                                                                                                                                                                                               |
 
 Public pages live in the `src/app/(public)/` route group, whose layout renders `StoreShell`.
 
-Catalog URLs use Spanish query parameters: `q`, `categoria`, `pagina`, `destacados=true` and
-`novedades=true`.
+### Catalog URL
+
+`/productos` is rendered on the server from its query string, parsed and sanitized by
+`parseCatalogQuery` (`catalog/domain/catalog-query.ts`); every catalog link is built with
+`catalogHref`, which leaves defaults out and goes back to page 1 when a filter changes.
+
+| Parameter                 | Values                                                                     |
+| ------------------------- | -------------------------------------------------------------------------- |
+| `q`                       | Search text, 2 to 100 characters                                           |
+| `categoria`               | Category slug (includes its subcategories)                                 |
+| `destacados`, `novedades` | `true`                                                                     |
+| `orden`                   | `relevancia` (default), `menor-precio`, `mayor-precio`, `recientes`, `a-z` |
+| `pagina`                  | 1 to 500 (20 products per page)                                            |
+
+Invalid values are dropped before calling the API.
 
 Product images go through `next/image`, limited to the public objects of
 `NEXT_PUBLIC_STORAGE_URL`. Next refuses to optimize images from private addresses, so that guard is

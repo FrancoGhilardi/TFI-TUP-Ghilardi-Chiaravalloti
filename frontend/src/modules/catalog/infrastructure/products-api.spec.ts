@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError, apiClient } from "@/modules/core/http";
 
-import { getFeaturedProducts, getNewProducts } from "./products-api";
+import { getFeaturedProducts, getNewProducts, searchProducts } from "./products-api";
 
 vi.mock("@/modules/core/http", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/modules/core/http")>()),
@@ -112,5 +112,33 @@ describe("products API", () => {
     const [card] = await getFeaturedProducts();
 
     expect(card.category).toBeNull();
+  });
+
+  it("reads a catalog page with the query parameters and maps its cards", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [dto()],
+      page: 2,
+      limit: 20,
+      totalItems: 21,
+      totalPages: 2,
+    });
+    const params = { q: "lapiz", sort: "RELEVANCE", page: 2, limit: 20 } as const;
+
+    const page = await searchProducts(params);
+
+    expect(apiClient.get).toHaveBeenCalledWith("/products", {
+      query: params,
+      next: { revalidate: 60 },
+    });
+    expect(page).toMatchObject({ page: 2, totalItems: 21, totalPages: 2 });
+    expect(page.items[0]).toMatchObject({ slug: "cuaderno-a4", image: { optimizable: true } });
+  });
+
+  it("reports a catalog page of another shape as an unexpected response", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue([dto()]);
+
+    await expect(searchProducts({ sort: "RELEVANCE", page: 1, limit: 20 })).rejects.toBeInstanceOf(
+      ApiError,
+    );
   });
 });

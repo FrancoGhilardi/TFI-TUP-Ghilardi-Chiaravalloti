@@ -4,7 +4,7 @@ import { ApiError } from "@/modules/core/http";
 
 import type { CategoryNode } from "../domain/category";
 import { getCategoryTree } from "../infrastructure/categories-api";
-import { getStoreRootCategories } from "./get-store-root-categories";
+import { getStoreCategoryTree, getStoreRootCategories } from "./store-categories";
 
 vi.mock("../infrastructure/categories-api", () => ({ getCategoryTree: vi.fn() }));
 
@@ -14,6 +14,20 @@ const node = (slug: string, children: CategoryNode[] = []): CategoryNode => ({
   slug,
   description: null,
   children,
+});
+
+describe("getStoreCategoryTree", () => {
+  beforeEach(() => {
+    vi.mocked(getCategoryTree).mockReset();
+  });
+
+  it("returns the whole tree, waiting a short time", async () => {
+    const tree = [node("libros", [node("infantiles")])];
+    vi.mocked(getCategoryTree).mockResolvedValue(tree);
+
+    await expect(getStoreCategoryTree()).resolves.toEqual(tree);
+    expect(getCategoryTree).toHaveBeenCalledWith(3000);
+  });
 });
 
 describe("getStoreRootCategories", () => {

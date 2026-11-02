@@ -60,11 +60,14 @@ describe("HeroSearch", () => {
 
     const form = screen.getByRole("search");
     expect(form).toHaveAttribute("action", "/productos");
-    expect(form).toHaveAttribute("method", "get");
+    // GET is the form default, which a browser without JavaScript uses too.
+    expect((form as HTMLFormElement).method).toBe("get");
     const input = within(form).getByRole("searchbox", { name: "Buscar productos" });
     expect(input).toHaveAttribute("name", "q");
     expect(input).toHaveAttribute("minLength", "2");
     expect(input).toHaveAttribute("maxLength", "100");
+    // Two characters other than spaces, the same rule the catalog applies after trimming.
+    expect(input).toHaveAttribute("pattern", ".*\\S.*\\S.*");
     expect(within(form).getByRole("button", { name: "Buscar" })).toHaveAttribute("type", "submit");
   });
 });

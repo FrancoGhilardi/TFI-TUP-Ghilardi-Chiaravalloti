@@ -27,7 +27,7 @@ const product = (overrides: Partial<ProductCard> = {}): ProductCard => ({
 
 describe("ProductCardItem", () => {
   it("links the whole card to the product page with the title as its name", () => {
-    render(<ProductCardItem product={product()} />);
+    render(<ProductCardItem imageSizes="50vw" product={product()} />);
 
     const links = screen.getAllByRole("link");
     expect(links).toHaveLength(1);
@@ -36,7 +36,7 @@ describe("ProductCardItem", () => {
   });
 
   it("shows the image with its text alternative, the category and the price", () => {
-    render(<ProductCardItem product={product()} />);
+    render(<ProductCardItem imageSizes="50vw" product={product()} />);
 
     expect(screen.getByRole("img", { name: "Tapa del cuaderno" })).toBeInTheDocument();
     expect(screen.getByText("Cuadernos")).toBeInTheDocument();
@@ -44,7 +44,7 @@ describe("ProductCardItem", () => {
   });
 
   it("leaves out a hidden category", () => {
-    render(<ProductCardItem product={product({ category: null })} />);
+    render(<ProductCardItem imageSizes="50vw" product={product({ category: null })} />);
 
     expect(screen.queryByText("Cuadernos")).not.toBeInTheDocument();
   });
@@ -52,6 +52,7 @@ describe("ProductCardItem", () => {
   it("shows a badge per mark", () => {
     render(
       <ProductCardItem
+        imageSizes="50vw"
         product={product({ isFeatured: true, isNew: true, isOnSale: true, salePrice: "8000.00" })}
       />,
     );
@@ -61,7 +62,9 @@ describe("ProductCardItem", () => {
   });
 
   it("announces a sale only when the sale price is shown", () => {
-    render(<ProductCardItem product={product({ isOnSale: true, salePrice: null })} />);
+    render(
+      <ProductCardItem imageSizes="50vw" product={product({ isOnSale: true, salePrice: null })} />,
+    );
 
     expect(screen.queryByText("Oferta")).not.toBeInTheDocument();
   });
@@ -70,8 +73,9 @@ describe("ProductCardItem", () => {
     const foreign = "https://cdn.example.com/p1.webp";
     render(
       <>
-        <ProductCardItem product={product()} />
+        <ProductCardItem imageSizes="50vw" product={product()} />
         <ProductCardItem
+          imageSizes="50vw"
           product={product({
             id: "p2",
             title: "Lápiz",
@@ -88,13 +92,18 @@ describe("ProductCardItem", () => {
   });
 
   it("shows no badges without marks", () => {
-    render(<ProductCardItem product={product()} />);
+    render(<ProductCardItem imageSizes="50vw" product={product()} />);
 
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
   });
 
   it("shows the sale price and strikes the regular one", () => {
-    render(<ProductCardItem product={product({ isOnSale: true, salePrice: "8000.00" })} />);
+    render(
+      <ProductCardItem
+        imageSizes="50vw"
+        product={product({ isOnSale: true, salePrice: "8000.00" })}
+      />,
+    );
 
     expect(screen.getByText(/^\$\s8\.000$/)).toBeInTheDocument();
     const regular = screen.getByText(/^\$\s9\.800$/);
@@ -102,7 +111,13 @@ describe("ProductCardItem", () => {
   });
 
   it("renders the action it is given", () => {
-    render(<ProductCardItem product={product()} action={<button type="button">Agregar</button>} />);
+    render(
+      <ProductCardItem
+        imageSizes="50vw"
+        product={product()}
+        action={<button type="button">Agregar</button>}
+      />,
+    );
 
     expect(screen.getByRole("button", { name: "Agregar" })).toBeInTheDocument();
   });
@@ -115,6 +130,7 @@ describe("ProductGrid", () => {
     render(
       <ProductGrid
         products={products}
+        layout="catalog"
         renderAction={(item) => <button type="button">Agregar {item.title}</button>}
       />,
     );

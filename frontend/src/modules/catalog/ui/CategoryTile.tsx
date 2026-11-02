@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import type { CategoryNode } from "../domain/category";
-import { categoryHref } from "../domain/product-routes";
+import { categoryHref } from "../domain/catalog-query";
 import { CategoryIcon } from "./CategoryIcon";
 
 interface CategoryTileProps {
