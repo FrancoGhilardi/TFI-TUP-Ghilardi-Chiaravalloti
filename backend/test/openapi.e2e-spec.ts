@@ -120,7 +120,7 @@ describe("OpenAPI document (e2e)", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "openapi-metadata-"));
     try {
       execFileSync("pnpm", ["exec", "tsx", "scripts/openapi-metadata.ts", dir], {
-        stdio: "ignore",
+        stdio: ["ignore", "ignore", "inherit"],
       });
 
       // If this fails, run `pnpm openapi:metadata`.
