@@ -9,8 +9,8 @@ import type { CatalogSettings } from "../settings/catalog-settings.js";
 
 /**
  * The store search box: visible products by title and visible categories by name, where every
- * word of the text appears in any order (`searchWordsOf`). Those starting with the whole text
- * come first.
+ * word of the text appears in any order (`searchWordsOf`). Those starting with the words looked
+ * for, in their order, come first.
  */
 export class GlobalSearchUseCase implements UseCase<GlobalSearchQuery, GlobalSearchResult> {
   constructor(

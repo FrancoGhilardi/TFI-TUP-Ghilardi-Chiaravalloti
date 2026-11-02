@@ -1,8 +1,11 @@
 import { Clock } from "../../../../shared/application/clock.js";
+import { Money } from "../../../../shared/domain/value-objects/money.js";
 import type { Page } from "../../../../shared/application/pagination.js";
 import type { ProductCardResult } from "../dto/product-card.result.js";
 import type { ProductPage } from "../dto/product-detail.result.js";
 import type { CatalogPageQuery } from "../dto/catalog-page.query.js";
+import { ProductSort } from "../dto/search-catalog.query.js";
+import { InvalidPriceRangeError } from "../errors/invalid-price-range-error.js";
 import { ProductNotFoundError } from "../errors/product-not-found-error.js";
 import { CatalogQueries } from "../ports/catalog-queries.js";
 import { CatalogSettings } from "../settings/catalog-settings.js";
@@ -99,13 +102,43 @@ function setUp() {
 }
 
 describe("SearchCatalogUseCase", () => {
-  it("reads the page as of now", async () => {
+  it("reads the page as of now, by relevance when no order is asked for", async () => {
     const { queries, search } = setUp();
     const query = { categorySlug: "cuadernos", page: 2, limit: 10 };
 
     await search.execute(query);
 
-    expect(queries.calls).toEqual([["page", query, NOW]]);
+    expect(queries.calls).toEqual([["page", { ...query, sort: ProductSort.RELEVANCE }, NOW]]);
+  });
+
+  it("reads the prices as money, and passes the other filters and the order", async () => {
+    const { queries, search } = setUp();
+
+    await search.execute({
+      minPrice: "1500",
+      maxPrice: "2000.5",
+      isOnSale: true,
+      inStock: false,
+      sort: ProductSort.PRICE_DESC,
+      page: 1,
+      limit: 20,
+    });
+
+    expect(queries.calls).toEqual([
+      [
+        "page",
+        {
+          minPrice: Money.fromCents(150_000),
+          maxPrice: Money.fromCents(200_050),
+          isOnSale: true,
+          inStock: false,
+          sort: ProductSort.PRICE_DESC,
+          page: 1,
+          limit: 20,
+        },
+        NOW,
+      ],
+    ]);
   });
 
   it("looks for the words of the text, as the search box does", async () => {
@@ -114,7 +147,17 @@ describe("SearchCatalogUseCase", () => {
     await search.execute({ q: " Lápiz a lapiz NEGRO ", page: 1, limit: 20 });
 
     expect(queries.calls).toEqual([
-      ["page", { page: 1, limit: 20, words: ["Lápiz", "NEGRO"] }, NOW],
+      [
+        "page",
+        {
+          page: 1,
+          limit: 20,
+          sort: ProductSort.RELEVANCE,
+          words: ["Lápiz", "NEGRO"],
+          text: "Lápiz NEGRO",
+        },
+        NOW,
+      ],
     ]);
   });
 
@@ -124,8 +167,32 @@ describe("SearchCatalogUseCase", () => {
     await search.execute({ q: "cuaderno", isFeatured: true, isNew: false, page: 1, limit: 20 });
 
     expect(queries.calls).toEqual([
-      ["page", { isFeatured: true, isNew: false, page: 1, limit: 20, words: ["cuaderno"] }, NOW],
+      [
+        "page",
+        {
+          isFeatured: true,
+          isNew: false,
+          page: 1,
+          limit: 20,
+          sort: ProductSort.RELEVANCE,
+          words: ["cuaderno"],
+          text: "cuaderno",
+        },
+        NOW,
+      ],
     ]);
+  });
+
+  it("refuses a highest price below the lowest, without reading, and takes an equal one", async () => {
+    const { queries, search } = setUp();
+
+    await expect(
+      search.execute({ minPrice: "20.5", maxPrice: "20.49", page: 1, limit: 20 }),
+    ).rejects.toThrow(InvalidPriceRangeError);
+    expect(queries.calls).toEqual([]);
+    await expect(
+      search.execute({ minPrice: "20.5", maxPrice: "20.50", page: 1, limit: 20 }),
+    ).resolves.toBeDefined();
   });
 
   it("finds nothing, without reading, for a text of one-letter words", async () => {

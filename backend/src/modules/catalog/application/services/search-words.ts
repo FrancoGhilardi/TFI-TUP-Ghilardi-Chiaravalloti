@@ -1,10 +1,13 @@
 import type { CatalogSettings } from "../settings/catalog-settings.js";
 
-/** What a store search looks for: its words and the whole text. */
+/** What a store search looks for: its words, and them as one text. */
 export interface SearchWords {
   /** Each once, whatever its case and accents; empty when no word is long enough. */
   words: string[];
-  /** The words as typed, with a single space between them. */
+  /**
+   * The words looked for, in order, with a single space between them: what a title or name
+   * starting with the search starts with, so a one-letter or repeated word never stops it.
+   */
   text: string;
 }
 
@@ -19,17 +22,13 @@ export function searchWordsOf(
   text: string,
   settings: Pick<CatalogSettings, "searchMinWordLength" | "searchMaxWords">,
 ): SearchWords {
-  const all = text.split(/\s+/).filter((word) => word !== "");
   const byKey = new Map<string, string>();
-  for (const word of all) {
+  for (const word of text.split(/\s+/).filter((typed) => typed !== "")) {
     const key = keyOf(word);
     if ([...key].length >= settings.searchMinWordLength && !byKey.has(key)) {
       byKey.set(key, word);
     }
   }
-  return {
-    words: [...byKey.values()].slice(0, settings.searchMaxWords),
-    // A single space between words, so a doubled one does not stop a match at the start.
-    text: all.join(" "),
-  };
+  const words = [...byKey.values()].slice(0, settings.searchMaxWords);
+  return { words, text: words.join(" ") };
 }

@@ -30,6 +30,11 @@ export class CatalogController {
       q: query.q,
       isFeatured: query.isFeatured,
       isNew: query.isNew,
+      isOnSale: query.isOnSale,
+      inStock: query.inStock,
+      minPrice: query.minPrice,
+      maxPrice: query.maxPrice,
+      sort: query.sort,
       page: query.page,
       limit: query.limit,
     });

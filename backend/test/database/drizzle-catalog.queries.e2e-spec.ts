@@ -1,8 +1,11 @@
 import type { ConfigService } from "@nestjs/config";
 import type { Pool } from "pg";
 import type { Env } from "../../src/config/env.js";
+import type { CatalogPageQuery } from "../../src/modules/catalog/application/dto/catalog-page.query.js";
+import { ProductSort } from "../../src/modules/catalog/application/dto/search-catalog.query.js";
 import { DrizzleCatalogQueries } from "../../src/modules/catalog/infrastructure/persistence/drizzle-catalog.queries.js";
 import { FileStorage } from "../../src/shared/application/file-storage.js";
+import { Money } from "../../src/shared/domain/value-objects/money.js";
 import { DrizzleClient } from "../../src/shared/infrastructure/database/drizzle.client.js";
 import { DrizzleExecutor } from "../../src/shared/infrastructure/database/drizzle.executor.js";
 import {
@@ -107,16 +110,8 @@ describe("DrizzleCatalogQueries (e2e)", () => {
     return id;
   }
 
-  const page = (
-    query: Partial<{
-      categorySlug: string;
-      page: number;
-      limit: number;
-      words: string[];
-      isFeatured: boolean;
-      isNew: boolean;
-    }> = {},
-  ) => queries.findPage({ page: 1, limit: 20, ...query }, NOW);
+  const page = (query: Partial<CatalogPageQuery> = {}) =>
+    queries.findPage({ page: 1, limit: 20, sort: ProductSort.RELEVANCE, ...query }, NOW);
 
   const idsOf = (cards: { id: string }[]) => cards.map((card) => card.id);
 
@@ -364,6 +359,181 @@ describe("DrizzleCatalogQueries (e2e)", () => {
         items: [],
         totalItems: 3,
       });
+    });
+  });
+
+  describe("findPage with prices, stock and order", () => {
+    const titles = async (extra: Partial<CatalogPageQuery>) =>
+      (await page(extra)).items.map((card) => card.title);
+
+    /** Its price, a sale ending at `saleEndsAt` (or never) when given, and its stock. */
+    async function priced(
+      title: string,
+      price: string,
+      options: {
+        salePrice?: string;
+        saleEndsAt?: Date;
+        stock?: number;
+        sortOrder?: number;
+        createdAt?: Date;
+      } = {},
+    ): Promise<string> {
+      const id = await visible(title, options);
+      await pool.query(
+        `UPDATE libreria.products
+         SET price = $2, is_on_sale = $3, sale_price = $4, sale_ends_at = $5, stock = $6
+         WHERE id = $1`,
+        [
+          id,
+          price,
+          options.salePrice !== undefined,
+          options.salePrice ?? null,
+          options.saleEndsAt ?? null,
+          options.stock ?? 5,
+        ],
+      );
+      return id;
+    }
+
+    it("filters by the price a card shows: the sale one only while the sale runs, both ends in", async () => {
+      await priced("En oferta", "50.00", { salePrice: "20.00", sortOrder: 0 });
+      // Its sale ended right now, so its regular price counts.
+      await priced("Oferta vencida", "25.00", {
+        salePrice: "10.00",
+        saleEndsAt: NOW,
+        sortOrder: 1,
+      });
+      await priced("Barato", "15.00", { sortOrder: 2 });
+      await priced("Caro", "30.00", { sortOrder: 3 });
+
+      await expect(
+        titles({ minPrice: Money.fromDecimal("15"), maxPrice: Money.fromDecimal("25") }),
+      ).resolves.toEqual(["En oferta", "Oferta vencida", "Barato"]);
+      await expect(titles({ minPrice: Money.fromDecimal("20.01") })).resolves.toEqual([
+        "Oferta vencida",
+        "Caro",
+      ]);
+      await expect(titles({ maxPrice: Money.fromDecimal("14.99") })).resolves.toEqual([]);
+    });
+
+    it("gives the products on sale, or the others, and those with stock, or without", async () => {
+      await priced("Oferta sin stock", "50.00", { salePrice: "20.00", stock: 0, sortOrder: 0 });
+      await priced("Oferta vencida", "25.00", {
+        salePrice: "10.00",
+        saleEndsAt: NOW,
+        sortOrder: 1,
+      });
+      await priced("Comun", "30.00", { sortOrder: 2 });
+
+      await expect(titles({ isOnSale: true })).resolves.toEqual(["Oferta sin stock"]);
+      await expect(titles({ isOnSale: false })).resolves.toEqual(["Oferta vencida", "Comun"]);
+      await expect(titles({ inStock: true })).resolves.toEqual(["Oferta vencida", "Comun"]);
+      await expect(titles({ inStock: false })).resolves.toEqual(["Oferta sin stock"]);
+    });
+
+    it("sorts by price shown, date or title, ties in the store order", async () => {
+      await priced("Lazo", "25.00", { sortOrder: 0, createdAt: new Date("2026-10-15") });
+      await priced("Lápiz", "50.00", {
+        salePrice: "20.00",
+        sortOrder: 1,
+        createdAt: new Date("2026-10-10"),
+      });
+      await priced("Bloc", "30.00", { sortOrder: 2 });
+      await priced("acuarela", "25.00", { sortOrder: 3, createdAt: new Date("2026-10-05") });
+
+      await expect(titles({ sort: ProductSort.RELEVANCE })).resolves.toEqual([
+        "Lazo",
+        "Lápiz",
+        "Bloc",
+        "acuarela",
+      ]);
+      await expect(titles({ sort: ProductSort.PRICE_ASC })).resolves.toEqual([
+        "Lápiz",
+        "Lazo",
+        "acuarela",
+        "Bloc",
+      ]);
+      await expect(titles({ sort: ProductSort.PRICE_DESC })).resolves.toEqual([
+        "Bloc",
+        "Lazo",
+        "acuarela",
+        "Lápiz",
+      ]);
+      await expect(titles({ sort: ProductSort.NEWEST })).resolves.toEqual([
+        "Lazo",
+        "Lápiz",
+        "acuarela",
+        "Bloc",
+      ]);
+      // Neither case nor accents change the order.
+      await expect(titles({ sort: ProductSort.TITLE_ASC })).resolves.toEqual([
+        "acuarela",
+        "Bloc",
+        "Lápiz",
+        "Lazo",
+      ]);
+    });
+
+    it("fails on an order it does not know, rather than sorting some other way", async () => {
+      await visible("Cuaderno");
+
+      await expect(page({ sort: "CHEAPEST" as ProductSort })).rejects.toThrow(
+        "Unknown product sort: CHEAPEST",
+      );
+    });
+
+    it("puts first, by relevance, the titles that start with the search", async () => {
+      await visible("Funda para cuaderno", { sortOrder: 0 });
+      await visible("Cuaderno A4", { sortOrder: 1 });
+      await visible("Cuaderno  A5", { sortOrder: 2 });
+      const search = { words: ["cuaderno"], text: "cuaderno" };
+
+      await expect(titles(search)).resolves.toEqual([
+        "Cuaderno A4",
+        "Cuaderno  A5",
+        "Funda para cuaderno",
+      ]);
+      await expect(titles({ ...search, text: "CUADERNO A5" })).resolves.toEqual([
+        "Cuaderno  A5",
+        "Funda para cuaderno",
+        "Cuaderno A4",
+      ]);
+      await expect(titles({ ...search, sort: ProductSort.PRICE_ASC })).resolves.toEqual([
+        "Funda para cuaderno",
+        "Cuaderno A4",
+        "Cuaderno  A5",
+      ]);
+    });
+
+    it("combines everything, counting only what it finds", async () => {
+      const other = await insertCategory(pool, "Escolar");
+      await priced("Cuaderno barato", "15.00", { sortOrder: 0 });
+      await priced("Cuaderno en oferta", "40.00", { salePrice: "18.00", sortOrder: 1 });
+      await priced("Cuaderno sin stock", "16.00", { stock: 0, sortOrder: 2 });
+      await priced("Cuaderno caro", "90.00", { sortOrder: 3 });
+      const elsewhere = await priced("Cuaderno escolar", "17.00", { sortOrder: 4 });
+      await pool.query(
+        "UPDATE libreria.product_categories SET category_id = $2 WHERE product_id = $1",
+        [elsewhere, other],
+      );
+
+      await expect(
+        page({
+          words: ["cuaderno"],
+          text: "cuaderno",
+          categorySlug: "cuadernos",
+          inStock: true,
+          maxPrice: Money.fromDecimal("20"),
+          sort: ProductSort.PRICE_DESC,
+          limit: 1,
+        }),
+      ).resolves.toMatchObject({
+        items: [expect.objectContaining({ title: "Cuaderno en oferta" })],
+        totalItems: 2,
+      });
+      await expect(
+        page({ inStock: true, maxPrice: Money.fromDecimal("20"), limit: 1, page: 9 }),
+      ).resolves.toMatchObject({ items: [], totalItems: 3 });
     });
   });
 
