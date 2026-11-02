@@ -73,7 +73,7 @@ export async function assertRelatedExist(
   }
 }
 
-/** The product as the panel shows it, once a change is committed. */
+/** The product as the panel shows it; an unknown one is a 404. */
 export async function detailOf(
   queries: AdminProductQueries,
   id: string,

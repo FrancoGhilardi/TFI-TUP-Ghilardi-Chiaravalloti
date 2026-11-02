@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
+  Header,
   HttpCode,
   HttpStatus,
   Param,
@@ -16,6 +18,7 @@ import { AnyPanelRole } from "../../../identity/presentation/decorators/roles.de
 import type { AdminProductDetailResult } from "../../application/dto/admin-product-detail.result.js";
 import { CreateProductUseCase } from "../../application/use-cases/create-product.use-case.js";
 import { DeleteProductUseCase } from "../../application/use-cases/delete-product.use-case.js";
+import { GetAdminProductUseCase } from "../../application/use-cases/get-admin-product.use-case.js";
 import { RestoreProductUseCase } from "../../application/use-cases/restore-product.use-case.js";
 import { UpdateProductUseCase } from "../../application/use-cases/update-product.use-case.js";
 import { CreateProductRequestDto } from "./create-product.request.dto.js";
@@ -46,7 +49,15 @@ export class AdminProductsController {
     private readonly updateProduct: UpdateProductUseCase,
     private readonly deleteProduct: DeleteProductUseCase,
     private readonly restoreProduct: RestoreProductUseCase,
+    private readonly getAdminProduct: GetAdminProductUseCase,
   ) {}
+
+  /** Deleted or not, as the edit form shows it. Its preview links expire, so it is never kept. */
+  @Get(":id")
+  @Header("Cache-Control", "no-store")
+  findOne(@Param("id", PRODUCT_ID) id: string): Promise<AdminProductDetailResult> {
+    return this.getAdminProduct.execute(id);
+  }
 
   /** `multipart/form-data`: the product as JSON in `data` and from 1 to 5 files in `images`. */
   @Post()
