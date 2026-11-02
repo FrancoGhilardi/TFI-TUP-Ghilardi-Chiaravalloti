@@ -1,3 +1,13 @@
+import { ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
+import {
+  ApiErrors,
+  VALIDATION_FAILED,
+} from "../../../../shared/presentation/http/openapi-decorators.js";
+import {
+  ProductCardPageResponseDto,
+  ProductCardResponseDto,
+  ProductDetailResponseDto,
+} from "./product.response.dto.js";
 import { Controller, Get, Header, Param, Query } from "@nestjs/common";
 import type { Page } from "../../../../shared/application/pagination.js";
 import { Public } from "../../../identity/presentation/decorators/public.decorator.js";
@@ -12,6 +22,7 @@ import { SearchCatalogRequestDto } from "./search-catalog.request.dto.js";
 import { STORE_CACHE_CONTROL } from "./store-cache.js";
 
 /** The products the store shows. */
+@ApiTags("Products")
 @Controller("products")
 @Public()
 export class CatalogController {
@@ -24,6 +35,9 @@ export class CatalogController {
 
   @Get()
   @Header("Cache-Control", STORE_CACHE_CONTROL)
+  @ApiOperation({ summary: "The store catalog: search, filters, order and pages" })
+  @ApiOkResponse({ type: ProductCardPageResponseDto })
+  @ApiErrors({ 400: [VALIDATION_FAILED, "INVALID_PRICE_RANGE"] })
   findAll(@Query() query: SearchCatalogRequestDto): Promise<Page<ProductCardResult>> {
     return this.searchCatalog.execute({
       categorySlug: query.categorySlug,
@@ -44,18 +58,25 @@ export class CatalogController {
   // (`RESERVED_PRODUCT_SLUGS`).
   @Get(STORE_PRODUCT_ROUTES.featured)
   @Header("Cache-Control", STORE_CACHE_CONTROL)
+  @ApiOperation({ summary: "Up to 5 featured products, for the home page" })
+  @ApiOkResponse({ type: [ProductCardResponseDto] })
   findFeatured(): Promise<ProductCardResult[]> {
     return this.listFeaturedProducts.execute();
   }
 
   @Get(STORE_PRODUCT_ROUTES.new)
   @Header("Cache-Control", STORE_CACHE_CONTROL)
+  @ApiOperation({ summary: "Up to 5 products with a running new mark, for the home page" })
+  @ApiOkResponse({ type: [ProductCardResponseDto] })
   findNew(): Promise<ProductCardResult[]> {
     return this.listNewProducts.execute();
   }
 
   @Get(":slug")
   @Header("Cache-Control", STORE_CACHE_CONTROL)
+  @ApiOperation({ summary: "The page of a visible product, by its slug" })
+  @ApiOkResponse({ type: ProductDetailResponseDto })
+  @ApiErrors({ 404: ["PRODUCT_NOT_FOUND"] })
   findOne(@Param("slug") slug: string): Promise<ProductDetailResult> {
     return this.getProductDetail.execute(slug);
   }

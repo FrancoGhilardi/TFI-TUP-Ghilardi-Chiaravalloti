@@ -1,3 +1,4 @@
+import { ApiPropertyOptional } from "@nestjs/swagger";
 import { Transform, Type } from "class-transformer";
 import { IsEnum, IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min } from "class-validator";
 import { limitMessage } from "../../../../shared/presentation/http/page-request.dto.js";
@@ -60,12 +61,14 @@ export class SearchCatalogRequestDto implements SearchCatalogQuery {
   @IsEnum(ProductSort, { message: SORT_MESSAGE })
   sort?: ProductSort;
 
+  @ApiPropertyOptional({ type: Number, default: 1 })
   @Type(() => Number)
   @IsInt({ message: PAGE_MESSAGE })
   @Min(1, { message: PAGE_MESSAGE })
   @Max(SETTINGS.maxPage, { message: PAGE_MESSAGE })
   page = 1;
 
+  @ApiPropertyOptional({ type: Number, default: SETTINGS.defaultPageSize })
   @Type(() => Number)
   @IsInt({ message: LIMIT_MESSAGE })
   @Min(1, { message: LIMIT_MESSAGE })
