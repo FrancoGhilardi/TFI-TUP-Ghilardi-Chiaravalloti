@@ -185,6 +185,9 @@ class FakeImages extends ProductImageRepository {
     this.saved = images;
     return Promise.resolve();
   }
+  countByProduct(): Promise<never> {
+    return Promise.reject(new Error("Not used"));
+  }
 }
 
 class RecordingTransaction extends TransactionManager {
@@ -269,6 +272,9 @@ class FixedSkus extends SkuGenerator {
 class StubQueries extends AdminProductQueries {
   findById(id: string): Promise<AdminProductDetailResult | null> {
     return Promise.resolve({ id } as AdminProductDetailResult);
+  }
+  findImageById(): Promise<never> {
+    return Promise.reject(new Error("Not used"));
   }
 }
 
