@@ -2,14 +2,20 @@ import { Injectable } from "@nestjs/common";
 import { and, count, eq, isNull, ne, type SQL } from "drizzle-orm";
 import { DrizzleExecutor } from "../../../../shared/infrastructure/database/drizzle.executor.js";
 import { users } from "../../../../shared/infrastructure/database/schema/index.js";
-import { isUniqueViolation } from "../../../../shared/infrastructure/database/unique-violation.js";
+import {
+  isCheckViolation,
+  isUniqueViolation,
+} from "../../../../shared/infrastructure/database/constraint-violation.js";
 import type { User } from "../../domain/entities/user.js";
 import { EmailAlreadyInUseError } from "../../domain/errors/email-already-in-use-error.js";
+import { LastActiveAdminError } from "../../domain/errors/last-active-admin-error.js";
 import { UserRepository } from "../../domain/repositories/user.repository.js";
 import type { Email } from "../../domain/value-objects/email.js";
 import { UserMapper } from "./user.mapper.js";
 
 const EMAIL_INDEX = "uq_users_email_not_deleted";
+// Named by the trigger that keeps an active admin.
+const LAST_ADMIN_RULE = "chk_users_last_active_admin";
 
 // "Current" users are the ones not deleted, as in the unique email index.
 const isCurrent = isNull(users.deletedAt);
@@ -74,6 +80,10 @@ export class DrizzleUserRepository extends UserRepository {
       // the second, which is the same conflict.
       if (isUniqueViolation(error, EMAIL_INDEX)) {
         throw new EmailAlreadyInUseError();
+      }
+      // Two admins removing each other at once both pass the count; the trigger stops one.
+      if (isCheckViolation(error, LAST_ADMIN_RULE)) {
+        throw new LastActiveAdminError();
       }
       throw error;
     }
