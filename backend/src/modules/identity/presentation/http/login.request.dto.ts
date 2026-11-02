@@ -1,7 +1,11 @@
 import { Transform } from "class-transformer";
 import { IsNotEmpty, IsString, MaxLength } from "class-validator";
 import type { LoginCommand } from "../../application/dto/login.command.js";
-import { PASSWORD_INPUT_MAX_LENGTH, TOO_LONG_MESSAGE } from "./request-limits.js";
+import {
+  EMAIL_INPUT_MAX_LENGTH,
+  PASSWORD_INPUT_MAX_LENGTH,
+  TOO_LONG_MESSAGE,
+} from "./request-limits.js";
 
 /**
  * Only shape and size are checked: a login compares the text with the stored hash, so the
@@ -13,7 +17,7 @@ export class LoginRequestDto implements Omit<LoginCommand, "userAgent"> {
   @Transform(({ value }: { value: unknown }) => (typeof value === "string" ? value.trim() : value))
   @IsString({ message: "Ingresá tu email." })
   @IsNotEmpty({ message: "Ingresá tu email." })
-  @MaxLength(254, { message: TOO_LONG_MESSAGE })
+  @MaxLength(EMAIL_INPUT_MAX_LENGTH, { message: TOO_LONG_MESSAGE })
   email!: string;
 
   @IsString({ message: "Ingresá tu contraseña." })

@@ -11,12 +11,14 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import type { Request, Response } from "express";
+import { BackgroundTasks } from "../../../../shared/application/background-tasks.js";
 import { StrictRateLimit } from "../../../../shared/presentation/http/rate-limit.js";
 import { NotImplementedYetError } from "../../../../shared/presentation/http/not-implemented-yet-error.js";
 import { InvalidSessionError } from "../../application/errors/invalid-session-error.js";
 import { ChangePasswordUseCase } from "../../application/use-cases/change-password.use-case.js";
 import { LoginUseCase } from "../../application/use-cases/login.use-case.js";
 import { LogoutUseCase } from "../../application/use-cases/logout.use-case.js";
+import { RequestPasswordResetUseCase } from "../../application/use-cases/request-password-reset.use-case.js";
 import { RefreshSessionUseCase } from "../../application/use-cases/refresh-session.use-case.js";
 import { UserRole } from "../../domain/user-role.js";
 import type { AuthUser } from "../auth-user.js";
@@ -32,6 +34,7 @@ import {
   LOGIN_RATE_LIMIT,
 } from "./auth-rate-limits.js";
 import { ChangePasswordRequestDto } from "./change-password.request.dto.js";
+import { ForgotPasswordRequestDto } from "./forgot-password.request.dto.js";
 import { LoginRequestDto } from "./login.request.dto.js";
 import { RefreshTokenCookie } from "./refresh-token-cookie.js";
 
@@ -46,6 +49,8 @@ export class AuthController {
     private readonly refreshSessionUseCase: RefreshSessionUseCase,
     private readonly logoutUseCase: LogoutUseCase,
     private readonly changePasswordUseCase: ChangePasswordUseCase,
+    private readonly requestPasswordResetUseCase: RequestPasswordResetUseCase,
+    private readonly backgroundTasks: BackgroundTasks,
     private readonly refreshTokenCookie: RefreshTokenCookie,
   ) {}
 
@@ -70,8 +75,13 @@ export class AuthController {
   @Post("forgot-password")
   @Public()
   @StrictRateLimit(FORGOT_PASSWORD_RATE_LIMIT)
-  forgotPassword(): never {
-    throw new NotImplementedYetError();
+  @HttpCode(HttpStatus.NO_CONTENT)
+  forgotPassword(@Body() body: ForgotPasswordRequestDto): void {
+    // Not awaited: looking the account up, hashing and mailing only happen when the email
+    // exists, so waiting for them would let the response time reveal it.
+    this.backgroundTasks.run("Password reset request", () =>
+      this.requestPasswordResetUseCase.execute({ email: body.email }),
+    );
   }
 
   @Post("change-password")
