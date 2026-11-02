@@ -1,10 +1,16 @@
 import { z } from "zod";
+import { databaseSslSchema, postgresUrl, refineDatabaseSsl } from "./database-env.js";
 
-const envSchema = z.object({
-  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  PORT: z.coerce.number().int().positive().default(3001),
-  FRONTEND_URL: z.url().default("http://localhost:3000"),
-});
+const envSchema = z
+  .object({
+    NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+    PORT: z.coerce.number().int().positive().default(3001),
+    FRONTEND_URL: z.url().default("http://localhost:3000"),
+    DATABASE_URL: postgresUrl,
+    DATABASE_POOL_MAX: z.coerce.number().int().positive().max(50).default(10),
+  })
+  .extend(databaseSslSchema.shape)
+  .superRefine(refineDatabaseSsl);
 
 export type Env = z.infer<typeof envSchema>;
 
