@@ -1,14 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { type CategoryNode, getCategoryTree } from "@/modules/catalog";
 import { ApiError } from "@/modules/core/http";
 
-import { getStoreCategories } from "./get-store-categories";
+import type { CategoryNode } from "../domain/category";
+import { getCategoryTree } from "../infrastructure/categories-api";
+import { getStoreRootCategories } from "./get-store-root-categories";
 
-vi.mock("@/modules/catalog", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/modules/catalog")>()),
-  getCategoryTree: vi.fn(),
-}));
+vi.mock("../infrastructure/categories-api", () => ({ getCategoryTree: vi.fn() }));
 
 const node = (slug: string, children: CategoryNode[] = []): CategoryNode => ({
   id: slug,
@@ -18,7 +16,7 @@ const node = (slug: string, children: CategoryNode[] = []): CategoryNode => ({
   children,
 });
 
-describe("getStoreCategories", () => {
+describe("getStoreRootCategories", () => {
   beforeEach(() => {
     vi.mocked(getCategoryTree).mockReset();
   });
@@ -29,7 +27,7 @@ describe("getStoreCategories", () => {
       node("arte"),
     ]);
 
-    await expect(getStoreCategories()).resolves.toEqual([node("libros"), node("arte")]);
+    await expect(getStoreRootCategories()).resolves.toEqual([node("libros"), node("arte")]);
     expect(getCategoryTree).toHaveBeenCalledWith(3000);
   });
 
@@ -38,13 +36,13 @@ describe("getStoreCategories", () => {
       new ApiError({ status: 0, code: "NETWORK_ERROR", message: "Sin conexión." }),
     );
 
-    await expect(getStoreCategories()).resolves.toEqual([]);
+    await expect(getStoreRootCategories()).resolves.toEqual([]);
   });
 
   it("lets any other error through", async () => {
     const bug = new TypeError("boom");
     vi.mocked(getCategoryTree).mockRejectedValue(bug);
 
-    await expect(getStoreCategories()).rejects.toBe(bug);
+    await expect(getStoreRootCategories()).rejects.toBe(bug);
   });
 });

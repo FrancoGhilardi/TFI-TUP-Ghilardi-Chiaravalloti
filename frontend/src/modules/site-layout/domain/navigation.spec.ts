@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { categoryHref, isActivePath } from "./navigation";
+import { isActivePath } from "./navigation";
 
 describe("isActivePath", () => {
   it.each([
@@ -13,11 +13,5 @@ describe("isActivePath", () => {
     ["/", "/productos", false],
   ])("on %s, %s is active: %s", (pathname, href, active) => {
     expect(isActivePath(pathname, href)).toBe(active);
-  });
-});
-
-describe("categoryHref", () => {
-  it("filters the catalog by the category slug", () => {
-    expect(categoryHref("arte-y-pintura")).toBe("/productos?categoria=arte-y-pintura");
   });
 });

@@ -14,6 +14,10 @@ const envSchema = z.object({
     .string({ error: "Required" })
     .trim()
     .min(1, "Required: the WhatsApp number as shown to customers, such as 2622 38-0159"),
+  NEXT_PUBLIC_STORAGE_URL: z.url({
+    protocol: /^https?$/,
+    error: "Must be the http(s) URL of Supabase, such as http://127.0.0.1:54321",
+  }),
 });
 
 export interface PublicConfig {
@@ -23,6 +27,8 @@ export interface PublicConfig {
   whatsappNumber: string;
   /** The same number written as customers know it, such as `2622 38-0159`. */
   whatsappDisplay: string;
+  /** Origin of Supabase, which serves the public product images. */
+  storageOrigin: string;
 }
 
 /** Validates the raw variables; throws an error naming each invalid one. */
@@ -40,6 +46,7 @@ export function parsePublicConfig(raw: Record<string, string | undefined>): Publ
     apiBaseUrl: `${origin}${API_PREFIX}`,
     whatsappNumber: result.data.NEXT_PUBLIC_WHATSAPP_NUMBER,
     whatsappDisplay: result.data.NEXT_PUBLIC_WHATSAPP_DISPLAY,
+    storageOrigin: new URL(result.data.NEXT_PUBLIC_STORAGE_URL).origin,
   };
 }
 
@@ -48,4 +55,5 @@ export const publicConfig = parsePublicConfig({
   NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
   NEXT_PUBLIC_WHATSAPP_NUMBER: process.env.NEXT_PUBLIC_WHATSAPP_NUMBER,
   NEXT_PUBLIC_WHATSAPP_DISPLAY: process.env.NEXT_PUBLIC_WHATSAPP_DISPLAY,
+  NEXT_PUBLIC_STORAGE_URL: process.env.NEXT_PUBLIC_STORAGE_URL,
 });

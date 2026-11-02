@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-import type { CategoryNode } from "@/modules/catalog";
+import { categoryHref, type CategoryNode } from "@/modules/catalog";
 import { cn } from "@/modules/core/lib/utils";
 import {
   NavigationMenu,
@@ -13,7 +13,7 @@ import {
   NavigationMenuTrigger,
 } from "@/modules/core/ui/primitives/navigation-menu";
 
-import { ABOUT, categoryHref, HOME, PRODUCTS } from "../domain/navigation";
+import { ABOUT, HOME, PRODUCTS } from "../domain/navigation";
 import { navItemStyles } from "./nav-styles";
 import { NavLink } from "./NavLink";
 import { useIsActivePath } from "../application/useIsActivePath";

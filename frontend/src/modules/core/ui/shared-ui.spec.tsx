@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { DaisyMark } from "./DaisyMark";
+import { ExternalLink } from "./ExternalLink";
 import { InstagramIcon } from "./icons/InstagramIcon";
 import { WhatsAppIcon } from "./icons/WhatsAppIcon";
 import { SkipLink } from "./SkipLink";
@@ -34,5 +35,15 @@ describe("decorative graphics", () => {
     const { container } = render(element);
 
     expect(container.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+  });
+});
+
+describe("ExternalLink", () => {
+  it("opens in a new tab without exposing this page", () => {
+    render(<ExternalLink href="https://wa.me/1">WhatsApp</ExternalLink>);
+
+    const link = screen.getByRole("link", { name: "WhatsApp" });
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
   });
 });

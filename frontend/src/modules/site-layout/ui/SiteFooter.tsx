@@ -1,12 +1,13 @@
 import Link from "next/link";
 
-import type { CategoryNode } from "@/modules/catalog";
+import { categoryHref, type CategoryNode } from "@/modules/catalog";
 import { publicConfig } from "@/modules/core/config/env";
 import { siteConfig } from "@/modules/core/config/site";
 import { Container } from "@/modules/core/ui/Container";
+import { ExternalLink } from "@/modules/core/ui/ExternalLink";
 import { Wordmark } from "@/modules/core/ui/Wordmark";
 
-import { ABOUT, categoryHref, FOOTER_CATEGORY_LIMIT, PRODUCTS } from "../domain/navigation";
+import { ABOUT, FOOTER_CATEGORY_LIMIT, PRODUCTS } from "../domain/navigation";
 import { FooterColumn } from "./FooterColumn";
 import { SocialLinks } from "./SocialLinks";
 
@@ -29,21 +30,15 @@ export const SiteFooter = ({ categories, whatsappUrl }: SiteFooterProps) => {
     )),
   ];
   const services = [
-    ...siteConfig.services,
+    ...siteConfig.services.map(({ label }) => label),
     <Link key={ABOUT.href} href={ABOUT.href} className={linkStyles}>
       {ABOUT.label}
     </Link>,
   ];
   const contact = [
-    <a
-      key="whatsapp"
-      href={whatsappUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={linkStyles}
-    >
+    <ExternalLink key="whatsapp" href={whatsappUrl} className={linkStyles}>
       WhatsApp: {publicConfig.whatsappDisplay}
-    </a>,
+    </ExternalLink>,
     siteConfig.city,
     siteConfig.hours,
     <a key="email" href={`mailto:${siteConfig.email}`} className={linkStyles}>

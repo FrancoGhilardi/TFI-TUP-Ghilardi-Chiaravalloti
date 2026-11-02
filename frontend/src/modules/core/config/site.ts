@@ -7,5 +7,9 @@ export const siteConfig = {
   city: "Mendoza, Argentina",
   hours: "Lun a Sáb · 9 a 13 / 17 a 21 h",
   email: "msueno27@gmail.com",
-  services: ["Impresiones y fotocopias", "Anillado y plastificado", "Rapipago"],
+  services: [
+    { id: "printing", label: "Impresiones y fotocopias" },
+    { id: "binding", label: "Anillado y plastificado" },
+    { id: "rapipago", label: "Rapipago" },
+  ],
 } as const;

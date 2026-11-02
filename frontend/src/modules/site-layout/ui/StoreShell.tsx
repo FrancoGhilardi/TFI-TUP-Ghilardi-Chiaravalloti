@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
 
+import { getStoreRootCategories } from "@/modules/catalog";
 import { publicConfig } from "@/modules/core/config/env";
 import { SkipLink } from "@/modules/core/ui/SkipLink";
 import { generalInquiryUrl } from "@/modules/whatsapp";
 
-import { getStoreCategories } from "../application/get-store-categories";
 import { CartButton } from "./CartButton";
 import { SiteFooter } from "./SiteFooter";
 import { SiteHeader } from "./SiteHeader";
@@ -17,7 +17,7 @@ interface StoreShellProps {
 
 /** Header, content and footer shared by every public page. */
 export const StoreShell = async ({ children }: StoreShellProps) => {
-  const categories = await getStoreCategories();
+  const categories = await getStoreRootCategories();
   const whatsappUrl = generalInquiryUrl(publicConfig.whatsappNumber);
 
   return (

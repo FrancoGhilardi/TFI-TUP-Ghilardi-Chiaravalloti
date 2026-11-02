@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { apiClient } from "@/modules/core/http";
+import { ApiError, apiClient } from "@/modules/core/http";
 
 import { getCategoryTree } from "./categories-api";
 
-vi.mock("@/modules/core/http", () => ({ apiClient: { get: vi.fn() } }));
+vi.mock("@/modules/core/http", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/modules/core/http")>()),
+  apiClient: { get: vi.fn() },
+}));
 
 const dto = (slug: string, children: unknown[] = []) => ({
   id: `id-${slug}`,
@@ -46,6 +49,12 @@ describe("getCategoryTree", () => {
       },
       { id: "id-arte", name: "ARTE", slug: "arte", description: null, children: [] },
     ]);
+  });
+
+  it("reports a body of another shape as an unexpected response", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue([{ id: "x", name: "Libros" }]);
+
+    await expect(getCategoryTree()).rejects.toBeInstanceOf(ApiError);
   });
 
   it("passes the caller's timeout to the client", async () => {

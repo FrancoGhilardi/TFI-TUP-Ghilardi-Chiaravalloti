@@ -1,19 +1,24 @@
 import { cache } from "react";
+import { z } from "zod";
 
-import { apiClient } from "@/modules/core/http";
+import { apiClient, parseResponse } from "@/modules/core/http";
 
 import type { CategoryNode } from "../domain/category";
 
 const CATEGORIES_REVALIDATE_SECONDS = 60;
 
 /** `GET /categories` response node. */
-interface CategoryTreeDto {
-  id: string;
-  name: string;
-  slug: string;
-  description: string | null;
-  children: CategoryTreeDto[];
-}
+const categoryTreeSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  slug: z.string(),
+  description: z.string().nullable(),
+  get children() {
+    return z.array(categoryTreeSchema);
+  },
+});
+
+type CategoryTreeDto = z.infer<typeof categoryTreeSchema>;
 
 function toCategoryNode(dto: CategoryTreeDto): CategoryNode {
   return {
@@ -30,9 +35,9 @@ function toCategoryNode(dto: CategoryTreeDto): CategoryNode {
  * without the categories passes a short timeout so a slow API does not hold its page.
  */
 export const getCategoryTree = cache(async (timeoutMs?: number): Promise<CategoryNode[]> => {
-  const tree = await apiClient.get<CategoryTreeDto[]>("/categories", {
+  const body = await apiClient.get<unknown>("/categories", {
     next: { revalidate: CATEGORIES_REVALIDATE_SECONDS },
     timeoutMs,
   });
-  return tree.map(toCategoryNode);
+  return parseResponse(z.array(categoryTreeSchema), body).map(toCategoryNode);
 });
