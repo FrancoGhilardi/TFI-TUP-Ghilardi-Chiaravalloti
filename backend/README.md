@@ -39,11 +39,17 @@ Requirements: Docker and the [Supabase CLI](https://supabase.com/docs/guides/loc
 
 ```bash
 cp .env.example .env
-pnpm db:start        # local Postgres + pooler in Docker
+pnpm db:start        # local Postgres, pooler and Storage (with its buckets) in Docker
 pnpm db:migrate      # applies drizzle/*.sql
 pnpm db:seed-admin   # needs SEED_ADMIN_* in .env
 pnpm db:smoke        # read-only sanity check, safe against any target
 ```
+
+### File storage
+
+Product images are kept in Supabase Storage, locally too: `pnpm db:start` starts it and creates the two buckets declared in `supabase/config.toml` (`product-originals`, private, and `product-images`, public). `.env.example` already points `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` to the local stack; its key is the fixed demo key of the Supabase CLI and works nowhere else. `SUPABASE_ANON_KEY` is never read by the app: the e2e tests and `pnpm storage:setup` use it to check that the buckets stay closed to anyone without the `service_role` key.
+
+The buckets have no access policies: only the backend reads and writes them, with the `service_role` key, and the only open door is the public address of the processed images. On a Supabase project, set the project URL and its `service_role` key (Settings > API) in the environment and run `pnpm storage:setup` (or `pnpm storage:setup:deploy` after a build): it creates the buckets that are missing and updates the ones that differ, with the visibility, 10 MB limit and formats defined in `src/shared/infrastructure/storage/storage-buckets.ts`, and running it again changes nothing. With the project's anon key in `SUPABASE_ANON_KEY` it then checks, with a probe file it removes afterwards, that anyone holding that key cannot list, download, upload or remove files beyond reading the processed images, and fails naming what is open (for example, a policy added from the dashboard); without it, it warns that nothing was checked. The key gives full access to Storage: keep it out of the repository and of any log.
 
 ### Connection profiles
 
@@ -89,7 +95,18 @@ Rules:
 
 ### Tests
 
-`pnpm test:e2e` needs the local database (`pnpm db:start`). It runs the migrations first and refuses to run if `DATABASE_MIGRATION_URL` does not point to `127.0.0.1` or `localhost`.
+`pnpm test:e2e` needs the local database and Storage (`pnpm db:start`). It runs the migrations first and refuses to run if `DATABASE_MIGRATION_URL` does not point to `127.0.0.1` or `localhost`.
+
+### API documentation
+
+The OpenAPI document is the contract with the frontend. Outside production the app serves it at `/api/docs` (Swagger UI) and `/api/docs-json`; in production only with `OPENAPI_ENABLED=true`. `docs/openapi.json` keeps a copy in the repository, so the frontend can use it without the API running.
+
+```bash
+pnpm openapi:metadata   # after changing a DTO or a route: regenerates src/openapi-metadata.ts
+pnpm openapi:export     # regenerates the metadata, builds and writes docs/openapi.json
+```
+
+Request and response types come from the DTOs (`*.dto.ts`) through the Swagger plugin, whose output is kept in `src/openapi-metadata.ts`, so the document is the same built or under test. Each endpoint declares its errors with `@ApiErrors`, by status and `code`. The e2e tests fail if a route is missing from the document, or if either generated file is out of date.
 
 ## Compile and run the project
 

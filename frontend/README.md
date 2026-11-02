@@ -1,36 +1,78 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Librería Mi Sueño — Frontend
 
-## Getting Started
+Public shop and admin panel of Librería Mi Sueño, built with Next.js 16 (App Router), React 19,
+Tailwind CSS 4 and the React Compiler. It consumes the REST API in `../backend`.
 
-First, run the development server:
+## Requirements
+
+- Node.js 22
+- pnpm 10 (`corepack enable`)
+- The backend running locally, or the URL of a deployed one
+
+## Setup
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+cp .env.example .env.local
+pnpm dev                  # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Environment variables
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Variable              | Required | Description                                                                                           |
+| --------------------- | -------- | ----------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_API_URL` | Yes      | Origin of the backend API, such as `http://localhost:3001`. The `/api/v1` prefix is added by the app. |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The variables are validated when `next dev` or `next build` starts; an invalid or missing one stops
+the command with a message naming it. `NEXT_PUBLIC_*` values are inlined into the bundle at build
+time, so changing them requires a new build.
 
-## Learn More
+## Commands
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+pnpm dev                  # development server
+pnpm build                # production build
+pnpm start                # serve the production build
+pnpm test                 # unit tests (Vitest, src/**/*.spec.ts)
+pnpm test:watch           # unit tests in watch mode
+pnpm lint                 # lint:fix to fix
+pnpm format:check         # format to fix
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Structure
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Each feature is a module in `src/modules/<module>/` with `domain/`, `application/`,
+`infrastructure/` and `ui/` layers; the routes in `src/app/` only compose modules.
 
-## Deploy on Vercel
+`src/modules/core` holds what every module shares:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `config/` — validated public configuration (`publicConfig.apiBaseUrl`).
+- `http/` — the API client and its error model, exported from `@/modules/core/http`.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Calling the API
+
+Only a module's `infrastructure/` layer calls the API:
+
+```ts
+import { apiClient, type Page } from "@/modules/core/http";
+
+export function getFeaturedProducts() {
+  return apiClient.get<ProductCardDto[]>("/products/featured", { next: { revalidate: 60 } });
+}
+```
+
+- Every failure is an `ApiError` with `status`, `code`, `details`, `retryAfter` and a `message`
+  ready to show to the user, in Spanish. `fieldErrors()` gives the messages per field of a
+  `VALIDATION_FAILED` error. A module can replace the message of a code with `errorMessages`.
+- Requests time out after 30 seconds by default (`timeoutMs`). A cancellation through the
+  caller's own `signal` is rethrown as is.
+- The client always passes a `signal` to `fetch`, which turns off Next's per-render
+  deduplication. Wrap reads shared by several components of the same render (such as
+  `generateMetadata` and the page) in React's `cache()`.
+- Authenticated calls use their own instance from `createApiClient`, given `getAccessToken`,
+  `onUnauthorized` and instance defaults such as `credentials: "include"`. When an authenticated
+  request gets a 401, `onUnauthorized` may renew the session and resolve `true` to retry it once.
+  Concurrent 401s share a single renewal, since the API revokes every session when a refresh
+  token is reused.
+- Plain objects and arrays are sent as JSON; `FormData`, `Blob`, `URLSearchParams` and other
+  `fetch` bodies are sent as is.

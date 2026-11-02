@@ -44,8 +44,10 @@ erDiagram
         uuid id PK
         uuid user_id FK "ON DELETE CASCADE"
         varchar refresh_token_hash
+        uuid family_id "compartido por las sesiones de un mismo inicio de sesión"
         timestamptz expires_at
         timestamptz revoked_at "se completa al desactivar, borrar o cambiar rol/clave"
+        timestamptz rotated_at "se completa al renovar; implica revoked_at"
         varchar user_agent
         timestamptz created_at
     }
@@ -95,7 +97,7 @@ erDiagram
     related_products {
         uuid product_id PK, FK
         uuid related_product_id PK, FK "CHECK distinto de product_id"
-        smallint sort_order
+        smallint sort_order "0 a 3, único por producto"
     }
 
     product_images {
@@ -110,6 +112,8 @@ erDiagram
         integer height
         integer size_bytes
         image_status status "PENDING | PROCESSED | FAILED"
+        timestamptz pending_since "solo pendientes"
+        smallint processing_attempts "intentos desde que espera"
         timestamptz created_at
     }
 ```
@@ -124,7 +128,7 @@ Almacena las cuentas del panel de administración, con dos roles posibles: `ADMI
 
 ### `sessions`
 
-Registra las sesiones activas de cada usuario a partir del refresh token (guardado como hash, nunca el token real). Se relaciona con `users` mediante `user_id`, con borrado en cascada: si se elimina un usuario, sus sesiones dejan de tener sentido. Permite revocar sesiones puntuales cuando cambian la contraseña, el rol o el estado del usuario, o cuando se detecta reuso de un refresh token.
+Registra las sesiones activas de cada usuario a partir del refresh token (guardado como hash, nunca el token real). Se relaciona con `users` mediante `user_id`, con borrado en cascada: si se elimina un usuario, sus sesiones dejan de tener sentido. Permite revocar sesiones puntuales cuando cambian la contraseña, el rol o el estado del usuario, o cuando se detecta reuso de un refresh token. `rotated_at` distingue una sesión reemplazada por una renovación de una revocada por otro motivo: solo volver a usar un token rotado cuenta como reuso. `family_id` agrupa la sesión creada por un inicio de sesión con todas las que la reemplazaron mediante renovaciones (vale el `id` de la primera), de modo que al cerrar sesión se revoca la familia completa sin afectar las sesiones de otros dispositivos.
 
 ### `categories`
 
@@ -132,7 +136,7 @@ Organiza los productos en categorías, con soporte para subcategorías mediante 
 
 ### `products`
 
-Es la entidad central del catálogo: contiene título, descripción, precio, precio de oferta, stock y las marcas de destacado/novedad/oferta. Se relaciona con `users` a través de `created_by` y `updated_by`, para saber qué usuario del panel cargó o modificó cada producto. El SKU y el slug son inmutables una vez generados, protegidos por trigger, porque se usan como identificadores externos (URL, referencia en WhatsApp) y no deben cambiar con el tiempo.
+Es la entidad central del catálogo: contiene título, descripción, precio, precio de oferta, stock y las marcas de destacado/novedad/oferta. Se relaciona con `users` a través de `created_by` y `updated_by`, para saber qué usuario del panel cargó o modificó cada producto. El SKU y el slug son inmutables una vez generados, protegidos por trigger, porque se usan como identificadores externos (URL, referencia en WhatsApp) y no deben cambiar con el tiempo. Los slugs `featured` y `new` están reservados, porque coinciden con rutas fijas de la tienda.
 
 ### `product_categories`
 
@@ -140,22 +144,22 @@ Es la tabla intermedia que resuelve la relación muchos a muchos entre `products
 
 ### `related_products`
 
-Modela la relación de "productos similares" como una relación muchos a muchos del producto consigo mismo: cada fila conecta un producto (`product_id`) con otro que se muestra como similar (`related_product_id`). Se carga a mano desde el panel, por eso necesita su propia tabla en lugar de inferirse solo por categoría.
+Modela la relación de "productos similares" como una relación muchos a muchos del producto consigo mismo: cada fila conecta un producto (`product_id`) con otro que se muestra como similar (`related_product_id`). Se carga a mano desde el panel, por eso necesita su propia tabla en lugar de inferirse solo por categoría. La relación es unidireccional: que A muestre a B como similar no hace que B muestre a A. Cada producto tiene hasta 4 similares, los mismos que muestra la ficha, ordenados por `sort_order`: la posición va de 0 a 3 y no se repite dentro del producto, y la clave primaria impide cargar dos veces el mismo similar.
 
 ### `product_images`
 
-Guarda hasta 5 imágenes por producto, cada una con su posición, sus claves de almacenamiento (original en bucket privado, variante procesada en bucket público) y su estado de procesamiento (`PENDING`, `PROCESSED`, `FAILED`). Se relaciona con `products` mediante `product_id`, con borrado en cascada, porque una imagen no tiene sentido sin el producto al que pertenece. La combinación `product_id` + `position` es única (y diferible) para poder reordenar las imágenes dentro de una misma transacción sin violar la restricción.
+Guarda hasta 5 imágenes por producto, cada una con su posición, sus claves de almacenamiento (original en bucket privado, versión pública procesada en bucket público) y su estado de procesamiento (`PENDING`, `PROCESSED`, `FAILED`). Mientras está pendiente guarda desde cuándo espera (`pending_since`), con lo que se detectan las imágenes demoradas, y cuenta los procesamientos empezados (`processing_attempts`), para dejar con error una que nunca termina. Se relaciona con `products` mediante `product_id`, con borrado en cascada, porque una imagen no tiene sentido sin el producto al que pertenece. La combinación `product_id` + `position` es única (y diferible) para poder reordenar las imágenes dentro de una misma transacción sin violar la restricción.
 
 ## Por qué estas relaciones
 
 - **`users` y `products`/`sessions`/`users`** son relaciones 1 a N: un usuario puede crear muchos productos o tener muchas sesiones, pero cada producto o sesión pertenece a un único usuario. Esto permite trazabilidad (quién hizo qué) sin duplicar datos de usuario en cada tabla.
 - **`products` y `categories`** necesitan una tabla intermedia (`product_categories`) porque la relación es N a N: un producto puede estar en varias categorías y una categoría agrupa varios productos, algo que una relación 1 a N no podría representar.
 - **`related_products`** también es N a N, pero autorreferenciada (producto-producto), por eso tiene su propia tabla en lugar de una simple columna de clave foránea.
-- **`product_images`** es 1 a N respecto de `products` (cada imagen pertenece a un solo producto), pero con un límite de negocio (máximo 5) que se refuerza con un constraint trigger diferido, no solo con una clave foránea simple.
+- **`product_images`** es 1 a N respecto de `products` (cada imagen pertenece a un solo producto), pero con límites de negocio que una clave foránea simple no expresa: el mínimo de una imagen se refuerza con un constraint trigger diferido y el máximo de 5, con el rango de posiciones y su unicidad.
 
 ## Introducción al DDL
 
-A continuación se presenta el script DDL (Data Definition Language) que implementa el modelo entidad-relación descripto, probado sobre PostgreSQL 16 y pensado para ejecutarse en Supabase.
+A continuación se presenta el script DDL (Data Definition Language) que implementa el modelo entidad-relación descripto, probado sobre PostgreSQL 17 (la versión de Supabase) y pensado para ejecutarse en Supabase. Refleja el resultado de aplicar todas las migraciones del backend (`drizzle/0000` a `drizzle/0012`).
 
 El script crea las siete tablas en el schema `libreria` (no expuesto por la Data API de Supabase, por seguridad), junto con las extensiones, tipos enumerados, funciones auxiliares, índices y triggers necesarios para que ciertas reglas de negocio —como la inmutabilidad del SKU y el slug, el límite de 5 imágenes por producto, la categoría principal única o la exigencia de al menos una categoría e imagen por producto— se cumplan a nivel de base de datos y no dependan únicamente de la validación en el backend.
 
@@ -301,8 +305,9 @@ BEGIN
         AND is_active
         AND deleted_at IS NULL
     ) THEN
-      RAISE EXCEPTION 'No se puede quitar al ultimo administrador activo'
-        USING ERRCODE = 'check_violation';
+      -- El nombre de la restriccion permite a la aplicacion responder con su propio mensaje
+      RAISE EXCEPTION 'The last active administrator cannot be removed'
+        USING ERRCODE = 'check_violation', CONSTRAINT = 'chk_users_last_active_admin';
     END IF;
   END IF;
 
@@ -324,17 +329,24 @@ CREATE TABLE libreria.sessions (
   id                  uuid         PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id             uuid         NOT NULL REFERENCES libreria.users (id) ON DELETE CASCADE,
   refresh_token_hash  varchar(255) NOT NULL,
+  family_id           uuid         NOT NULL,
   expires_at          timestamptz  NOT NULL,
   revoked_at          timestamptz,
+  rotated_at          timestamptz,
   user_agent          varchar(500),
   created_at          timestamptz  NOT NULL DEFAULT now(),
 
   CONSTRAINT uq_sessions_refresh_token_hash UNIQUE (refresh_token_hash),
-  CONSTRAINT chk_sessions_expires_after_created CHECK (expires_at > created_at)
+  CONSTRAINT chk_sessions_expires_after_created CHECK (expires_at > created_at),
+  CONSTRAINT chk_sessions_rotated_is_revoked CHECK (rotated_at IS NULL OR revoked_at IS NOT NULL)
 );
 
 CREATE INDEX idx_sessions_user_active
   ON libreria.sessions (user_id)
+  WHERE revoked_at IS NULL;
+
+CREATE INDEX idx_sessions_family_active
+  ON libreria.sessions (family_id)
   WHERE revoked_at IS NULL;
 
 -- Revoca las sesiones al desactivar, dar de baja o cambiar rol o clave
@@ -449,6 +461,9 @@ CREATE TABLE libreria.products (
   CONSTRAINT uq_products_slug UNIQUE (slug),
   CONSTRAINT chk_products_slug_format
     CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
+  -- Rutas fijas de la tienda (/products/featured y /products/new)
+  CONSTRAINT chk_products_slug_not_reserved
+    CHECK (slug NOT IN ('featured', 'new')),
   CONSTRAINT chk_products_title_not_blank
     CHECK (btrim(title) <> ''),
   CONSTRAINT chk_products_price_positive
@@ -573,7 +588,11 @@ CREATE TABLE libreria.related_products (
 
   CONSTRAINT pk_related_products PRIMARY KEY (product_id, related_product_id),
   CONSTRAINT chk_related_products_not_self
-    CHECK (product_id <> related_product_id)
+    CHECK (product_id <> related_product_id),
+  -- Hasta 4 por producto, los que muestra la ficha: una posición de 0 a 3 para cada uno
+  CONSTRAINT chk_related_products_sort_order_range
+    CHECK (sort_order BETWEEN 0 AND 3),
+  CONSTRAINT uq_related_products_sort_order UNIQUE (product_id, sort_order)
 );
 
 CREATE INDEX idx_related_products_related_product_id
@@ -594,6 +613,10 @@ CREATE TABLE libreria.product_images (
   height        integer,
   size_bytes    integer,
   status        libreria.image_status NOT NULL DEFAULT 'PENDING',
+  -- Desde cuando espera ser procesada; solo una imagen pendiente la tiene
+  pending_since timestamptz,
+  -- Procesamientos empezados desde que espera; al tercero sin terminar queda con error
+  processing_attempts smallint NOT NULL DEFAULT 0,
   created_at    timestamptz      NOT NULL DEFAULT now(),
 
   -- El UNIQUE junto con el rango 1-5 limita a 5 imagenes por producto.
@@ -612,8 +635,36 @@ CREATE TABLE libreria.product_images (
     CHECK (size_bytes IS NULL OR size_bytes > 0),
   -- Una imagen procesada debe tener su version publica
   CONSTRAINT chk_product_images_processed_has_public_key
-    CHECK (status <> 'PROCESSED' OR public_key IS NOT NULL)
+    CHECK (status <> 'PROCESSED' OR public_key IS NOT NULL),
+  -- Solo una imagen pendiente tiene fecha de espera (la completa o la borra un trigger)
+  CONSTRAINT chk_product_images_processing_attempts
+    CHECK (processing_attempts >= 0),
+  CONSTRAINT chk_product_images_pending_since
+    CHECK ((status = 'PENDING') = (pending_since IS NOT NULL))
 );
+
+-- Imagenes demoradas: las pendientes, por antiguedad de espera
+CREATE INDEX idx_product_images_pending_since
+  ON libreria.product_images (pending_since) WHERE status = 'PENDING';
+
+-- Completa pending_since en una fila pendiente que llega sin fecha y la borra en otro estado
+CREATE OR REPLACE FUNCTION libreria.set_image_pending_since()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.status <> 'PENDING' THEN
+    NEW.pending_since := NULL;
+  ELSIF NEW.pending_since IS NULL THEN
+    NEW.pending_since := now();
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_product_images_pending_since
+  BEFORE INSERT OR UPDATE ON libreria.product_images
+  FOR EACH ROW EXECUTE FUNCTION libreria.set_image_pending_since();
 
 -- Todo producto debe tener al menos una imagen (se valida al COMMIT)
 CREATE OR REPLACE FUNCTION libreria.check_product_has_image()

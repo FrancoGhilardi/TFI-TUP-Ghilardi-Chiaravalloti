@@ -47,6 +47,8 @@ export const products = libreria.table(
     check("chk_products_sku_format", sql`sku ~ '^LMS-[0-9]{6,}$'`),
     unique("uq_products_slug").on(t.slug),
     check("chk_products_slug_format", sql`slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'`),
+    // The store routes /products/featured and /products/new would hide such a product.
+    check("chk_products_slug_not_reserved", sql`slug NOT IN ('featured', 'new')`),
     check("chk_products_title_not_blank", sql`btrim(title) <> ''`),
     check("chk_products_price_positive", sql`price > 0`),
     check(
