@@ -212,6 +212,7 @@ describe("Authentication routes (e2e)", () => {
 
       expect(response.headers["access-control-allow-origin"]).toBe(frontendOrigin);
       expect(response.headers["access-control-allow-credentials"]).toBe("true");
+      expect(response.headers["access-control-expose-headers"]).toBe("Retry-After");
     });
 
     it.each(cookieRoutes)("%s rejects a foreign origin", async (path) => {

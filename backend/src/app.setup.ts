@@ -27,6 +27,8 @@ export function setupApp(app: INestApplication): void {
   app.enableCors({
     origin: new URL(config.get("FRONTEND_URL", { infer: true })).origin,
     credentials: true,
+    // Not a CORS-safelisted header, so browsers hide it from the frontend unless exposed.
+    exposedHeaders: ["Retry-After"],
   });
   app.setGlobalPrefix("api");
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: "1" });
