@@ -2,7 +2,11 @@ import { validateEnv } from "./env.js";
 
 const LOCAL_URL = "postgresql://libreria_app:libreria_app@127.0.0.1:54322/postgres";
 const SECRET = "a-secret-that-is-long-enough-for-hs256";
-const BASE = { DATABASE_URL: LOCAL_URL, JWT_ACCESS_SECRET: SECRET };
+const STORAGE = {
+  SUPABASE_URL: "http://127.0.0.1:54321",
+  SUPABASE_SERVICE_ROLE_KEY: "service-role-key",
+};
+const BASE = { DATABASE_URL: LOCAL_URL, JWT_ACCESS_SECRET: SECRET, ...STORAGE };
 
 describe("validateEnv", () => {
   it("fails without DATABASE_URL", () => {
@@ -31,6 +35,7 @@ describe("validateEnv", () => {
     const env = validateEnv({
       DATABASE_URL: "postgresql://libreria_app.pooler-dev:libreria_app@127.0.0.1:54329/postgres",
       JWT_ACCESS_SECRET: SECRET,
+      ...STORAGE,
     });
 
     expect(env.DATABASE_URL).toContain(":54329");
@@ -44,6 +49,7 @@ describe("validateEnv", () => {
       DATABASE_SSL_MODE: "verify-full",
       DATABASE_SSL_CA: "-----BEGIN CERTIFICATE-----",
       JWT_ACCESS_SECRET: SECRET,
+      ...STORAGE,
       RESEND_API_KEY: "re_key",
       MAIL_FROM: "Librería Mi Sueño <no-reply@libreriamisueno.com.ar>",
     });
@@ -152,6 +158,7 @@ describe("validateEnv", () => {
         DATABASE_URL: "postgresql://libreria_app.ref:pwd@db.example.com:5432/postgres",
         DATABASE_SSL_MODE: "require",
         JWT_ACCESS_SECRET: "dev-only-access-token-secret-change-me",
+        ...STORAGE,
       }),
     ).toThrow("The development secret cannot be used in production");
   });
@@ -193,6 +200,7 @@ describe("validateEnv", () => {
       DATABASE_URL: "postgresql://libreria_app.ref:pwd@db.example.com:5432/postgres",
       DATABASE_SSL_MODE: "require",
       JWT_ACCESS_SECRET: SECRET,
+      ...STORAGE,
       RESEND_API_KEY: "re_key",
       MAIL_FROM: "no-reply@libreriamisueno.com.ar",
     };
@@ -203,5 +211,12 @@ describe("validateEnv", () => {
 
   it.each(["0", "-1"])("rejects DATABASE_POOL_MAX=%s", (value) => {
     expect(() => validateEnv({ ...BASE, DATABASE_POOL_MAX: value })).toThrow("DATABASE_POOL_MAX");
+  });
+  it.each(["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"])("fails without %s", (key) => {
+    expect(() => validateEnv({ ...BASE, [key]: undefined })).toThrow(key);
+  });
+
+  it("fails with a SUPABASE_URL that is not a URL", () => {
+    expect(() => validateEnv({ ...BASE, SUPABASE_URL: "nope" })).toThrow("SUPABASE_URL");
   });
 });

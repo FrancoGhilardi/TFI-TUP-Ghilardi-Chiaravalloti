@@ -65,12 +65,13 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
-      # The e2e tests need the local database (Postgres + pooler) that the Supabase CLI provides.
+      # The e2e tests need the local database (Postgres + pooler) and Storage, with its buckets,
+      # that the Supabase CLI provides.
       - uses: supabase/setup-cli@v1
         with:
           version: 2.120.0
 
-      - run: supabase start
+      - run: pnpm db:start
       - run: cp .env.example .env
       - run: pnpm test:e2e
       - run: pnpm db:check

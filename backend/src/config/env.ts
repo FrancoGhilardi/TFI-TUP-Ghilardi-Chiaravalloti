@@ -34,6 +34,10 @@ const envSchema = z
         })
         .optional(),
     ),
+    // Supabase Storage keeps the product images, locally too (`supabase status` shows both).
+    SUPABASE_URL: z.url(),
+    // Full access to Storage: it never leaves the backend nor reaches a log.
+    SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   })
   .extend(databaseSslSchema.shape)
   .superRefine(refineDatabaseSsl)

@@ -39,11 +39,17 @@ Requirements: Docker and the [Supabase CLI](https://supabase.com/docs/guides/loc
 
 ```bash
 cp .env.example .env
-pnpm db:start        # local Postgres + pooler in Docker
+pnpm db:start        # local Postgres, pooler and Storage (with its buckets) in Docker
 pnpm db:migrate      # applies drizzle/*.sql
 pnpm db:seed-admin   # needs SEED_ADMIN_* in .env
 pnpm db:smoke        # read-only sanity check, safe against any target
 ```
+
+### File storage
+
+Product images are kept in Supabase Storage, locally too: `pnpm db:start` starts it and creates the two buckets declared in `supabase/config.toml` (`product-originals`, private, and `product-images`, public). `.env.example` already points `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` to the local stack; its key is the fixed demo key of the Supabase CLI and works nowhere else.
+
+On a Supabase project, create the same two buckets once from the dashboard (Storage), with the same visibility, a 10 MB limit and the formats of `supabase/config.toml`, and set the project URL and its `service_role` key (Settings > API) in the environment. The key gives full access to Storage: keep it out of the repository and of any log.
 
 ### Connection profiles
 
@@ -89,7 +95,7 @@ Rules:
 
 ### Tests
 
-`pnpm test:e2e` needs the local database (`pnpm db:start`). It runs the migrations first and refuses to run if `DATABASE_MIGRATION_URL` does not point to `127.0.0.1` or `localhost`.
+`pnpm test:e2e` needs the local database and Storage (`pnpm db:start`). It runs the migrations first and refuses to run if `DATABASE_MIGRATION_URL` does not point to `127.0.0.1` or `localhost`.
 
 ## Compile and run the project
 

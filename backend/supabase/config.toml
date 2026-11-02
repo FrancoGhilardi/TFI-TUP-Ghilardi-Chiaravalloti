@@ -4,9 +4,10 @@
 # working directory name when running `supabase init`.
 project_id = "backend"
 
-# Only the database and pooler run locally; enable a service here when the backend starts needing it.
+# Locally run the database, the pooler and Storage (with the API gateway it is reached through);
+# enable another service here when the backend starts needing it.
 [api]
-enabled = false
+enabled = true
 # Port to use for the API URL.
 port = 54321
 # Schemas to expose in your API. Tables, views and stored procedures in this schema will get API
@@ -115,20 +116,25 @@ port = 54324
 # sender_name = "Admin"
 
 [storage]
-enabled = false
+enabled = true
 # The maximum file size allowed (e.g. "5MB", "500KB").
-file_size_limit = "50MiB"
+file_size_limit = "10MiB"
 
-# Uncomment to configure local storage buckets
-# [storage.buckets.images]
-# public = false
-# file_size_limit = "50MiB"
-# allowed_mime_types = ["image/png", "image/jpeg"]
-# objects_path = "./images"
+# Uploaded originals of the product images; only the backend reads them.
+[storage.buckets.product-originals]
+public = false
+file_size_limit = "10MiB"
+allowed_mime_types = ["image/jpeg", "image/png", "image/webp"]
+
+# Processed versions the store shows.
+[storage.buckets.product-images]
+public = true
+file_size_limit = "10MiB"
+allowed_mime_types = ["image/webp"]
 
 # Allow connections via S3 compatible clients
 [storage.s3_protocol]
-enabled = true
+enabled = false
 
 # Image transformation API is available to Supabase Pro plan.
 # [storage.image_transformation]
@@ -147,7 +153,7 @@ max_catalogs = 2
 
 # Store vector embeddings in S3 for large and durable datasets
 [storage.vector]
-enabled = true
+enabled = false
 max_buckets = 10
 max_indexes = 5
 
