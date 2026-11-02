@@ -344,6 +344,35 @@ describe("Product persistence (e2e)", () => {
     await expect(queries.findImageById("4f9c1f43-6f4b-4d5c-9a3e-0000000000ff")).resolves.toBeNull();
   });
 
+  it("finds an image by its id, locked inside a transaction, and stores it processed", async () => {
+    await store(await newProduct());
+    const imageId = PRODUCT_ID.replace("b", "c");
+
+    await expect(images.findById("4f9c1f43-6f4b-4d5c-9a3e-0000000000ff")).resolves.toBeNull();
+    await transactions.run(async () => {
+      const image = (await images.findById(imageId))!;
+      expect(image).toMatchObject({ productId: PRODUCT_ID, status: ImageStatus.PENDING });
+      await expect(
+        pool.query("SELECT id FROM libreria.product_images WHERE id = $1 FOR UPDATE NOWAIT", [
+          imageId,
+        ]),
+      ).rejects.toMatchObject({ code: "55P03" });
+      image.markProcessed({
+        publicKey: `products/${PRODUCT_ID}/v1.webp`,
+        width: 1200,
+        height: 1500,
+      });
+      await images.saveAll([image]);
+    });
+
+    await expect(images.findById(imageId)).resolves.toMatchObject({
+      status: ImageStatus.PROCESSED,
+      publicKey: `products/${PRODUCT_ID}/v1.webp`,
+      width: 1200,
+      height: 1500,
+    });
+  });
+
   it("gives the image without its link when the storage cannot sign it", async () => {
     await store(await newProduct());
     // The id `store` gives the product's image.
