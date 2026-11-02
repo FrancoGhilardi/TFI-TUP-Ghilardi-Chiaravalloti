@@ -330,6 +330,41 @@ describe("business rules in the database (e2e)", () => {
       expect(rows[0]?.password_changed_at).not.toBeNull();
     });
 
+    const passwordChangedAt = async (userId: string) => {
+      const { rows } = await pool.query<{ password_changed_at: Date | null }>(
+        "SELECT password_changed_at FROM libreria.users WHERE id = $1",
+        [userId],
+      );
+      return rows[0]?.password_changed_at;
+    };
+
+    it("keeps the password_changed_at the application sets with the new password", async () => {
+      const userId = await insertUser(pool);
+      const fromApp = new Date("2026-10-22T12:00:00.000Z");
+
+      await pool.query(
+        "UPDATE libreria.users SET password_hash = 'new-hash', password_changed_at = $1 WHERE id = $2",
+        [fromApp, userId],
+      );
+
+      expect(await passwordChangedAt(userId)).toEqual(fromApp);
+    });
+
+    it("still fills password_changed_at in when a later change leaves the date as it was", async () => {
+      const userId = await insertUser(pool);
+      const earlier = new Date("2020-01-01T00:00:00.000Z");
+      await pool.query(
+        "UPDATE libreria.users SET password_hash = 'first-hash', password_changed_at = $1 WHERE id = $2",
+        [earlier, userId],
+      );
+
+      await pool.query("UPDATE libreria.users SET password_hash = 'second-hash' WHERE id = $1", [
+        userId,
+      ]);
+
+      expect((await passwordChangedAt(userId))?.getTime()).toBeGreaterThan(earlier.getTime());
+    });
+
     it("rejects the same email in a different case among active users", async () => {
       await insertUser(pool, { email: "A@x.com" });
 

@@ -1,7 +1,10 @@
 import type { UseCase } from "../../../../shared/application/use-case.js";
 import type { User } from "../../domain/entities/user.js";
 import { UserRepository } from "../../domain/repositories/user.repository.js";
-import type { AuthenticatedUserResult } from "../dto/authenticated-user.result.js";
+import {
+  type AuthenticatedUserResult,
+  toAuthenticatedUserResult,
+} from "../dto/authenticated-user.result.js";
 import type { ResolveAuthenticatedUserQuery } from "../dto/resolve-authenticated-user.query.js";
 import { InvalidAccessTokenError } from "../errors/invalid-access-token-error.js";
 
@@ -23,13 +26,7 @@ export class ResolveAuthenticatedUserUseCase implements UseCase<
       throw new InvalidAccessTokenError();
     }
 
-    return {
-      id: user.getId(),
-      email: user.email.toString(),
-      name: user.name.toString(),
-      role: user.role,
-      mustChangePassword: user.mustChangePassword,
-    };
+    return toAuthenticatedUserResult(user);
   }
 
   // The token only carries whole seconds, so a token issued in the same second as the

@@ -1,6 +1,8 @@
 import type { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import type { Env } from "../../../../config/env.js";
+import { Clock } from "../../../../shared/application/clock.js";
+import { SystemClock } from "../../../../shared/infrastructure/system-clock.js";
 import { InvalidAccessTokenError } from "../../application/errors/invalid-access-token-error.js";
 import { User } from "../../domain/entities/user.js";
 import { UserRole } from "../../domain/user-role.js";
@@ -24,10 +26,20 @@ const user = User.reconstitute({
   updatedAt: new Date(),
 });
 
-function service(ttl = TTL) {
+class FixedClock extends Clock {
+  constructor(private readonly at: Date) {
+    super();
+  }
+
+  now(): Date {
+    return this.at;
+  }
+}
+
+function service(ttl = TTL, clock: Clock = new SystemClock()) {
   const values: Partial<Env> = { JWT_ACCESS_SECRET: SECRET, JWT_ACCESS_TTL_SECONDS: ttl };
   const config = { get: (key: keyof Env) => values[key] } as ConfigService<Env, true>;
-  return new JwtAccessTokenService(new JwtService(), config);
+  return new JwtAccessTokenService(new JwtService(), config, clock);
 }
 
 const base64url = (value: object) => Buffer.from(JSON.stringify(value)).toString("base64url");
@@ -76,6 +88,16 @@ describe("JwtAccessTokenService", () => {
       expect(payload.exp - payload.iat).toBe(ttl);
     });
 
+    it("stamps the issue time and the expiry with the injected clock", () => {
+      const at = new Date("2030-01-01T00:00:00.400Z");
+      const { token } = service(TTL, new FixedClock(at)).issue(user);
+
+      expect(new JwtService().decode<Record<string, unknown>>(token)).toMatchObject({
+        iat: Math.floor(at.getTime() / 1000),
+        exp: Math.floor(at.getTime() / 1000) + TTL,
+      });
+    });
+
     it("signs with HS256", () => {
       expect(decodeHeader(service().issue(user).token)).toEqual({ alg: "HS256", typ: "JWT" });
     });
@@ -122,6 +144,18 @@ describe("JwtAccessTokenService", () => {
 
         vi.advanceTimersByTime(60_000);
         rejects(token);
+      });
+
+      it("judges the expiry by the injected clock, not the system one", () => {
+        const issuedAt = new Date("2030-01-01T00:00:00.000Z");
+        const { token } = service(60, new FixedClock(issuedAt)).issue(user);
+
+        expect(
+          service(60, new FixedClock(new Date("2030-01-01T00:00:59.000Z"))).verify(token),
+        ).toEqual({ userId: USER_ID, issuedAt });
+        expect(() =>
+          service(60, new FixedClock(new Date("2030-01-01T00:01:00.000Z"))).verify(token),
+        ).toThrow(InvalidAccessTokenError);
       });
 
       it("rejects a token long after it expired", () => {

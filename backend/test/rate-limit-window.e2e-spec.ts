@@ -25,9 +25,13 @@ describe("Rate limit windows (e2e)", () => {
 
   const post = (path: string) => request(app.getHttpServer()).post(`/api/v1/auth/${path}`);
 
-  async function exhaust(path: string, limit: number) {
+  // Statuses of a request the limiter lets through: login rejects the empty body and
+  // forgot-password has no use case yet.
+  const PASSED = { login: 400, "forgot-password": 501 } as const;
+
+  async function exhaust(path: keyof typeof PASSED, limit: number) {
     for (let i = 0; i < limit; i++) {
-      await post(path).expect(501);
+      await post(path).expect(PASSED[path]);
     }
     await post(path).expect(429);
   }
@@ -35,7 +39,7 @@ describe("Rate limit windows (e2e)", () => {
   it.each([
     ["login", LOGIN_RATE_LIMIT],
     ["forgot-password", FORGOT_PASSWORD_RATE_LIMIT],
-  ])("keeps %s blocked until its window ends", async (path, { limit, ttl }) => {
+  ] as const)("keeps %s blocked until its window ends", async (path, { limit, ttl }) => {
     await exhaust(path, limit);
 
     vi.advanceTimersByTime(ttl - 1_000);
@@ -45,11 +49,11 @@ describe("Rate limit windows (e2e)", () => {
   it.each([
     ["login", LOGIN_RATE_LIMIT],
     ["forgot-password", FORGOT_PASSWORD_RATE_LIMIT],
-  ])("unblocks %s when its window ends", async (path, { limit, ttl }) => {
+  ] as const)("unblocks %s when its window ends", async (path, { limit, ttl }) => {
     await exhaust(path, limit);
 
     vi.advanceTimersByTime(ttl);
-    await post(path).expect(501);
+    await post(path).expect(PASSED[path]);
   });
 
   it("uses a 60 second window for login and a 15 minute window for forgot-password", () => {

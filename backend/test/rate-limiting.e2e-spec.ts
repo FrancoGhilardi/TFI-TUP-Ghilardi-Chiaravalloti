@@ -66,7 +66,7 @@ describe("Rate limiting (e2e)", () => {
   it("limits login to 5 requests per minute", async () => {
     const login = () => http.post("/api/v1/auth/login");
 
-    await repeat(LOGIN_RATE_LIMIT.limit, login, 501);
+    await repeat(LOGIN_RATE_LIMIT.limit, login, 400);
     await expectTooManyRequests(login(), 60);
   });
 
@@ -86,7 +86,7 @@ describe("Rate limiting (e2e)", () => {
 
   it("keeps the specific limits apart from each other and from the rest of the API", async () => {
     const login = () => http.post("/api/v1/auth/login");
-    await repeat(LOGIN_RATE_LIMIT.limit, login, 501);
+    await repeat(LOGIN_RATE_LIMIT.limit, login, 400);
     await login().expect(429);
 
     await http.post("/api/v1/auth/forgot-password").expect(501);
@@ -108,7 +108,7 @@ describe("Rate limiting (e2e)", () => {
   });
 
   it("counts the routes with a strict limit against the general limit too", async () => {
-    await repeat(LOGIN_RATE_LIMIT.limit, () => http.post("/api/v1/auth/login"), 501);
+    await repeat(LOGIN_RATE_LIMIT.limit, () => http.post("/api/v1/auth/login"), 400);
     await repeat(GENERAL_LIMIT - LOGIN_RATE_LIMIT.limit, () => http.get("/api/v1/auth/me"), 401);
 
     await expectTooManyRequests(http.get("/api/v1/auth/me"), 60);
@@ -143,17 +143,17 @@ describe("Rate limiting (e2e)", () => {
       const proxied = await createTestApp({ trustProxy: 1 });
       const target = request(proxied.getHttpServer());
       try {
-        await repeat(LOGIN_RATE_LIMIT.limit, () => loginFrom(target, "203.0.113.7"), 501);
+        await repeat(LOGIN_RATE_LIMIT.limit, () => loginFrom(target, "203.0.113.7"), 400);
         await loginFrom(target, "203.0.113.7").expect(429);
 
-        await loginFrom(target, "198.51.100.9").expect(501);
+        await loginFrom(target, "198.51.100.9").expect(400);
       } finally {
         await proxied.close();
       }
     });
 
     it("does not let a client reset its counter with X-Forwarded-For", async () => {
-      await repeat(LOGIN_RATE_LIMIT.limit, () => loginFrom(http, "203.0.113.7"), 501);
+      await repeat(LOGIN_RATE_LIMIT.limit, () => loginFrom(http, "203.0.113.7"), 400);
 
       await loginFrom(http, "198.51.100.9").expect(429);
     });
