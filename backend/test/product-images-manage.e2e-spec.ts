@@ -41,6 +41,7 @@ const GIF = Buffer.from("GIF89a-not-an-accepted-format");
 class RecordingStorage extends FileStorage {
   readonly uploaded: string[] = [];
   failUploads = false;
+  failSigning = false;
 
   constructor(private readonly real: FileStorage) {
     super();
@@ -63,7 +64,9 @@ class RecordingStorage extends FileStorage {
   }
 
   signedUrls(keys: string[], expiresInSeconds: number) {
-    return this.real.signedUrls(keys, expiresInSeconds);
+    return this.failSigning
+      ? Promise.reject(new Error("storage down"))
+      : this.real.signedUrls(keys, expiresInSeconds);
   }
 
   publicUrl(key: string) {
@@ -179,6 +182,83 @@ describe("Managing the images of a product (e2e)", () => {
     expect(body.code).toBe(code);
     return body;
   };
+
+  describe("GET …/images", () => {
+    const list = (id = productId, auth: string | null = token) => {
+      const pending = http.get(base(id));
+      return auth === null ? pending : pending.set("Authorization", `Bearer ${auth}`);
+    };
+
+    it("gives the images by position with their state and a signed preview, never kept", async () => {
+      const [first, second, third] = await imageRows();
+      await real.upload(StorageBucket.PRIVATE, first.original_key, JPEG, "image/jpeg");
+      leftovers.push(first.original_key);
+      await pool.query(
+        `UPDATE libreria.product_images SET status = 'PROCESSED', public_key = 'products/p.webp'
+         WHERE id = $1`,
+        [second.id],
+      );
+      await pool.query("UPDATE libreria.product_images SET status = 'FAILED' WHERE id = $1", [
+        third.id,
+      ]);
+
+      const response = await list().expect(200);
+
+      expect(response.headers["cache-control"]).toBe("no-store");
+      const images = response.body as AdminProductImageResult[];
+      expect(images.map((image) => [image.id, image.position, image.status])).toEqual([
+        [first.id, 1, "PENDING"],
+        [second.id, 2, "PROCESSED"],
+        [third.id, 3, "FAILED"],
+      ]);
+      const preview = await fetch(images[0].previewUrl ?? "");
+      expect(new Uint8Array(await preview.arrayBuffer())).toEqual(new Uint8Array(JPEG));
+      // Their originals were never stored here: Storage signs none, and one missing file does
+      // not take the others' links.
+      expect(images.slice(1).map((image) => image.previewUrl)).toEqual([null, null]);
+    });
+
+    it("follows the new order after a reorder", async () => {
+      await reorder([imageIds[2], imageIds[0], imageIds[1]]).expect(200);
+
+      const response = await list().expect(200);
+
+      expect((response.body as AdminProductImageResult[]).map((image) => image.id)).toEqual([
+        imageIds[2],
+        imageIds[0],
+        imageIds[1],
+      ]);
+    });
+
+    it("gives the images of a deleted product", async () => {
+      await pool.query("UPDATE libreria.products SET deleted_at = now() WHERE id = $1", [
+        productId,
+      ]);
+
+      const response = await list().expect(200);
+
+      expect(response.body).toHaveLength(3);
+    });
+
+    it("still gives the images, without links, when the storage cannot sign them", async () => {
+      storage.failSigning = true;
+
+      const response = await list().expect(200);
+
+      expect((response.body as AdminProductImageResult[]).map((image) => image.previewUrl)).toEqual(
+        [null, null, null],
+      );
+    });
+
+    it.each([randomUUID(), "not-an-id"])("answers 404 for the product %s", async (id) => {
+      await expectError(list(id), 404, "PRODUCT_NOT_FOUND");
+    });
+
+    it("lets a seller in, and asks to log in without a token", async () => {
+      await list(productId, await tokenFor("SELLER")).expect(200);
+      await expectError(list(productId, null), 401, "INVALID_ACCESS_TOKEN");
+    });
+  });
 
   describe("PATCH …/order", () => {
     it("puts the images in the order sent, from position 1, and gives them", async () => {

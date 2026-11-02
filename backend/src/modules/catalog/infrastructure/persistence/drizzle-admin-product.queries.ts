@@ -313,14 +313,19 @@ export class DrizzleAdminProductQueries extends AdminProductQueries {
     return image ?? null;
   }
 
-  async findImagesByProduct(productId: string): Promise<AdminProductImageResult[]> {
+  /** One query: the product, so an unknown one is told apart, joined to its images. */
+  async findImagesByProduct(productId: string): Promise<AdminProductImageResult[] | null> {
     const rows = await this.executor
       .current()
-      .select()
-      .from(productImages)
-      .where(eq(productImages.productId, productId))
+      .select({ image: productImages })
+      .from(products)
+      .leftJoin(productImages, eq(productImages.productId, products.id))
+      .where(eq(products.id, productId))
       .orderBy(asc(productImages.position));
-    return this.imageResults(rows);
+    if (rows.length === 0) {
+      return null;
+    }
+    return this.imageResults(rows.flatMap(({ image }) => (image ? [image] : [])));
   }
 
   /**
