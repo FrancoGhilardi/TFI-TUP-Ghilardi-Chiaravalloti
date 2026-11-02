@@ -25,6 +25,10 @@ class RecordingSessionRepository extends SessionRepository {
     return Promise.reject(new Error("Not used by SessionIssuer"));
   }
 
+  findByTokenHashForUpdate(): Promise<Session | null> {
+    return Promise.reject(new Error("Not used by SessionIssuer"));
+  }
+
   revokeAllForUser(): Promise<void> {
     return Promise.reject(new Error("Not used by SessionIssuer"));
   }

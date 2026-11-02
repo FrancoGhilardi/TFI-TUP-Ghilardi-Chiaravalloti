@@ -5,6 +5,12 @@ export abstract class SessionRepository {
   /** Returns the session whose refresh token has that hash, revoked or not, or `null`. */
   abstract findByTokenHash(tokenHash: string): Promise<Session | null>;
 
+  /**
+   * Same as `findByTokenHash`, but the session stays locked until the transaction ends, so a
+   * concurrent change waits. Only valid inside a transaction.
+   */
+  abstract findByTokenHashForUpdate(tokenHash: string): Promise<Session | null>;
+
   /** Stores a new session or the changes of an existing one. */
   abstract save(session: Session): Promise<void>;
 

@@ -70,6 +70,27 @@ describe("Session", () => {
     });
   });
 
+  describe("isExpired", () => {
+    it("is not expired until just before its expiry", () => {
+      expect(started().isExpired(new Date(EXPIRES_AT.getTime() - 1))).toBe(false);
+    });
+
+    it.each([
+      ["when it expires", EXPIRES_AT],
+      ["after it expires", new Date(EXPIRES_AT.getTime() + 1)],
+    ])("is expired %s", (_label, now) => {
+      expect(started().isExpired(now)).toBe(true);
+    });
+
+    it("does not depend on the revocation", () => {
+      const session = started();
+
+      session.revoke(NOW);
+
+      expect(session.isExpired(NOW)).toBe(false);
+    });
+  });
+
   describe("revoke", () => {
     it("records when it was revoked", () => {
       const session = started();
@@ -87,6 +108,36 @@ describe("Session", () => {
       session.revoke(later);
 
       expect(session.revokedAt).toBe(NOW);
+    });
+  });
+
+  describe("rotate", () => {
+    it("revokes the session and marks it as replaced by a refresh", () => {
+      const session = started();
+
+      session.rotate(NOW);
+
+      expect(session.revokedAt).toBe(NOW);
+      expect(session.rotatedAt).toBe(NOW);
+      expect(session.isRotated()).toBe(true);
+      expect(session.isActive(NOW)).toBe(false);
+    });
+
+    it("refuses a session that is already revoked", () => {
+      const session = started();
+      session.revoke(NOW);
+
+      expect(() => session.rotate(NOW)).toThrow("Only an unrevoked session can be rotated");
+      expect(session.isRotated()).toBe(false);
+    });
+
+    it("is not rotated when it is only revoked", () => {
+      const session = started();
+
+      session.revoke(NOW);
+
+      expect(session.isRotated()).toBe(false);
+      expect(session.rotatedAt).toBeUndefined();
     });
   });
 
