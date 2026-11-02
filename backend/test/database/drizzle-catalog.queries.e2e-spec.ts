@@ -108,7 +108,14 @@ describe("DrizzleCatalogQueries (e2e)", () => {
   }
 
   const page = (
-    query: Partial<{ categorySlug: string; page: number; limit: number; words: string[] }> = {},
+    query: Partial<{
+      categorySlug: string;
+      page: number;
+      limit: number;
+      words: string[];
+      isFeatured: boolean;
+      isNew: boolean;
+    }> = {},
   ) => queries.findPage({ page: 1, limit: 20, ...query }, NOW);
 
   const idsOf = (cards: { id: string }[]) => cards.map((card) => card.id);
@@ -357,6 +364,68 @@ describe("DrizzleCatalogQueries (e2e)", () => {
         items: [],
         totalItems: 3,
       });
+    });
+  });
+
+  describe("findPage with marks", () => {
+    const titles = async (extra: Parameters<typeof page>[0]) =>
+      (await page(extra)).items.map((card) => card.title);
+
+    it("gives only the featured products, or only the others", async () => {
+      const featured = await visible("Destacado", { sortOrder: 0 });
+      await pool.query("UPDATE libreria.products SET is_featured = true WHERE id = $1", [featured]);
+      await visible("Comun", { sortOrder: 1 });
+
+      await expect(titles({ isFeatured: true })).resolves.toEqual(["Destacado"]);
+      await expect(titles({ isFeatured: false })).resolves.toEqual(["Comun"]);
+    });
+
+    it("gives the products whose new mark still runs, to the millisecond", async () => {
+      const marked = async (title: string, until: string | null, sortOrder: number) => {
+        const id = await visible(title, { sortOrder });
+        await pool.query(
+          "UPDATE libreria.products SET is_new = true, new_until = $2 WHERE id = $1",
+          [id, until],
+        );
+      };
+      await marked("Sin vencimiento", null, 0);
+      await marked("Vence despues", "2026-10-22T12:00:00.001Z", 1);
+      await marked("Vence justo ahora", "2026-10-22T12:00:00.000500Z", 2);
+      await marked("Vencido", "2026-10-21T00:00:00.000Z", 3);
+      await visible("Sin marca", { sortOrder: 4 });
+
+      await expect(titles({ isNew: true })).resolves.toEqual(["Sin vencimiento", "Vence despues"]);
+      await expect(titles({ isNew: false })).resolves.toEqual([
+        "Vence justo ahora",
+        "Vencido",
+        "Sin marca",
+      ]);
+    });
+
+    it("combines the marks with the words and the category, counting only what it finds", async () => {
+      const other = await insertCategory(pool, "Escolar");
+      for (const [title, category, sortOrder] of [
+        ["Cuaderno nuevo", categoryId, 0],
+        ["Cuaderno nuevo escolar", other, 1],
+        ["Lapiz nuevo", categoryId, 2],
+      ] as const) {
+        const id = await visible(title, { category, sortOrder });
+        await pool.query(
+          "UPDATE libreria.products SET is_new = true, is_featured = true WHERE id = $1",
+          [id],
+        );
+      }
+      await visible("Cuaderno viejo", { sortOrder: 3 });
+
+      await expect(
+        page({ words: ["cuaderno"], isNew: true, isFeatured: true, categorySlug: "cuadernos" }),
+      ).resolves.toMatchObject({
+        items: [expect.objectContaining({ title: "Cuaderno nuevo" })],
+        totalItems: 1,
+      });
+      await expect(
+        page({ words: ["cuaderno"], isNew: true, limit: 1, page: 3 }),
+      ).resolves.toMatchObject({ items: [], totalItems: 2 });
     });
   });
 

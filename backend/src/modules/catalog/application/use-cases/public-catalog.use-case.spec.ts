@@ -118,6 +118,16 @@ describe("SearchCatalogUseCase", () => {
     ]);
   });
 
+  it("passes the marks asked for along with the words", async () => {
+    const { queries, search } = setUp();
+
+    await search.execute({ q: "cuaderno", isFeatured: true, isNew: false, page: 1, limit: 20 });
+
+    expect(queries.calls).toEqual([
+      ["page", { isFeatured: true, isNew: false, page: 1, limit: 20, words: ["cuaderno"] }, NOW],
+    ]);
+  });
+
   it("finds nothing, without reading, for a text of one-letter words", async () => {
     const { queries, search } = setUp();
 

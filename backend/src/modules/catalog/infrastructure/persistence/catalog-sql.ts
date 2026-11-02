@@ -36,6 +36,31 @@ export const saleRunsAt = (now: Date): SQL =>
 export const newMarkRunsAt = (now: Date): SQL =>
   sql`(p.is_new AND (p.new_until IS NULL OR NOT ${endedBy(sql`p.new_until`, now)}))`;
 
+/** The marks a listing filters by; one left out filters nothing. */
+export interface MarkFilter {
+  isFeatured?: boolean;
+  isOnSale?: boolean;
+  isNew?: boolean;
+}
+
+/**
+ * The conditions on the product `p` for the marks asked for: featured as stored, a sale and a
+ * "new" mark only while they run at `now`, so the store and the panel filter alike.
+ */
+export function markFiltersOf(marks: MarkFilter, now: Date): SQL[] {
+  const filters: SQL[] = [];
+  if (marks.isFeatured !== undefined) {
+    filters.push(sql`p.is_featured = ${marks.isFeatured}`);
+  }
+  if (marks.isOnSale !== undefined) {
+    filters.push(marks.isOnSale ? saleRunsAt(now) : sql`NOT ${saleRunsAt(now)}`);
+  }
+  if (marks.isNew !== undefined) {
+    filters.push(marks.isNew ? newMarkRunsAt(now) : sql`NOT ${newMarkRunsAt(now)}`);
+  }
+  return filters;
+}
+
 /** Case and accents never change a match, so "lapiz" finds "Lápiz". */
 export const unaccentedLike = (column: SQL, pattern: string): SQL =>
   sql`libreria.immutable_unaccent(${column}) ILIKE libreria.immutable_unaccent(${pattern})`;
