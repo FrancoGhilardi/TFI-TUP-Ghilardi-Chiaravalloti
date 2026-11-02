@@ -6,12 +6,14 @@ export type {
   PageQuery,
   ValidationErrorDetail,
 } from "./api-types";
-export type { QueryParams, RequestBody } from "./build-request";
 export {
   type ApiClient,
   type ApiClientOptions,
   apiClient,
   createApiClient,
+  type QueryParams,
+  type RequestBody,
+  type RequestHeaders,
   type RequestOptions,
 } from "./client";
 export type { ErrorMessageOverrides } from "./error-messages";

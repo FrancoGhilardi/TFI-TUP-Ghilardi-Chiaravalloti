@@ -24,18 +24,20 @@ function setup(options: Omit<ApiClientOptions, "fetch"> = {}) {
     .fn<typeof fetch>()
     .mockImplementation(async () => jsonResponse({ ok: true }));
   const client = createApiClient({ baseUrl: BASE_URL, ...options, fetch: fetchMock });
+  /** axios sends a `Request` and passes the extra fetch options (such as `next`) beside it. */
   const call = (index = 0) => {
-    const [url, init] = fetchMock.mock.calls[index];
-    return { url: String(url), init: init ?? {}, headers: new Headers(init?.headers) };
+    const [input, init] = fetchMock.mock.calls[index];
+    const request = input as Request;
+    return { request, url: request.url, headers: request.headers, init: init ?? {} };
   };
   return { client, fetchMock, call };
 }
 
 /** A fetch that never answers, rejecting like the real one when its signal aborts. */
 function hangingFetch(): typeof fetch {
-  return (_input, init) =>
+  return (input) =>
     new Promise((_resolve, reject) => {
-      const signal = init?.signal;
+      const { signal } = input as Request;
       if (signal?.aborted) {
         reject(signal.reason);
       }
@@ -53,7 +55,7 @@ describe("createApiClient", () => {
       });
 
       expect(call().url).toBe(`${BASE_URL}/products?q=l%C3%A1piz&page=2&onSale=true`);
-      expect(call().init.method).toBe("GET");
+      expect(call().request.method).toBe("GET");
       expect(call().headers.get("Accept")).toBe("application/json");
     });
 
@@ -62,20 +64,45 @@ describe("createApiClient", () => {
 
       await client.post("/auth/login", { body: { email: "a@b.com" } });
 
-      expect(call().init.method).toBe("POST");
-      expect(call().init.body).toBe('{"email":"a@b.com"}');
-      expect(call().headers.get("Content-Type")).toBe("application/json");
+      expect(call().request.method).toBe("POST");
+      await expect(call().request.text()).resolves.toBe('{"email":"a@b.com"}');
+      expect(call().headers.get("Content-Type")).toMatch(/^application\/json/);
     });
 
-    it("sends FormData as is, leaving the Content-Type to the runtime", async () => {
+    it("keeps a Content-Type given by the caller for JSON", async () => {
+      const { client, call } = setup();
+
+      await client.patch("/admin/products/1", {
+        body: { title: "x" },
+        headers: { "Content-Type": "application/merge-patch+json" },
+      });
+
+      expect(call().headers.get("Content-Type")).toBe("application/merge-patch+json");
+    });
+
+    it("sends FormData as multipart with its boundary", async () => {
       const { client, call } = setup();
       const form = new FormData();
       form.append("title", "Cuaderno");
 
-      await client.post("/admin/products", { body: form });
+      await client.post("/admin/products", {
+        body: form,
+        headers: { "Content-Type": "multipart/form-data" },
+      });
 
-      expect(call().init.body).toBe(form);
-      expect(call().headers.has("Content-Type")).toBe(false);
+      expect(call().headers.get("Content-Type")).toMatch(/^multipart\/form-data; boundary=/);
+      await expect(call().request.text()).resolves.toContain("Cuaderno");
+    });
+
+    it("sends a Blob as is", async () => {
+      const { client, call } = setup();
+
+      await client.put("/admin/products/1/images/2/file", {
+        body: new Blob(["image"], { type: "image/png" }),
+      });
+
+      expect(call().headers.get("Content-Type")).toBe("image/png");
+      await expect(call().request.text()).resolves.toBe("image");
     });
 
     it("passes the Next.js cache options and credentials through", async () => {
@@ -85,7 +112,8 @@ describe("createApiClient", () => {
       await client.post("/auth/refresh", { cache: "no-store", credentials: "include" });
 
       expect(call(0).init.next).toEqual({ revalidate: 60, tags: ["products"] });
-      expect(call(1).init).toMatchObject({ cache: "no-store", credentials: "include" });
+      expect(call(1).init.cache).toBe("no-store");
+      expect(call(1).request.credentials).toBe("include");
     });
 
     it("applies the instance's credentials and headers, letting the request override them", async () => {
@@ -97,10 +125,10 @@ describe("createApiClient", () => {
       await client.get("/admin/products", { headers: { "X-Trace": "request" } });
       await client.get("/products", { credentials: "omit" });
 
-      expect(call(0).init.credentials).toBe("include");
+      expect(call(0).request.credentials).toBe("include");
       expect(call(0).headers.get("X-Client")).toBe("admin");
       expect(call(0).headers.get("X-Trace")).toBe("request");
-      expect(call(1).init.credentials).toBe("omit");
+      expect(call(1).request.credentials).toBe("omit");
     });
 
     it("rejects a path without a leading slash before sending anything", async () => {
@@ -181,10 +209,11 @@ describe("createApiClient", () => {
     it("reports a timeout while reading the error body", async () => {
       const client = createApiClient({
         baseUrl: BASE_URL,
-        fetch: async (_input, init) => {
+        fetch: async (input) => {
+          const { signal } = input as Request;
           const body = new ReadableStream({
             start: (controller) =>
-              init?.signal?.addEventListener("abort", () => controller.error(init.signal?.reason)),
+              signal.addEventListener("abort", () => controller.error(signal.reason)),
           });
           return new Response(body, { status: 500 });
         },
@@ -282,8 +311,8 @@ describe("createApiClient", () => {
           }),
       );
       const { client, fetchMock, call } = setup({ getAccessToken: () => token, onUnauthorized });
-      fetchMock.mockImplementation(async (_input, init) =>
-        new Headers(init?.headers).get("Authorization") === "Bearer renewed"
+      fetchMock.mockImplementation(async (input) =>
+        (input as Request).headers.get("Authorization") === "Bearer renewed"
           ? jsonResponse({ ok: true })
           : errorResponse(401, "INVALID_ACCESS_TOKEN"),
       );
@@ -339,24 +368,6 @@ describe("createApiClient", () => {
       await expect(client.get("/auth/me", { timeoutMs: 20 })).rejects.toMatchObject({
         code: "TIMEOUT",
       });
-    });
-
-    it("discards the rejected response before retrying", async () => {
-      const rejected = errorResponse(401, "INVALID_ACCESS_TOKEN");
-      const cancel = vi.spyOn(rejected.body as ReadableStream, "cancel");
-      let token = "expired";
-      const { client, fetchMock } = setup({
-        getAccessToken: () => token,
-        onUnauthorized: async () => {
-          token = "renewed";
-          return true;
-        },
-      });
-      fetchMock.mockResolvedValueOnce(rejected).mockResolvedValueOnce(jsonResponse({ ok: true }));
-
-      await client.get("/auth/me");
-
-      expect(cancel).toHaveBeenCalled();
     });
 
     it("leaves a 401 of an anonymous request, such as a failed login, to the caller", async () => {

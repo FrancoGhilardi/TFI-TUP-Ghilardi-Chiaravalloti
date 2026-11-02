@@ -1,28 +1,40 @@
+import axios, { type AxiosError, type InternalAxiosRequestConfig, isAxiosError } from "axios";
+
 import { publicConfig } from "../config/env";
 import { abortable } from "./abortable";
-import {
-  buildBody,
-  buildUrl,
-  mergeHeaders,
-  type QueryParams,
-  type RequestBody,
-} from "./build-request";
 import type { ErrorMessageOverrides } from "./error-messages";
-import { fromRequestFailure, fromResponse, unexpectedResponse } from "./to-api-error";
+import { toApiError, unexpectedResponse } from "./to-api-error";
+
+declare module "axios" {
+  interface InternalAxiosRequestConfig {
+    /** Token the request went out with, to tell a renewed session apart from a stale token. */
+    sentToken?: string;
+    /** Set once a 401 has been retried, so a request is never retried twice. */
+    retried?: boolean;
+  }
+}
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
+export type QueryParams = Record<string, string | number | boolean | undefined>;
+
+/** Plain objects and arrays are sent as JSON; `FormData`, `Blob` and other bodies as they are. */
+export type RequestBody = BodyInit | object;
+
+export type RequestHeaders = Record<string, string>;
+
 export interface RequestOptions {
   /** Appended as a query string; `undefined` values are left out. */
   query?: QueryParams;
   body?: RequestBody;
-  headers?: HeadersInit;
+  headers?: RequestHeaders;
   signal?: AbortSignal;
   /** Covers the whole call: token, session renewal and retry included. */
   timeoutMs?: number;
   credentials?: RequestCredentials;
+  /** Next.js caching of the request on the server (`fetch` options). */
   cache?: RequestCache;
   next?: RequestInit["next"];
   /** User-facing messages per error code, replacing the default ones. */
@@ -32,7 +44,7 @@ export interface RequestOptions {
 export interface ApiClientOptions {
   baseUrl?: string;
   /** Sent with every request; a request's own headers win on conflict. */
-  headers?: HeadersInit;
+  headers?: RequestHeaders;
   /** Default for every request, such as `include` to send the API's cookies. */
   credentials?: RequestCredentials;
   /** Token sent as `Authorization: Bearer`; none means an anonymous request. */
@@ -43,6 +55,7 @@ export interface ApiClientOptions {
    * caller. Concurrent 401s share a single call.
    */
   onUnauthorized?: () => Promise<boolean>;
+  /** Replaces the global `fetch`, for tests. */
   fetch?: typeof fetch;
 }
 
@@ -56,20 +69,46 @@ export interface ApiClient {
   delete: Request;
 }
 
-async function discard(response: Response): Promise<void> {
-  await response.body?.cancel().catch(() => undefined);
+function toWithCredentials(credentials: RequestCredentials | undefined): boolean | undefined {
+  if (credentials === undefined || credentials === "same-origin") {
+    return undefined;
+  }
+  return credentials === "include";
+}
+
+/**
+ * axios labels any POST, PUT or PATCH body without its own type as a form, which would hide a
+ * Blob's real type (`fetch` alone would use it), so the Blob's type is sent explicitly.
+ */
+function bodyHeaders(body: RequestBody | undefined): RequestHeaders | undefined {
+  return body instanceof Blob && body.type ? { "Content-Type": body.type } : undefined;
+}
+
+function assertApiPath(path: string): void {
+  if (!path.startsWith("/")) {
+    throw new TypeError(`API paths must start with "/", got "${path}"`);
+  }
 }
 
 /** Creates a client for the API; the shop uses `apiClient`, the admin panel its own instance. */
 export function createApiClient({
   baseUrl = publicConfig.apiBaseUrl,
-  headers: defaultHeaders,
-  credentials: defaultCredentials,
+  headers,
+  credentials,
   getAccessToken,
   onUnauthorized,
-  // Resolved on each call: on the server Next replaces the global fetch to add its caching.
-  fetch: fetchImpl = (input, init) => fetch(input, init),
+  fetch: fetchImpl,
 }: ApiClientOptions = {}): ApiClient {
+  const http = axios.create({
+    baseURL: baseUrl,
+    // The fetch adapter calls the global fetch on each request, which Next extends on the server
+    // with its data cache: `next` and `cache` travel in `fetchOptions`.
+    adapter: "fetch",
+    headers: { Accept: "application/json", ...headers },
+    withCredentials: toWithCredentials(credentials),
+    ...(fetchImpl && { env: { fetch: fetchImpl } }),
+  });
+
   // The API rotates refresh tokens and revokes every session when one is reused, so parallel
   // 401s must never trigger parallel renewals.
   let pendingRenewal: Promise<boolean> | undefined;
@@ -85,58 +124,27 @@ export function createApiClient({
     return pendingRenewal;
   };
 
-  async function request<T>(
-    method: HttpMethod,
-    path: string,
-    options: RequestOptions = {},
-  ): Promise<T> {
-    const url = buildUrl(baseUrl, path, options.query);
-    const { signal: callerSignal, timeoutMs = DEFAULT_TIMEOUT_MS, errorMessages } = options;
-    const timeout = AbortSignal.timeout(timeoutMs);
-    const signal = callerSignal ? AbortSignal.any([callerSignal, timeout]) : timeout;
+  const signalOf = (config: InternalAxiosRequestConfig) => config.signal as AbortSignal;
 
-    /** Bounds `operation` by the signal and turns its failures into an `ApiError`. */
-    const run = async <R>(operation: () => R | Promise<R>): Promise<R> => {
-      try {
-        return await abortable(operation, signal);
-      } catch (error) {
-        // A cancellation asked for by the caller is not a failure to report.
-        if (callerSignal?.aborted) {
-          throw error;
-        }
-        throw fromRequestFailure(error, { timedOut: timeout.aborted }, errorMessages);
-      }
-    };
-
-    const readToken = () => run(() => getAccessToken?.());
-
-    const send = (token: string | undefined): Promise<Response> => {
-      const headers = mergeHeaders(defaultHeaders, options.headers);
-      headers.set("Accept", "application/json");
+  if (getAccessToken) {
+    http.interceptors.request.use(async (config) => {
+      const token = await abortable(getAccessToken, signalOf(config));
+      config.sentToken = token;
       if (token) {
-        headers.set("Authorization", `Bearer ${token}`);
+        config.headers.set("Authorization", `Bearer ${token}`);
       }
-      return run(() =>
-        fetchImpl(url, {
-          method,
-          headers,
-          body: buildBody(options.body, headers),
-          signal,
-          credentials: options.credentials ?? defaultCredentials,
-          cache: options.cache,
-          next: options.next,
-        }),
-      );
-    };
+      return config;
+    });
 
-    const canRetry = async (rejectedToken: string): Promise<boolean> => {
-      const current = await readToken();
+    const canRetry = async (config: InternalAxiosRequestConfig): Promise<boolean> => {
+      const signal = signalOf(config);
+      const current = await abortable(getAccessToken, signal);
       // Another request already renewed the session while this one was in flight.
-      if (current && current !== rejectedToken) {
+      if (current && current !== config.sentToken) {
         return true;
       }
       try {
-        return await run(renewSession);
+        return await abortable(renewSession, signal);
       } catch (error) {
         if (signal.aborted) {
           throw error;
@@ -145,27 +153,57 @@ export function createApiClient({
       }
     };
 
-    let token = await readToken();
-    let response = await send(token);
-    if (response.status === 401 && token && (await canRetry(token))) {
-      await discard(response);
-      token = await readToken();
-      response = await send(token);
-    }
+    http.interceptors.response.use(undefined, async (error: AxiosError) => {
+      const config = error.config;
+      const isFirstRejectedSession =
+        isAxiosError(error) &&
+        error.response?.status === 401 &&
+        config?.sentToken !== undefined &&
+        !config.retried;
+      if (!isFirstRejectedSession || !(await canRetry(config))) {
+        throw error;
+      }
+      config.retried = true;
+      return http.request(config);
+    });
+  }
 
-    if (!response.ok) {
-      const failed = response;
-      throw await run(() => fromResponse(failed, errorMessages));
-    }
-    const ok = response;
-    const text = await run(() => ok.text());
-    if (text === "") {
-      return undefined as T;
-    }
+  async function request<T>(
+    method: HttpMethod,
+    path: string,
+    options: RequestOptions = {},
+  ): Promise<T> {
+    assertApiPath(path);
+    const { signal: callerSignal, timeoutMs = DEFAULT_TIMEOUT_MS, errorMessages } = options;
+    // One deadline for the whole call, retry included, instead of axios's per-attempt timeout.
+    const timeout = AbortSignal.timeout(timeoutMs);
+    const signal = callerSignal ? AbortSignal.any([callerSignal, timeout]) : timeout;
+
     try {
-      return JSON.parse(text) as T;
-    } catch {
-      throw unexpectedResponse(response.status, errorMessages);
+      const response = await http.request<unknown>({
+        method,
+        url: path,
+        params: options.query,
+        data: options.body,
+        headers: { ...bodyHeaders(options.body), ...options.headers },
+        signal,
+        withCredentials: toWithCredentials(options.credentials),
+        fetchOptions: { cache: options.cache, next: options.next },
+      });
+      if (response.data === "") {
+        return undefined as T;
+      }
+      // The API only answers JSON objects or arrays: text here is a body axios could not parse.
+      if (typeof response.data === "string") {
+        throw unexpectedResponse(response, errorMessages);
+      }
+      return response.data as T;
+    } catch (error) {
+      // A cancellation asked for by the caller is not a failure to report.
+      if (callerSignal?.aborted) {
+        throw callerSignal.reason;
+      }
+      throw toApiError(error, { timedOut: timeout.aborted }, errorMessages);
     }
   }
 
