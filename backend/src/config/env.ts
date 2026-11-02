@@ -14,6 +14,7 @@ const envSchema = z
 
 export type Env = z.infer<typeof envSchema>;
 
+/** Validates and types the environment variables; throws with every problem found. */
 export function validateEnv(config: Record<string, unknown>): Env {
   const result = envSchema.safeParse(config);
   if (!result.success) {

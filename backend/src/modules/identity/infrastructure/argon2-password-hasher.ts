@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import argon2 from "argon2";
 import { PasswordHasher } from "../application/ports/password-hasher.js";
 
+/** Argon2id implementation with a random salt per hash. */
 @Injectable()
 export class Argon2PasswordHasher extends PasswordHasher {
   hash(plain: string): Promise<string> {

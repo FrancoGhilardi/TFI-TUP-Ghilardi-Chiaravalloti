@@ -10,6 +10,7 @@ export interface DatabaseConnectionOptions {
   onIdleError?: (error: Error) => void;
 }
 
+/** Maps the configured SSL mode to the `pg` option; only `verify-full` validates the certificate. */
 export function toSslConfig(mode: SslMode, ca?: string): ConnectionOptions | false {
   switch (mode) {
     case "disable":
@@ -21,6 +22,7 @@ export function toSslConfig(mode: SslMode, ca?: string): ConnectionOptions | fal
   }
 }
 
+/** Single entry point to open a pool, so every consumer gets the same SSL and timeout settings. */
 export function createPool(options: DatabaseConnectionOptions): Pool {
   const pool = new Pool({
     connectionString: options.url,

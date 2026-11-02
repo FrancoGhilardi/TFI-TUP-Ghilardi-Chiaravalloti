@@ -25,4 +25,26 @@ export default tseslint.config(
       "@typescript-eslint/no-unsafe-argument": "warn",
     },
   },
+  {
+    files: ["src/**/*.controller.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@nestjs/common"],
+              importNamePattern: "Exception$",
+              message:
+                "Controllers must not build HTTP errors; throw a DomainError and let ErrorResponseFilter map it.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/health/**"],
+    rules: { "no-restricted-imports": "off" },
+  },
 );

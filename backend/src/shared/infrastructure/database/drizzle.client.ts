@@ -9,6 +9,7 @@ import * as schema from "./schema/index.js";
 export type Schema = typeof schema;
 export type Database = NodePgDatabase<Schema>;
 
+/** Owns the connection pool and the Drizzle instance; closes the pool on shutdown. */
 @Injectable()
 export class DrizzleClient implements OnApplicationShutdown {
   private readonly logger = new Logger(DrizzleClient.name);

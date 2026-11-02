@@ -1,0 +1,10 @@
+# Hooks run from the repository root; each app is checked only when it has staged changes.
+staged=$(git diff --cached --name-only)
+
+if echo "$staged" | grep -q '^backend/'; then
+  (cd backend && pnpm format:check && pnpm lint && pnpm test) || exit 1
+fi
+
+if echo "$staged" | grep -q '^frontend/'; then
+  (cd frontend && pnpm format:check && pnpm lint) || exit 1
+fi
