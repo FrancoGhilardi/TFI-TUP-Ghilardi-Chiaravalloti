@@ -2,6 +2,7 @@ import { User, type UserProps } from "../../domain/entities/user.js";
 import { UserRepository } from "../../domain/repositories/user.repository.js";
 import { UserRole } from "../../domain/user-role.js";
 import { Email } from "../../domain/value-objects/email.js";
+import { UserName } from "../../domain/value-objects/user-name.js";
 import { InvalidAccessTokenError } from "../errors/invalid-access-token-error.js";
 import { ResolveAuthenticatedUserUseCase } from "./resolve-authenticated-user.use-case.js";
 
@@ -13,6 +14,27 @@ class InMemoryUserRepository extends UserRepository {
   findById(id: string): Promise<User | null> {
     return Promise.resolve(this.users.find((user) => user.getId() === id) ?? null);
   }
+
+  // The use case only reads by id; anything else would mean the test misses a dependency.
+  findByEmail(): Promise<User | null> {
+    return this.unused();
+  }
+
+  existsByEmail(): Promise<boolean> {
+    return this.unused();
+  }
+
+  countOtherActiveAdmins(): Promise<number> {
+    return this.unused();
+  }
+
+  save(): Promise<void> {
+    return this.unused();
+  }
+
+  private unused(): Promise<never> {
+    return Promise.reject(new Error("Not used by ResolveAuthenticatedUserUseCase"));
+  }
 }
 
 const PASSWORD_CHANGED_AT = new Date("2026-10-17T12:00:00.400Z");
@@ -21,7 +43,7 @@ function user(overrides: Partial<UserProps> = {}): User {
   return User.reconstitute({
     id: "user-1",
     email: Email.create("ana@example.com"),
-    name: "Ana",
+    name: UserName.create("Ana"),
     passwordHash: "hash",
     role: UserRole.ADMIN,
     active: true,
