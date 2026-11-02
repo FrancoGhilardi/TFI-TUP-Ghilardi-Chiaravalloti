@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { INestApplication } from "@nestjs/common";
 import { EventEmitter2 } from "@nestjs/event-emitter";
-import { StorageClient } from "@supabase/storage-js";
 import type { Pool } from "pg";
 import request from "supertest";
 import type { App } from "supertest/types.js";
@@ -13,7 +12,7 @@ import { BackgroundTasks } from "./../src/shared/application/background-tasks.js
 import { FileStorage, StorageBucket } from "./../src/shared/application/file-storage.js";
 import type { LoggingBackgroundTasks } from "./../src/shared/infrastructure/logging-background-tasks.js";
 import {
-  fetchWithTimeout,
+  createStorageClient,
   SupabaseFileStorage,
 } from "./../src/shared/infrastructure/storage/supabase-file-storage.js";
 import type { ErrorResponse } from "./../src/shared/presentation/http/error-response.js";
@@ -75,6 +74,10 @@ class RecordingStorage extends FileStorage {
   publicUrl(key: string) {
     return this.real.publicUrl(key);
   }
+
+  download(): Promise<never> {
+    return Promise.reject(new Error("Not used"));
+  }
 }
 
 interface ProductBody {
@@ -86,13 +89,9 @@ interface ProductBody {
 
 describe("POST /admin/products (e2e)", () => {
   const real = new SupabaseFileStorage(
-    new StorageClient(
-      new URL("/storage/v1", process.env.SUPABASE_URL).toString(),
-      {
-        apikey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
-        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""}`,
-      },
-      fetchWithTimeout,
+    createStorageClient(
+      process.env.SUPABASE_URL ?? "",
+      process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
     ),
   );
   const leftovers: string[] = [];
