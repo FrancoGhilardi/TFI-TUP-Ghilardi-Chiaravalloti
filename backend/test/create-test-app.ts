@@ -1,6 +1,8 @@
 import type { Abstract, INestApplication, Type } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { SchedulerRegistry } from "@nestjs/schedule";
+import { BackgroundTasks } from "./../src/shared/application/background-tasks.js";
+import type { LoggingBackgroundTasks } from "./../src/shared/infrastructure/logging-background-tasks.js";
 import { Test } from "@nestjs/testing";
 import type { App } from "supertest/types.js";
 import { AppModule } from "./../src/app.module.js";
@@ -42,5 +44,9 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<INest
   for (const job of app.get(SchedulerRegistry).getCronJobs().values()) {
     await job.stop();
   }
+  // The work the app starts on its own, such as reprocessing stalled images, is over before
+  // any test touches the data.
+  const background = app.get<BackgroundTasks, Partial<LoggingBackgroundTasks>>(BackgroundTasks);
+  await background.idle?.();
   return app;
 }

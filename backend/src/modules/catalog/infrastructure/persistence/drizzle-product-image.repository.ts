@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { asc, count, eq, sql } from "drizzle-orm";
+import { and, asc, count, eq, lte, sql } from "drizzle-orm";
 import { DrizzleExecutor } from "../../../../shared/infrastructure/database/drizzle.executor.js";
 import { productImages } from "../../../../shared/infrastructure/database/schema/index.js";
 import type { ProductImage } from "../../domain/entities/product-image.js";
@@ -33,6 +33,8 @@ export class DrizzleProductImageRepository extends ProductImageRepository {
           height: sql`excluded.height`,
           sizeBytes: sql`excluded.size_bytes`,
           status: sql`excluded.status`,
+          pendingSince: sql`excluded.pending_since`,
+          processingAttempts: sql`excluded.processing_attempts`,
         },
       });
   }
@@ -63,6 +65,19 @@ export class DrizzleProductImageRepository extends ProductImageRepository {
 
   async delete(id: string): Promise<void> {
     await this.executor.current().delete(productImages).where(eq(productImages.id, id));
+  }
+
+  async findStalePendingIds(pendingBefore: Date, limit: number): Promise<string[]> {
+    const rows = await this.executor
+      .current()
+      .select({ id: productImages.id })
+      .from(productImages)
+      .where(
+        and(eq(productImages.status, "PENDING"), lte(productImages.pendingSince, pendingBefore)),
+      )
+      .orderBy(asc(productImages.pendingSince), asc(productImages.id))
+      .limit(limit);
+    return rows.map((row) => row.id);
   }
 
   async countByProduct(productId: string): Promise<number> {
