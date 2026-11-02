@@ -1483,6 +1483,7 @@ classDiagram
         +existsBySlug(slug: Slug) Promise~boolean~
         +findExistingIds(ids: string[]) Promise~string[]~
         +save(product: Product) Promise~void~
+        +clearExpiredMarks(now: Date) Promise~ClearedMarks~
     }
 
     class ProductImage {
@@ -1967,6 +1968,11 @@ classDiagram
         -clock: Clock
         +execute(command: RestoreProductCommand) Promise~AdminProductDetailResult~
     }
+    class ExpireProductMarksUseCase {
+        -products: ProductRepository
+        -clock: Clock
+        +execute() Promise~ExpiredMarksResult~
+    }
 
     class ProductSort {
         <<enumeration>>
@@ -2192,6 +2198,7 @@ classDiagram
 | :---------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Tienda pública          | `SearchCatalogUseCase`, `ListFeaturedProductsUseCase`, `ListNewProductsUseCase`, `GetProductDetailUseCase`                                            |
 | Panel de administración | `ListAdminProductsUseCase`, `GetAdminProductUseCase`, `CreateProductUseCase`, `UpdateProductUseCase`, `DeleteProductUseCase`, `RestoreProductUseCase` |
+| Mantenimiento           | `ExpireProductMarksUseCase`                                                                                                                           |
 
 `CreateProductUseCase` es el caso de uso más complejo del sistema, ya que coordina la validación de categorías, productos similares e imágenes, la carga de archivos, la generación del SKU y del slug, el registro del producto y sus imágenes, y la publicación de los eventos que inician el procesamiento de las imágenes.
 
@@ -2236,6 +2243,8 @@ La solicitud es de tipo `multipart/form-data`: los datos del producto viajan com
 **Baja de producto.** Se aplica la baja lógica del producto, con su fecha y su autor, sin modificar sus imágenes, los archivos almacenados ni sus productos similares. Esto permite reactivarlo más adelante con todo su contenido intacto. Dar de baja un producto ya dado de baja no cambia nada.
 
 **Reactivación de producto.** Dentro de una transacción, se verifica que el producto conserve al menos una categoría vigente, activa o no, leyéndolas con un bloqueo compartido para que una baja simultánea de esa categoría espere y cuente al producto. Como un producto dado de baja no puede editarse, si todas sus categorías fueron dadas de baja la operación se rechaza con un mensaje que pide reactivar alguna de ellas antes. El producto vuelve con el estado activo o inactivo, el slug y el SKU que tenía, y conserva sus categorías, incluidas las dadas de baja.
+
+**Vencimiento de ofertas y novedades.** Todos los días a las 00:00, hora de Argentina, una tarea programada limpia las ofertas y las marcas de novedad cuyo vencimiento ya llegó, de la misma forma que si se quitaran a mano: la oferta queda sin precio ni vencimiento, y la novedad, sin su fecha. La tienda ya deja de mostrarlas desde el vencimiento; la tarea mantiene los datos guardados, y lo que ve el panel, al día. Se aplica con una sola actualización sobre lo vencido a la fecha del `Clock`, con la misma regla y precisión que la tienda, que bloquea los productos en orden de identificador, como las ediciones, para que no se bloqueen mutuamente, a todos los productos, incluidos los dados de baja (la única modificación que reciben, para que un producto reactivado no vuelva con una oferta vieja). Es idempotente: una segunda ejecución no encuentra nada. No registra autor, porque la hace el sistema, y si una edición tiene el producto bloqueado, espera y vuelve a evaluar el vencimiento, de modo que nunca borra una oferta recién cargada. A su vez, la edición toma una oferta o novedad ya vencida que el producto ya no tiene como igual a lo guardado, así que reenviar un formulario abierto antes de la limpieza no falla. Registra en el log cuántas limpió, y una falla queda registrada sin interrumpir la aplicación.
 
 **SKU.** El SKU no forma parte de ninguna operación de escritura: lo genera el sistema al crear el producto y solo se informa en las consultas.
 
@@ -2688,6 +2697,11 @@ classDiagram
         -reprocessStaleImages: ReprocessStaleImagesUseCase
         +run() Promise~void~
     }
+    class ProductMarksExpiryScheduler {
+        <<scheduler>>
+        -expireProductMarks: ExpireProductMarksUseCase
+        +run() Promise~void~
+    }
     class CreateCategoryRequestDto { <<implements CreateCategoryCommand>> }
     class UpdateCategoryRequestDto { <<implements UpdateCategoryCommand sin categoryId>> }
     class ListAdminCategoriesRequestDto { <<implements ListAdminCategoriesQuery>> }
@@ -2735,6 +2749,7 @@ classDiagram
     CatalogModule --> SearchController
     CatalogModule --> ProductImageUploadedListener
     CatalogModule --> StaleImagesScheduler
+    CatalogModule --> ProductMarksExpiryScheduler
 ```
 
 ### Clases principales
@@ -2761,6 +2776,7 @@ classDiagram
 - **`ImageFileValidationPipe`**: valida cada archivo de imagen recibido antes de que llegue al caso de uso. Controla que no supere los 10 MB y verifica su tipo de dos maneras: por el tipo declarado en la solicitud y por los primeros bytes del contenido del archivo, que identifican su formato real (JPEG, PNG o WebP). Esta doble verificación impide que se carguen archivos de otro tipo con una extensión modificada. Además, convierte el archivo recibido al formato `ImageUploadInput`, de modo que la capa de aplicación no depende de la librería utilizada para recibir archivos. En el alta de producto exige, además, entre 1 y 5 archivos.
 - **`ProductImageUploadedListener`**: recibe el evento `ProductImageUploadedEvent` y ejecuta el procesamiento de la imagen de forma asincrónica, para que la respuesta al usuario no dependa de la duración del procesamiento.
 - **`StaleImagesScheduler`**: tarea programada que ejecuta periódicamente el reprocesamiento de las imágenes demoradas.
+- **`ProductMarksExpiryScheduler`**: tarea programada (`@nestjs/schedule`) que ejecuta `ExpireProductMarksUseCase` todos los días a las 00:00, hora de Argentina, y registra cuántas ofertas y novedades limpió.
 - **DTOs de solicitud**: validan los datos recibidos en cada endpoint. Al igual que en el módulo `identity`, el identificador del usuario que realiza la acción y el del recurso afectado los completa el controlador a partir del usuario autenticado y de la ruta, y nunca se aceptan desde el cuerpo de la solicitud. En el alta de producto, las imágenes se reciben como archivos y se incorporan al command luego de su validación.
 
 #### Composición

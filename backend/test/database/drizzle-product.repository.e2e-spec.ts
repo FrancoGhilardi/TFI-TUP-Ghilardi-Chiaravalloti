@@ -21,7 +21,13 @@ import { Slug } from "../../src/shared/domain/value-objects/slug.js";
 import { DrizzleClient } from "../../src/shared/infrastructure/database/drizzle.client.js";
 import { DrizzleExecutor } from "../../src/shared/infrastructure/database/drizzle.executor.js";
 import { DrizzleTransactionManager } from "../../src/shared/infrastructure/database/drizzle-transaction-manager.js";
-import { adminPool, insertCategory, insertUser, truncateAll } from "./db-test-utils.js";
+import {
+  adminPool,
+  insertCategory,
+  insertProductWithDeps,
+  insertUser,
+  truncateAll,
+} from "./db-test-utils.js";
 
 try {
   process.loadEnvFile(process.env.ENV_FILE ?? ".env");
@@ -412,5 +418,161 @@ describe("Product persistence (e2e)", () => {
     });
     expect(stored?.slug.toString()).toBe("cuaderno-a4");
     expect(stored?.sku.toString()).toBe("LMS-000001");
+  });
+
+  describe("clearing ended sales and new marks", () => {
+    interface Marks {
+      [column: string]: unknown;
+      is_on_sale: boolean;
+      sale_price: string | null;
+      sale_ends_at: Date | null;
+      is_new: boolean;
+      new_until: Date | null;
+      updated_by: string | null;
+      updated_at: Date;
+    }
+
+    /** A product on sale and marked as new, both ending at `endsAt` (text keeps microseconds). */
+    async function marked(title: string, endsAt: string | null, active = true): Promise<string> {
+      const { id } = await insertProductWithDeps(pool, { title, categoryId: primaryId });
+      await pool.query(
+        `UPDATE libreria.products
+         SET is_on_sale = true, sale_price = '5.00', sale_ends_at = $2::timestamptz,
+           is_new = true, new_until = $2::timestamptz, updated_by = $3, is_active = $4
+         WHERE id = $1`,
+        [id, endsAt, actorId, active],
+      );
+      return id;
+    }
+
+    async function marksOf(id: string): Promise<Marks> {
+      const { rows } = await pool.query<Marks>(
+        `SELECT is_on_sale, sale_price, sale_ends_at, is_new, new_until, updated_by, updated_at
+         FROM libreria.products WHERE id = $1`,
+        [id],
+      );
+      return rows[0];
+    }
+
+    const CLEARED = {
+      is_on_sale: false,
+      sale_price: null,
+      sale_ends_at: null,
+      is_new: false,
+      new_until: null,
+    };
+
+    it("ends those that ended by now, also on inactive and deleted products, keeping the author", async () => {
+      const ended = await marked("Vencido", "2026-10-22T11:00:00.000Z");
+      const inactive = await marked("Inactivo", "2026-10-01T00:00:00.000Z", false);
+      const deleted = await marked("Borrado", "2026-10-21T00:00:00.000Z");
+      await pool.query("UPDATE libreria.products SET deleted_at = now() WHERE id = $1", [deleted]);
+      const running = await marked("Vigente", "2026-10-22T13:00:00.000Z");
+      const open = await marked("Sin vencimiento", null);
+
+      await expect(products.clearExpiredMarks(NOW)).resolves.toEqual({ sales: 3, newMarks: 3 });
+
+      for (const id of [ended, inactive, deleted]) {
+        await expect(marksOf(id)).resolves.toMatchObject({ ...CLEARED, updated_by: actorId });
+      }
+      await expect(marksOf(running)).resolves.toMatchObject({
+        is_on_sale: true,
+        sale_price: "5.00",
+        sale_ends_at: new Date("2026-10-22T13:00:00.000Z"),
+        is_new: true,
+        new_until: new Date("2026-10-22T13:00:00.000Z"),
+      });
+      await expect(marksOf(open)).resolves.toMatchObject({
+        is_on_sale: true,
+        sale_ends_at: null,
+        is_new: true,
+        new_until: null,
+      });
+    });
+
+    it("ends only what ended on each product, counting only what was still on", async () => {
+      const saleEnded = await marked("Oferta vencida", "2026-10-22T11:00:00.000Z");
+      await pool.query(
+        "UPDATE libreria.products SET new_until = '2026-10-22T13:00:00.000Z' WHERE id = $1",
+        [saleEnded],
+      );
+      const leftover = await marked("Restos", "2026-10-22T11:00:00.000Z");
+      await pool.query(
+        "UPDATE libreria.products SET is_on_sale = false, is_new = false WHERE id = $1",
+        [leftover],
+      );
+
+      await expect(products.clearExpiredMarks(NOW)).resolves.toEqual({ sales: 1, newMarks: 0 });
+
+      await expect(marksOf(saleEnded)).resolves.toMatchObject({
+        is_on_sale: false,
+        sale_price: null,
+        is_new: true,
+        new_until: new Date("2026-10-22T13:00:00.000Z"),
+      });
+      await expect(marksOf(leftover)).resolves.toMatchObject({
+        sale_ends_at: new Date("2026-10-22T11:00:00.000Z"),
+        new_until: new Date("2026-10-22T11:00:00.000Z"),
+      });
+    });
+
+    it("takes an end at now, or within its millisecond, as ended, like the store does", async () => {
+      const atNow = await marked("Justo ahora", "2026-10-22T12:00:00.000Z");
+      const sameMillisecond = await marked("Mismo milisegundo", "2026-10-22T12:00:00.000500Z");
+      const nextMillisecond = await marked("Un milisegundo despues", "2026-10-22T12:00:00.001Z");
+
+      await products.clearExpiredMarks(NOW);
+
+      await expect(marksOf(atNow)).resolves.toMatchObject(CLEARED);
+      await expect(marksOf(sameMillisecond)).resolves.toMatchObject(CLEARED);
+      await expect(marksOf(nextMillisecond)).resolves.toMatchObject({
+        is_on_sale: true,
+        is_new: true,
+      });
+    });
+
+    it("waits for an edit holding the product and keeps the sale it set", async () => {
+      const id = await marked("En edicion", "2026-10-22T11:00:00.000Z");
+      const editing = await pool.connect();
+      try {
+        await editing.query("BEGIN");
+        await editing.query("SELECT id FROM libreria.products WHERE id = $1 FOR UPDATE", [id]);
+        await editing.query(
+          `UPDATE libreria.products
+           SET sale_ends_at = '2026-10-30T00:00:00.000Z', new_until = NULL WHERE id = $1`,
+          [id],
+        );
+
+        const cleanup = products.clearExpiredMarks(NOW);
+        await vi.waitFor(async () => {
+          const { rows } = await pool.query<{ waiting: number }>(
+            `SELECT count(*)::int AS waiting FROM pg_stat_activity
+             WHERE wait_event_type = 'Lock' AND query LIKE '%WITH ended AS%'`,
+          );
+          expect(rows[0].waiting).toBe(1);
+        });
+        await editing.query("COMMIT");
+
+        await expect(cleanup).resolves.toEqual({ sales: 0, newMarks: 0 });
+      } finally {
+        editing.release();
+      }
+      await expect(marksOf(id)).resolves.toMatchObject({
+        is_on_sale: true,
+        sale_ends_at: new Date("2026-10-30T00:00:00.000Z"),
+        is_new: true,
+        new_until: null,
+      });
+    });
+
+    it("changes nothing when run again", async () => {
+      const ended = await marked("Vencido", "2026-10-22T11:00:00.000Z");
+      await products.clearExpiredMarks(NOW);
+      const before = await marksOf(ended);
+
+      await expect(products.clearExpiredMarks(NOW)).resolves.toEqual({ sales: 0, newMarks: 0 });
+
+      await expect(marksOf(ended)).resolves.toEqual(before);
+    });
   });
 });

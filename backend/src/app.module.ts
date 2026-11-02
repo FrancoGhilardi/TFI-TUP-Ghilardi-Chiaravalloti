@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { APP_FILTER, APP_GUARD } from "@nestjs/core";
 import { ConfigModule } from "@nestjs/config";
+import { ScheduleModule } from "@nestjs/schedule";
 import { ThrottlerModule } from "@nestjs/throttler";
 import { validateEnv } from "./config/env.js";
 import { HealthController } from "./health/health.controller.js";
@@ -24,6 +25,8 @@ import { SharedModule } from "./shared/infrastructure/shared.module.js";
     }),
     // Counters live in memory, which fits a single instance.
     ThrottlerModule.forRoot(RATE_LIMIT_OPTIONS),
+    // Runs the scheduled jobs in this process, which fits a single instance.
+    ScheduleModule.forRoot(),
     DatabaseModule,
     SharedModule,
     IdentityModule,

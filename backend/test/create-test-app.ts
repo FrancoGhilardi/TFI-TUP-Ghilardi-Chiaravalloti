@@ -1,5 +1,6 @@
 import type { Abstract, INestApplication, Type } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { SchedulerRegistry } from "@nestjs/schedule";
 import { Test } from "@nestjs/testing";
 import type { App } from "supertest/types.js";
 import { AppModule } from "./../src/app.module.js";
@@ -37,5 +38,9 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<INest
 
   setupApp(app);
   await app.init();
+  // No test depends on the real time: a job that matters is run by hand with a test clock.
+  for (const job of app.get(SchedulerRegistry).getCronJobs().values()) {
+    await job.stop();
+  }
   return app;
 }

@@ -4,6 +4,7 @@ import type { UseCase } from "../../../../shared/application/use-case.js";
 import { Money } from "../../../../shared/domain/value-objects/money.js";
 import { Product } from "../../domain/entities/product.js";
 import { ProductDeletedError } from "../../domain/errors/product-deleted-error.js";
+import { runsAt } from "../../domain/runs-at.js";
 import type { CategoryRepository } from "../../domain/repositories/category.repository.js";
 import type { ProductRepository } from "../../domain/repositories/product.repository.js";
 import { CategoryAssignment } from "../../domain/value-objects/category-assignment.js";
@@ -136,7 +137,7 @@ export class UpdateProductUseCase implements UseCase<
 /**
  * A sale sent replaces the current one, which ends first so it never blocks the new price.
  * One sent just as it is stored changes nothing and is not checked again: sending the form
- * back with a sale that already ended does not fail.
+ * back with a sale that already ended does not fail, even once the nightly cleanup removed it.
  */
 function changePriceAndSale(
   product: Product,
@@ -144,7 +145,7 @@ function changePriceAndSale(
   sale: SaleChange | null | undefined,
   now: Date,
 ): void {
-  if (sale === undefined || isStoredSale(product, sale)) {
+  if (sale === undefined || isStoredSale(product, sale, now)) {
     if (price) {
       product.changePrice(price, now);
     }
@@ -159,9 +160,13 @@ function changePriceAndSale(
   }
 }
 
-function isStoredSale(product: Product, sale: SaleChange | null): boolean {
+function isStoredSale(product: Product, sale: SaleChange | null, now: Date): boolean {
   if (sale === null) {
     return !product.onSale;
+  }
+  // An ended sale is what the cleanup leaves as no sale at all.
+  if (!product.onSale && !runsAt(sale.endsAt, now)) {
+    return true;
   }
   return (
     product.onSale &&
@@ -170,7 +175,7 @@ function isStoredSale(product: Product, sale: SaleChange | null): boolean {
   );
 }
 
-/** Like the sale: a mark sent just as it is stored changes nothing. */
+/** Like the sale: a mark sent just as it is stored, or ended and already cleared, changes nothing. */
 function changeNewMark(product: Product, mark: UpdateProductCommand["newMark"], now: Date): void {
   if (mark === undefined) {
     return;
@@ -180,6 +185,9 @@ function changeNewMark(product: Product, mark: UpdateProductCommand["newMark"], 
     return;
   }
   if (product.isNewFlag && sameDate(product.newUntil, mark.until)) {
+    return;
+  }
+  if (!product.isNewFlag && !runsAt(mark.until, now)) {
     return;
   }
   product.markAsNew(mark.until, now);

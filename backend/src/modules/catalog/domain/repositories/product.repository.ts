@@ -1,6 +1,12 @@
 import type { Slug } from "../../../../shared/domain/value-objects/slug.js";
 import type { Product } from "../entities/product.js";
 
+/** How many sales and "new" marks a cleanup ended. */
+export interface ClearedMarks {
+  sales: number;
+  newMarks: number;
+}
+
 /** Loads and stores products, with their categories and related products. */
 export abstract class ProductRepository {
   /** The product with that id, deleted or not, or `null`. */
@@ -21,4 +27,11 @@ export abstract class ProductRepository {
   abstract findExistingIds(ids: string[]): Promise<string[]>;
 
   abstract save(product: Product): Promise<void>;
+
+  /**
+   * Ends every sale and removes every "new" mark whose end date came by `now`, as `endSale` and
+   * `unmarkAsNew` would, also on deleted products and without recording an author, all at once.
+   * A second run finds none.
+   */
+  abstract clearExpiredMarks(now: Date): Promise<ClearedMarks>;
 }
