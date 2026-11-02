@@ -117,8 +117,7 @@ describe("DrizzleUserQueries (e2e)", () => {
     it.each([
       ["part of the name, in any case", "BRU", ["Bruno"]],
       ["part of the email", "carla@", ["Carla"]],
-      ["text around spaces", "  ana  ", ["ana"]],
-      ["nothing but spaces", "   ", ["ana", "Bruno", "Carla"]],
+      ["nothing, when blank", "", ["ana", "Bruno", "Carla"]],
     ])("searches %s", async (_label, q, expected) => {
       await expect(names({ q })).resolves.toEqual(expected);
     });

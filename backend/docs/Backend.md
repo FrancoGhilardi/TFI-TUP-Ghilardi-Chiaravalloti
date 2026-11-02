@@ -430,7 +430,7 @@ Todas las respuestas de error comparten el mismo formato:
 }
 ```
 
-Toda respuesta de error se envía con `Cache-Control: no-store`, aunque la ruta declare una caché para sus respuestas exitosas, de modo que ningún navegador ni proxy reutilice un error. El campo `code` es estable y permite al frontend distinguir los errores: es el código del error de dominio o, para las violaciones de PostgreSQL y las excepciones HTTP, un código genérico (`UNIQUE_VIOLATION`, `FOREIGN_KEY_VIOLATION`, `CHECK_VIOLATION`, `NOT_FOUND`, etc.). El campo `details` solo aparece en los errores de validación de datos de entrada, con un elemento por campo inválido (`code` `VALIDATION_FAILED`).
+Toda respuesta de error se envía con `Cache-Control: no-store`, aunque la ruta declare una caché para sus respuestas exitosas, de modo que ningún navegador ni proxy reutilice un error. El campo `code` es estable y permite al frontend distinguir los errores: es el código del error de dominio o, para las violaciones de PostgreSQL y las excepciones HTTP, un código genérico (`UNIQUE_VIOLATION`, `FOREIGN_KEY_VIOLATION`, `CHECK_VIOLATION`, `NOT_FOUND`, etc.). El campo `details` aparece en los errores de validación de datos de entrada, con un elemento por campo inválido (`code` `VALIDATION_FAILED`), y en los errores de dominio que declaran datos para el cliente, como la cantidad de elementos que impiden una baja (`{ "count": 2 }`); ninguna otra propiedad de un error se envía.
 
 Los mensajes de las violaciones de PostgreSQL son genéricos, están en español y están pensados para mostrarse directamente al usuario, sin términos técnicos.
 
@@ -1408,7 +1408,8 @@ classDiagram
         +existsByName(name: string, excludeId?: string) Promise~boolean~
         +existsBySlug(slug: Slug) Promise~boolean~
         +findAncestorIds(id: string) Promise~string[]~
-        +countActiveChildren(id: string) Promise~number~
+        +countCurrentChildren(id: string) Promise~number~
+        +lockHierarchy() Promise~void~
         +countProductsWhereOnlyCategory(id: string) Promise~number~
         +save(category: Category) Promise~void~
     }
@@ -1565,7 +1566,7 @@ Además, las entidades del catálogo utilizan los value objects del núcleo comp
 
 #### Servicios de dominio
 
-- **`CategoryDeletionPolicy`**: determina si una categoría puede darse de baja, en función de sus subcategorías activas y de los productos que dependen de ella.
+- **`CategoryDeletionPolicy`**: determina si una categoría puede darse de baja, en función de sus subcategorías vigentes (activas o inactivas) y de los productos que dependen de ella. Los errores informan cuántos elementos la bloquean.
 - **`ProductImagePolicy`**: controla la cantidad mínima y máxima de imágenes por producto, y resuelve el reordenamiento de las imágenes y la reasignación de posiciones tras una eliminación.
 
 #### Repositorios
@@ -1633,7 +1634,7 @@ Siguiendo el criterio de separación entre escritura y lectura aplicado en todo 
 classDiagram
     class CategoryQueries {
         <<abstract port>>
-        +findVisibleTree() Promise~CategoryTreeResult[]~
+        +findVisibleRows() Promise~CategoryTreeRow[]~
         +searchVisible(q: string, limit: number) Promise~CategorySummaryResult[]~
         +findAdminPage(query: ListAdminCategoriesQuery) Promise~Page~AdminCategoryResult~~
         +findAdminById(id: string) Promise~AdminCategoryResult~
@@ -1654,7 +1655,9 @@ classDiagram
     class CreateCategoryUseCase {
         -categories: CategoryRepository
         -slugs: UniqueSlugGenerator
+        -ids: IdGenerator
         -queries: CategoryQueries
+        -transaction: TransactionManager
         -clock: Clock
         +execute(command: CreateCategoryCommand) Promise~AdminCategoryResult~
     }
@@ -1702,7 +1705,7 @@ classDiagram
         +categoryId: string
         +name?: string
         +description?: string
-        +parentId?: string
+        +parentId?: string | null
         +sortOrder?: number
         +isActive?: boolean
     }
@@ -1715,8 +1718,8 @@ classDiagram
     class ListAdminCategoriesQuery {
         +q?: string
         +parentId?: string
-        +status: RecordStatusFilter
-        +sortBy: CategorySortField
+        +status?: RecordStatusFilter
+        +sortBy?: CategorySortField
         +sortDir: SortDirection
         +page: number
         +limit: number
@@ -1746,6 +1749,7 @@ classDiagram
         +parent?: CategorySummaryResult
         +sortOrder: number
         +isActive: boolean
+        +depth: number
         +productCount: number
         +createdAt: Date
         +updatedAt: Date
@@ -1774,7 +1778,7 @@ classDiagram
 
 #### Puerto de consultas
 
-- **`CategoryQueries`**: contrato que resuelve todas las consultas de lectura de categorías, sin reconstruir entidades. En el árbol de la tienda, una categoría aparece solo si ella y todas sus categorías superiores están activas y vigentes, de modo que desactivar o dar de baja una categoría oculta también todo lo que tiene debajo. Cada nivel se ordena por su posición, después por nombre y, como desempate, por identificador. El árbol se arma en memoria desde las categorías raíz, con una única lectura, por lo que una categoría que, por un error en los datos, formara un ciclo nunca se alcanza desde una raíz y queda fuera, sin que la consulta pueda entrar en un bucle. La respuesta puede conservarse durante 60 segundos (`Cache-Control: public, max-age=60`), igual que la revalidación del frontend. Ofrece cuatro operaciones: obtener el árbol de categorías visibles para la tienda, buscar categorías visibles por texto, obtener el listado paginado del panel y consultar una categoría individual con sus datos completos.
+- **`CategoryQueries`**: contrato que resuelve todas las consultas de lectura de categorías, sin reconstruir entidades. En el árbol de la tienda, una categoría aparece solo si ella y todas sus categorías superiores están activas y vigentes, de modo que desactivar o dar de baja una categoría oculta también todo lo que tiene debajo. Cada nivel se ordena por su posición, después por nombre y, como desempate, por identificador. El árbol se arma en memoria desde las categorías raíz, con una única lectura, por lo que una categoría que, por un error en los datos, formara un ciclo nunca se alcanza desde una raíz y queda fuera, sin que la consulta pueda entrar en un bucle. La respuesta puede conservarse durante 60 segundos (`Cache-Control: public, max-age=60`), igual que la revalidación del frontend. Ofrece cuatro operaciones: obtener las categorías visibles con las que se arma el árbol de la tienda, buscar categorías visibles por texto, obtener el listado paginado del panel y consultar una categoría individual con sus datos completos. El listado del panel sigue por defecto el orden del árbol (cada categoría antes de sus subcategorías, con su nivel en `depth` para la sangría), calculado con una consulta recursiva desde las raíces; al ordenar por un campo, buscar o filtrar por categoría padre, pasa a ser plano. La consulta de una categoría individual calcula su nivel subiendo solo desde ella.
 
 #### Casos de uso
 
@@ -1784,7 +1788,7 @@ classDiagram
 | Panel de administración | `ListAdminCategoriesUseCase`, `GetAdminCategoryUseCase`, `CreateCategoryUseCase`, `UpdateCategoryUseCase`, `DeleteCategoryUseCase`, `RestoreCategoryUseCase` |
 | Búsqueda                | `GlobalSearchUseCase`                                                                                                                                        |
 
-`CreateCategoryUseCase` utiliza además `UniqueSlugGenerator`, del núcleo compartido, para generar el slug de la nueva categoría. `GlobalSearchUseCase` combina las consultas de categorías con las consultas de productos del catálogo.
+`CreateCategoryUseCase` utiliza además `UniqueSlugGenerator`, del núcleo compartido, para generar el slug de la nueva categoría: si ya existe uno igual, aun en una categoría dada de baja, le agrega el primer sufijo libre (`-2`, `-3`…). Las operaciones del panel están disponibles para `ADMIN` y `SELLER` mediante el decorador `@AnyPanelRole()`, de la capa de presentación de `identity`. `GlobalSearchUseCase` combina las consultas de categorías con las consultas de productos del catálogo.
 
 #### Estructuras de datos
 
@@ -1799,7 +1803,7 @@ classDiagram
 
 #### Alta de categoría
 
-Se verifica que el nombre no esté en uso por otra categoría vigente y que la categoría padre, si se indica, exista y esté visible. Luego se genera un slug único a partir del nombre y se guarda la categoría.
+Dentro de una transacción, se verifica que la categoría padre, si se indica, exista y no esté dada de baja (puede estar inactiva, lo que permite armar una rama oculta antes de mostrarla), y se la bloquea para que no pueda darse de baja en el medio; luego, que el nombre no esté en uso por otra categoría vigente. Finalmente se genera un slug único a partir del nombre y se guarda la categoría, activa salvo que se pida lo contrario. Si dos altas simultáneas usan el mismo nombre, el índice único lo impide y se responde el mismo error de conflicto.
 
 #### Edición de categoría
 
@@ -1809,15 +1813,15 @@ El tratamiento de la categoría padre depende de los datos recibidos:
 - Si se indica explícitamente que no tiene categoría padre, la categoría pasa a ser una categoría raíz.
 - Si el dato no se envía, la ubicación de la categoría no se modifica.
 
-El slug no puede modificarse mediante esta operación.
+Los movimientos toman primero un bloqueo de la jerarquía, de modo que dos movimientos simultáneos no puedan cerrar un ciclo. Solo cambian los campos enviados; una descripción vacía la elimina y cualquier otro valor nulo se rechaza. Una categoría dada de baja no puede editarse, y una edición que no cambia nada no se guarda. El slug no puede modificarse mediante esta operación.
 
 #### Baja de categoría
 
-Dentro de una transacción, se cuentan las subcategorías activas y los productos que tienen a esta categoría como única categoría asignada. Con esa información se consulta `CategoryDeletionPolicy` y, si la baja está permitida, se aplica la baja lógica.
+Dentro de una transacción, con la categoría bloqueada, se cuentan las subcategorías vigentes, activas o inactivas, y los productos vigentes que no tienen otra categoría vigente asignada. Con esa información se consulta `CategoryDeletionPolicy` y, si la baja está permitida, se aplica la baja lógica; si no, el error indica cuántos elementos la bloquean (`details.count`). Dar de baja una categoría ya dada de baja no cambia nada. Como el alta, el movimiento y la reactivación de una subcategoría bloquean a su padre, ninguna puede aparecer entre el conteo y la baja; y como la baja también toma el bloqueo de la jerarquía, dos bajas simultáneas no pueden dejar a un producto sin ninguna categoría vigente.
 
 #### Reactivación de categoría
 
-Dentro de una transacción, se verifica que el nombre no esté siendo utilizado por otra categoría vigente —en ese caso, la operación se rechaza con un error de conflicto— y que la categoría padre esté disponible. Si ambas condiciones se cumplen, la categoría se reactiva.
+Dentro de una transacción, con el bloqueo de la jerarquía, la categoría y su padre bloqueados, se verifica que la categoría padre no esté dada de baja y que el nombre no esté siendo utilizado por otra categoría vigente —en ese caso, la operación se rechaza con un error de conflicto—. Si ambas condiciones se cumplen, la categoría se reactiva con el estado activo que tenía.
 
 La reactivación no se aplica en cascada a las subcategorías: cada una debe reactivarse de forma individual, lo que permite al usuario decidir qué parte de la jerarquía vuelve a quedar disponible.
 
