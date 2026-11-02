@@ -14,7 +14,12 @@ import { RefreshTokenService } from "./application/ports/refresh-token-service.j
 import { SecurityEventLog } from "./application/ports/security-event-log.js";
 import { TemporaryPasswordGenerator } from "./application/ports/temporary-password-generator.js";
 import { SessionIssuer } from "./application/services/session-issuer.js";
+import { UserQueries } from "./application/ports/user-queries.js";
 import { ChangePasswordUseCase } from "./application/use-cases/change-password.use-case.js";
+import { CreateUserUseCase } from "./application/use-cases/create-user.use-case.js";
+import { GetUserUseCase } from "./application/use-cases/get-user.use-case.js";
+import { ListUsersUseCase } from "./application/use-cases/list-users.use-case.js";
+import { UpdateUserUseCase } from "./application/use-cases/update-user.use-case.js";
 import { LoginUseCase } from "./application/use-cases/login.use-case.js";
 import { LogoutUseCase } from "./application/use-cases/logout.use-case.js";
 import { RefreshSessionUseCase } from "./application/use-cases/refresh-session.use-case.js";
@@ -22,11 +27,13 @@ import { RequestPasswordResetUseCase } from "./application/use-cases/request-pas
 import { ResolveAuthenticatedUserUseCase } from "./application/use-cases/resolve-authenticated-user.use-case.js";
 import { SessionRepository } from "./domain/repositories/session.repository.js";
 import { UserRepository } from "./domain/repositories/user.repository.js";
+import { UserAdministrationPolicy } from "./domain/services/user-administration.policy.js";
 import { Argon2PasswordHasher } from "./infrastructure/argon2-password-hasher.js";
 import { LoggerSecurityEventLog } from "./infrastructure/logging/logger-security-event-log.js";
 import { LoggerPasswordResetNotifier } from "./infrastructure/mail/logger-password-reset-notifier.js";
 import { ResendPasswordResetNotifier } from "./infrastructure/mail/resend-password-reset-notifier.js";
 import { DrizzleSessionRepository } from "./infrastructure/persistence/drizzle-session.repository.js";
+import { DrizzleUserQueries } from "./infrastructure/persistence/drizzle-user.queries.js";
 import { DrizzleUserRepository } from "./infrastructure/persistence/drizzle-user.repository.js";
 import { CryptoTemporaryPasswordGenerator } from "./infrastructure/security/crypto-temporary-password-generator.js";
 import { JwtAccessTokenService } from "./infrastructure/security/jwt-access-token.service.js";
@@ -34,11 +41,12 @@ import { Sha256RefreshTokenService } from "./infrastructure/security/sha256-refr
 import { OriginGuard } from "./presentation/guards/origin.guard.js";
 import { AuthController } from "./presentation/http/auth.controller.js";
 import { RefreshTokenCookie } from "./presentation/http/refresh-token-cookie.js";
+import { UsersController } from "./presentation/http/users.controller.js";
 
 @Module({
   // The secret and lifetime are passed on each call by JwtAccessTokenService.
   imports: [JwtModule.register({})],
-  controllers: [AuthController],
+  controllers: [AuthController, UsersController],
   providers: [
     OriginGuard,
     RefreshTokenCookie,
@@ -49,6 +57,8 @@ import { RefreshTokenCookie } from "./presentation/http/refresh-token-cookie.js"
       inject: [ConfigService],
     },
     { provide: UserRepository, useClass: DrizzleUserRepository },
+    { provide: UserQueries, useClass: DrizzleUserQueries },
+    { provide: UserAdministrationPolicy, useValue: new UserAdministrationPolicy() },
     { provide: SessionRepository, useClass: DrizzleSessionRepository },
     { provide: AccessTokenService, useClass: JwtAccessTokenService },
     { provide: RefreshTokenService, useClass: Sha256RefreshTokenService },
@@ -179,6 +189,38 @@ import { RefreshTokenCookie } from "./presentation/http/refresh-token-cookie.js"
         Clock,
         AuthSettings,
       ],
+    },
+    {
+      provide: ListUsersUseCase,
+      useFactory: (queries: UserQueries) => new ListUsersUseCase(queries),
+      inject: [UserQueries],
+    },
+    {
+      provide: GetUserUseCase,
+      useFactory: (queries: UserQueries) => new GetUserUseCase(queries),
+      inject: [UserQueries],
+    },
+    {
+      provide: CreateUserUseCase,
+      useFactory: (
+        users: UserRepository,
+        hasher: PasswordHasher,
+        ids: IdGenerator,
+        queries: UserQueries,
+        clock: Clock,
+      ) => new CreateUserUseCase(users, hasher, ids, queries, clock),
+      inject: [UserRepository, PasswordHasher, IdGenerator, UserQueries, Clock],
+    },
+    {
+      provide: UpdateUserUseCase,
+      useFactory: (
+        users: UserRepository,
+        policy: UserAdministrationPolicy,
+        queries: UserQueries,
+        transaction: TransactionManager,
+        clock: Clock,
+      ) => new UpdateUserUseCase(users, policy, queries, transaction, clock),
+      inject: [UserRepository, UserAdministrationPolicy, UserQueries, TransactionManager, Clock],
     },
     {
       provide: ResolveAuthenticatedUserUseCase,

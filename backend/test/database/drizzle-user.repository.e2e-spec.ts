@@ -2,6 +2,7 @@ import type { ConfigService } from "@nestjs/config";
 import type { Pool } from "pg";
 import type { Env } from "../../src/config/env.js";
 import { User } from "../../src/modules/identity/domain/entities/user.js";
+import { EmailAlreadyInUseError } from "../../src/modules/identity/domain/errors/email-already-in-use-error.js";
 import { UserRole } from "../../src/modules/identity/domain/user-role.js";
 import { Email } from "../../src/modules/identity/domain/value-objects/email.js";
 import { TemporaryPassword } from "../../src/modules/identity/domain/value-objects/temporary-password.js";
@@ -120,6 +121,16 @@ describe("DrizzleUserRepository (e2e)", () => {
         createdBy: overrides.createdBy,
         now: NOW,
       });
+
+    it("reports a second current user with the same email as the email being in use", async () => {
+      await repository.save(newUser());
+
+      await expect(
+        repository.save(
+          newUser({ id: "4f9c1f43-6f4b-4d5c-9a3e-5b2d8c7a1e11", email: "NUEVO@example.com" }),
+        ),
+      ).rejects.toThrow(EmailAlreadyInUseError);
+    });
 
     it("stores a new user that reads back the same", async () => {
       const creator = await insertUser(pool, { role: "ADMIN" });
