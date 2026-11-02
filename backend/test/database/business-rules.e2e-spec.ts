@@ -1,4 +1,5 @@
 import type { Pool } from "pg";
+import { RELATED_PRODUCTS_MAX } from "../../src/modules/catalog/domain/catalog-limits.js";
 import {
   adminPool,
   inTransaction,
@@ -66,6 +67,17 @@ describe("business rules in the database (e2e)", () => {
       );
     });
 
+    it.each(["featured", "new"])("rejects the slug %o, which a store route uses", async (slug) => {
+      await expect(
+        pool.query("INSERT INTO libreria.products (title, slug, price) VALUES ('P', $1, 10)", [
+          slug,
+        ]),
+      ).rejects.toMatchObject({
+        code: CHECK_VIOLATION,
+        constraint: "chk_products_slug_not_reserved",
+      });
+    });
+
     it("allows updating other columns when the slug does not change", async () => {
       await insertProductWithDeps(pool);
 
@@ -106,6 +118,69 @@ describe("business rules in the database (e2e)", () => {
       );
 
       expect(rows).toHaveLength(1);
+    });
+  });
+
+  describe("image pending since", () => {
+    const sinceOf = async (productId: string) =>
+      (
+        await pool.query<{ status: string; pending_since: Date | null }>(
+          "SELECT status, pending_since FROM libreria.product_images WHERE product_id = $1",
+          [productId],
+        )
+      ).rows[0];
+
+    it("stamps a pending image added without the time, and keeps one given", async () => {
+      const { id } = await insertProductWithDeps(pool);
+      const given = new Date("2026-10-01T12:00:00.000Z");
+
+      await expect(sinceOf(id)).resolves.toMatchObject({
+        status: "PENDING",
+        pending_since: expect.any(Date) as unknown,
+      });
+      await pool.query(
+        "UPDATE libreria.product_images SET pending_since = $2 WHERE product_id = $1",
+        [id, given],
+      );
+      await expect(sinceOf(id)).resolves.toMatchObject({ pending_since: given });
+    });
+
+    it("clears it once the image is processed or failed, and stamps it again when pending", async () => {
+      const { id } = await insertProductWithDeps(pool);
+
+      await pool.query(
+        "UPDATE libreria.product_images SET status = 'FAILED', pending_since = now() WHERE product_id = $1",
+        [id],
+      );
+      await expect(sinceOf(id)).resolves.toMatchObject({ status: "FAILED", pending_since: null });
+      await pool.query(
+        "UPDATE libreria.product_images SET status = 'PENDING' WHERE product_id = $1",
+        [id],
+      );
+      await expect(sinceOf(id)).resolves.toMatchObject({
+        status: "PENDING",
+        pending_since: expect.any(Date) as unknown,
+      });
+    });
+
+    it("refuses a pending image without the time when the trigger is off", async () => {
+      const { id } = await insertProductWithDeps(pool);
+      await pool.query(
+        "ALTER TABLE libreria.product_images DISABLE TRIGGER trg_product_images_pending_since",
+      );
+      try {
+        await expectPgError(
+          pool.query(
+            "UPDATE libreria.product_images SET pending_since = NULL WHERE product_id = $1",
+            [id],
+          ),
+          CHECK_VIOLATION,
+        );
+      } finally {
+        await pool.query(
+          "ALTER TABLE libreria.product_images ENABLE TRIGGER trg_product_images_pending_since",
+        );
+      }
     });
   });
 
@@ -245,17 +320,71 @@ describe("business rules in the database (e2e)", () => {
         UNIQUE_VIOLATION,
       );
     });
+  });
+
+  describe("related products", () => {
+    const relate = (productId: string, relatedId: string, sortOrder: number) =>
+      pool.query(
+        "INSERT INTO libreria.related_products (product_id, related_product_id, sort_order) VALUES ($1, $2, $3)",
+        [productId, relatedId, sortOrder],
+      );
+
+    async function products(count: number): Promise<string[]> {
+      const ids: string[] = [];
+      for (let index = 1; index <= count; index++) {
+        ids.push((await insertProductWithDeps(pool, { title: `Product ${index}` })).id);
+      }
+      return ids;
+    }
+
+    // Tied to the limit the application checks, so changing one without the other fails here.
+    it("takes as many per product as the application allows, one per position from 0", async () => {
+      const [product, ...others] = await products(RELATED_PRODUCTS_MAX + 1);
+
+      for (const [index, other] of others.entries()) {
+        await relate(product, other, index);
+      }
+
+      const { rows } = await pool.query("SELECT 1 FROM libreria.related_products");
+      expect(rows).toHaveLength(RELATED_PRODUCTS_MAX);
+    });
 
     it("rejects a product related to itself", async () => {
-      const { id } = await insertProductWithDeps(pool);
+      const [product] = await products(1);
 
-      await expectPgError(
-        pool.query(
-          "INSERT INTO libreria.related_products (product_id, related_product_id) VALUES ($1, $1)",
-          [id],
-        ),
-        CHECK_VIOLATION,
-      );
+      await expect(relate(product, product, 0)).rejects.toMatchObject({
+        code: CHECK_VIOLATION,
+        constraint: "chk_related_products_not_self",
+      });
+    });
+
+    it.each([RELATED_PRODUCTS_MAX, -1])("rejects the position %o", async (sortOrder) => {
+      const [product, other] = await products(2);
+
+      await expect(relate(product, other, sortOrder)).rejects.toMatchObject({
+        code: CHECK_VIOLATION,
+        constraint: "chk_related_products_sort_order_range",
+      });
+    });
+
+    it("rejects two related products in the same position", async () => {
+      const [product, first, second] = await products(3);
+      await relate(product, first, 0);
+
+      await expect(relate(product, second, 0)).rejects.toMatchObject({
+        code: UNIQUE_VIOLATION,
+        constraint: "uq_related_products_sort_order",
+      });
+    });
+
+    it("rejects the same related product twice", async () => {
+      const [product, other] = await products(2);
+      await relate(product, other, 0);
+
+      await expect(relate(product, other, 1)).rejects.toMatchObject({
+        code: UNIQUE_VIOLATION,
+        constraint: "pk_related_products",
+      });
     });
   });
 
@@ -271,6 +400,14 @@ describe("business rules in the database (e2e)", () => {
         pool.query(`UPDATE libreria.users SET ${assignment} WHERE id = $1`, [adminId]),
         CHECK_VIOLATION,
       );
+    });
+
+    it("names the rule it breaks, so the application can tell it apart", async () => {
+      const adminId = await insertUser(pool, { role: "ADMIN" });
+
+      await expect(
+        pool.query("UPDATE libreria.users SET is_active = false WHERE id = $1", [adminId]),
+      ).rejects.toMatchObject({ code: CHECK_VIOLATION, constraint: "chk_users_last_active_admin" });
     });
 
     it("rejects deleting the only active admin", async () => {
@@ -303,8 +440,8 @@ describe("business rules in the database (e2e)", () => {
     ])("revokes open sessions when %s changes", async (_column, assignment) => {
       const userId = await insertUser(pool);
       await pool.query(
-        `INSERT INTO libreria.sessions (user_id, refresh_token_hash, expires_at)
-         VALUES ($1, 'token-hash', now() + interval '1 day')`,
+        `INSERT INTO libreria.sessions (user_id, refresh_token_hash, family_id, expires_at)
+         VALUES ($1, 'token-hash', gen_random_uuid(), now() + interval '1 day')`,
         [userId],
       );
 
@@ -328,6 +465,41 @@ describe("business rules in the database (e2e)", () => {
         [userId],
       );
       expect(rows[0]?.password_changed_at).not.toBeNull();
+    });
+
+    const passwordChangedAt = async (userId: string) => {
+      const { rows } = await pool.query<{ password_changed_at: Date | null }>(
+        "SELECT password_changed_at FROM libreria.users WHERE id = $1",
+        [userId],
+      );
+      return rows[0]?.password_changed_at;
+    };
+
+    it("keeps the password_changed_at the application sets with the new password", async () => {
+      const userId = await insertUser(pool);
+      const fromApp = new Date("2026-10-22T12:00:00.000Z");
+
+      await pool.query(
+        "UPDATE libreria.users SET password_hash = 'new-hash', password_changed_at = $1 WHERE id = $2",
+        [fromApp, userId],
+      );
+
+      expect(await passwordChangedAt(userId)).toEqual(fromApp);
+    });
+
+    it("still fills password_changed_at in when a later change leaves the date as it was", async () => {
+      const userId = await insertUser(pool);
+      const earlier = new Date("2020-01-01T00:00:00.000Z");
+      await pool.query(
+        "UPDATE libreria.users SET password_hash = 'first-hash', password_changed_at = $1 WHERE id = $2",
+        [earlier, userId],
+      );
+
+      await pool.query("UPDATE libreria.users SET password_hash = 'second-hash' WHERE id = $1", [
+        userId,
+      ]);
+
+      expect((await passwordChangedAt(userId))?.getTime()).toBeGreaterThan(earlier.getTime());
     });
 
     it("rejects the same email in a different case among active users", async () => {

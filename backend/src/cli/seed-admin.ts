@@ -37,7 +37,7 @@ try {
   );
   console.log(
     result === "created"
-      ? `Admin ${env.SEED_ADMIN_EMAIL} created`
+      ? `Admin ${env.SEED_ADMIN_EMAIL.toString()} created`
       : "An active admin already exists; nothing to do",
   );
 } catch (error) {

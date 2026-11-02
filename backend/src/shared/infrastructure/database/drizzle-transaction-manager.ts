@@ -3,6 +3,7 @@ import { TransactionManager } from "../../application/transaction-manager.js";
 import { DrizzleClient } from "./drizzle.client.js";
 import { DrizzleExecutor } from "./drizzle.executor.js";
 
+/** `TransactionManager` backed by Drizzle; the transaction is exposed through `DrizzleExecutor`. */
 @Injectable()
 export class DrizzleTransactionManager extends TransactionManager {
   constructor(

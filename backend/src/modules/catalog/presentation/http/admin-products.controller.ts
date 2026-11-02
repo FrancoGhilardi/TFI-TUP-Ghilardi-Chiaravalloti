@@ -1,0 +1,260 @@
+import {
+  ApiBody,
+  ApiConsumes,
+  ApiCreatedResponse,
+  ApiExtraModels,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+  getSchemaPath,
+} from "@nestjs/swagger";
+import {
+  ApiErrors,
+  VALIDATION_FAILED,
+} from "../../../../shared/presentation/http/openapi-decorators.js";
+import {
+  AdminProductDetailResponseDto,
+  AdminProductPageResponseDto,
+} from "./admin-product.response.dto.js";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Header,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UploadedFiles,
+  UseInterceptors,
+} from "@nestjs/common";
+import type { AuthUser } from "../../../identity/presentation/auth-user.js";
+import { CurrentUser } from "../../../identity/presentation/decorators/current-user.decorator.js";
+import { AnyPanelRole } from "../../../identity/presentation/decorators/roles.decorator.js";
+import type { Page } from "../../../../shared/application/pagination.js";
+import type { AdminProductDetailResult } from "../../application/dto/admin-product-detail.result.js";
+import type { AdminProductListItemResult } from "../../application/dto/admin-product-list-item.result.js";
+import { CreateProductUseCase } from "../../application/use-cases/create-product.use-case.js";
+import { DeleteProductUseCase } from "../../application/use-cases/delete-product.use-case.js";
+import { GetAdminProductUseCase } from "../../application/use-cases/get-admin-product.use-case.js";
+import { ListAdminProductsUseCase } from "../../application/use-cases/list-admin-products.use-case.js";
+import { RestoreProductUseCase } from "../../application/use-cases/restore-product.use-case.js";
+import { UpdateProductUseCase } from "../../application/use-cases/update-product.use-case.js";
+import { CreateProductRequestDto } from "./create-product.request.dto.js";
+import { ListAdminProductsRequestDto } from "./list-admin-products.request.dto.js";
+import { ProductFormInterceptor } from "./product-form.interceptor.js";
+import { PRODUCT_ID } from "./product-id.pipe.js";
+import { UpdateProductRequestDto } from "./update-product.request.dto.js";
+
+const optionalDate = (value: string | undefined) =>
+  value === undefined ? undefined : new Date(value);
+
+/** A block such as the sale: left alone without its flag, built when on, removed when off. */
+const blockOf = <T>(flag: boolean | undefined, build: () => T): T | null | undefined =>
+  flag === undefined ? undefined : flag ? build() : null;
+
+const saleOf = (body: { salePrice?: string; saleEndsAt?: string }) => ({
+  price: body.salePrice ?? "",
+  endsAt: optionalDate(body.saleEndsAt),
+});
+
+const newMarkOf = (body: { newUntil?: string }) => ({ until: optionalDate(body.newUntil) });
+
+/** Product management in the admin panel, for admins and sellers. */
+@ApiTags("Products")
+@ApiExtraModels(CreateProductRequestDto)
+@ApiErrors({ 403: ["PASSWORD_CHANGE_REQUIRED"] })
+@Controller("admin/products")
+@AnyPanelRole()
+export class AdminProductsController {
+  constructor(
+    private readonly createProduct: CreateProductUseCase,
+    private readonly updateProduct: UpdateProductUseCase,
+    private readonly deleteProduct: DeleteProductUseCase,
+    private readonly restoreProduct: RestoreProductUseCase,
+    private readonly getAdminProduct: GetAdminProductUseCase,
+    private readonly listAdminProducts: ListAdminProductsUseCase,
+  ) {}
+
+  /** Its thumbnails may be links that expire, so it is never kept. */
+  @Get()
+  @Header("Cache-Control", "no-store")
+  @ApiOperation({ summary: "List the products of the panel" })
+  @ApiOkResponse({ type: AdminProductPageResponseDto })
+  @ApiErrors({ 400: [VALIDATION_FAILED] })
+  findAll(@Query() query: ListAdminProductsRequestDto): Promise<Page<AdminProductListItemResult>> {
+    return this.listAdminProducts.execute({
+      q: query.q,
+      categoryId: query.categoryId,
+      status: query.status,
+      isFeatured: query.isFeatured,
+      isOnSale: query.isOnSale,
+      isNew: query.isNew,
+      maxStock: query.maxStock,
+      sortBy: query.sortBy,
+      sortDir: query.sortDir,
+      page: query.page,
+      limit: query.limit,
+    });
+  }
+
+  /** Deleted or not, as the edit form shows it. Its preview links expire, so it is never kept. */
+  @Get(":id")
+  @Header("Cache-Control", "no-store")
+  @ApiOperation({ summary: "Get a product as the edit form shows it, deleted or not" })
+  @ApiOkResponse({ type: AdminProductDetailResponseDto })
+  @ApiErrors({ 404: ["PRODUCT_NOT_FOUND"] })
+  findOne(@Param("id", PRODUCT_ID) id: string): Promise<AdminProductDetailResult> {
+    return this.getAdminProduct.execute(id);
+  }
+
+  /** `multipart/form-data`: the product as JSON in `data` and from 1 to 5 files in `images`. */
+  @Post()
+  @UseInterceptors(ProductFormInterceptor)
+  @ApiOperation({ summary: "Create a product with its first images" })
+  @ApiConsumes("multipart/form-data")
+  @ApiBody({
+    schema: {
+      type: "object",
+      required: ["data", "images"],
+      properties: {
+        data: {
+          type: "string",
+          description: `The product as JSON, as \`${getSchemaPath(CreateProductRequestDto)}\` describes it.`,
+        },
+        images: {
+          type: "array",
+          description:
+            "From 1 to 5 JPEG, PNG or WebP files of up to 10 MB, in the order they are shown.",
+          items: { type: "string", format: "binary" },
+        },
+      },
+    },
+  })
+  @ApiCreatedResponse({ type: AdminProductDetailResponseDto })
+  @ApiErrors({
+    400: [
+      VALIDATION_FAILED,
+      "INVALID_PRODUCT_TITLE",
+      "INVALID_DESCRIPTION",
+      "INVALID_MONEY",
+      "INVALID_PRICE",
+      "INVALID_STOCK",
+      "INVALID_SORT_ORDER",
+      "INVALID_SALE_END",
+      "INVALID_NEW_UNTIL",
+      "INVALID_CATEGORY_ASSIGNMENT",
+      "INVALID_RELATED_PRODUCTS",
+      "INVALID_SLUG",
+      "INVALID_IMAGE",
+      "INVALID_IMAGE_COUNT",
+    ],
+    422: ["SALE_PRICE_NOT_LOWER", "CATEGORY_UNAVAILABLE", "RELATED_PRODUCT_UNAVAILABLE"],
+    502: ["IMAGE_UPLOAD_FAILED"],
+  })
+  create(
+    @Body() body: CreateProductRequestDto,
+    @UploadedFiles() files: Express.Multer.File[],
+    @CurrentUser() actor: AuthUser,
+  ): Promise<AdminProductDetailResult> {
+    return this.createProduct.execute({
+      actorId: actor.id,
+      title: body.title,
+      description: body.description,
+      price: body.price,
+      sale: body.isOnSale ? saleOf(body) : undefined,
+      stock: body.stock,
+      isFeatured: body.isFeatured,
+      newMark: body.isNew ? newMarkOf(body) : undefined,
+      sortOrder: body.sortOrder,
+      isActive: body.isActive,
+      categoryIds: body.categoryIds,
+      primaryCategoryId: body.primaryCategoryId,
+      relatedProductIds: body.relatedProductIds,
+      images: files.map((file, index) => ({
+        bytes: file.buffer,
+        altText: body.imageAltTexts?.[index],
+      })),
+    });
+  }
+
+  @Patch(":id")
+  @ApiOperation({ summary: "Edit the fields sent; slug and SKU never change" })
+  @ApiOkResponse({ type: AdminProductDetailResponseDto })
+  @ApiErrors({
+    400: [
+      VALIDATION_FAILED,
+      "INVALID_PRODUCT_TITLE",
+      "INVALID_DESCRIPTION",
+      "INVALID_MONEY",
+      "INVALID_PRICE",
+      "INVALID_STOCK",
+      "INVALID_SORT_ORDER",
+      "INVALID_SALE_END",
+      "INVALID_NEW_UNTIL",
+      "INVALID_CATEGORY_ASSIGNMENT",
+      "INVALID_RELATED_PRODUCTS",
+    ],
+    404: ["PRODUCT_NOT_FOUND"],
+    422: [
+      "PRODUCT_DELETED",
+      "SALE_PRICE_NOT_LOWER",
+      "CATEGORY_UNAVAILABLE",
+      "RELATED_PRODUCT_UNAVAILABLE",
+      "SELF_RELATED_PRODUCT",
+    ],
+  })
+  update(
+    @Param("id", PRODUCT_ID) id: string,
+    @Body() body: UpdateProductRequestDto,
+    @CurrentUser() actor: AuthUser,
+  ): Promise<AdminProductDetailResult> {
+    return this.updateProduct.execute({
+      productId: id,
+      actorId: actor.id,
+      title: body.title,
+      description: body.description,
+      price: body.price,
+      sale: blockOf(body.isOnSale, () => saleOf(body)),
+      stock: body.stock,
+      isFeatured: body.isFeatured,
+      newMark: blockOf(body.isNew, () => newMarkOf(body)),
+      sortOrder: body.sortOrder,
+      isActive: body.isActive,
+      categories:
+        body.categoryIds && body.primaryCategoryId
+          ? { ids: body.categoryIds, primaryId: body.primaryCategoryId }
+          : undefined,
+      relatedProductIds: body.relatedProductIds,
+    });
+  }
+
+  /** A logical deletion: the product stays, with its images, and can be restored. */
+  @Delete(":id")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: "Delete the product logically; repeating it changes nothing" })
+  @ApiNoContentResponse()
+  @ApiErrors({ 404: ["PRODUCT_NOT_FOUND"] })
+  remove(@Param("id", PRODUCT_ID) id: string, @CurrentUser() actor: AuthUser): Promise<void> {
+    return this.deleteProduct.execute({ productId: id, actorId: actor.id });
+  }
+
+  @Post(":id/restore")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Restore a deleted product, with the state and categories it had" })
+  @ApiOkResponse({ type: AdminProductDetailResponseDto })
+  @ApiErrors({
+    404: ["PRODUCT_NOT_FOUND"],
+    422: ["PRODUCT_NOT_DELETED", "PRODUCT_WITHOUT_CATEGORY"],
+  })
+  restore(
+    @Param("id", PRODUCT_ID) id: string,
+    @CurrentUser() actor: AuthUser,
+  ): Promise<AdminProductDetailResult> {
+    return this.restoreProduct.execute({ productId: id, actorId: actor.id });
+  }
+}

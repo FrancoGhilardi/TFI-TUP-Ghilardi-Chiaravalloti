@@ -14,6 +14,7 @@ function hasSslUrlParam(value: string): boolean {
   return false;
 }
 
+/** PostgreSQL URL without SSL parameters; SSL is configured only through `DATABASE_SSL_*`. */
 export const postgresUrl = z
   .url({ protocol: /^postgres(ql)?$/, error: "Must be a postgres:// or postgresql:// URL" })
   .refine((value) => !hasSslUrlParam(value), {
@@ -28,6 +29,7 @@ export const databaseSslSchema = z.object({
   DATABASE_SSL_CA: optionalString,
 });
 
+/** Cross-field SSL rules: `verify-full` needs a CA, and production cannot disable SSL. */
 export function refineDatabaseSsl(
   env: { NODE_ENV?: string; DATABASE_SSL_MODE: SslMode; DATABASE_SSL_CA?: string },
   ctx: z.RefinementCtx,

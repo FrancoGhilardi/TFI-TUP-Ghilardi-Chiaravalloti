@@ -1,0 +1,202 @@
+import type { Request, Response } from "express";
+import type { AuthSessionResult } from "../../application/dto/auth-session.result.js";
+import type { ChangePasswordCommand } from "../../application/dto/change-password.command.js";
+import type { LogoutCommand } from "../../application/dto/logout.command.js";
+import type { RefreshSessionCommand } from "../../application/dto/refresh-session.command.js";
+import { InvalidCurrentPasswordError } from "../../application/errors/invalid-current-password-error.js";
+import { InvalidSessionError } from "../../application/errors/invalid-session-error.js";
+import type { ChangePasswordUseCase } from "../../application/use-cases/change-password.use-case.js";
+import type { BackgroundTasks } from "../../../../shared/application/background-tasks.js";
+import type { LoginUseCase } from "../../application/use-cases/login.use-case.js";
+import type { LogoutUseCase } from "../../application/use-cases/logout.use-case.js";
+import type { RefreshSessionUseCase } from "../../application/use-cases/refresh-session.use-case.js";
+import type { RequestPasswordResetUseCase } from "../../application/use-cases/request-password-reset.use-case.js";
+import { UserRole } from "../../domain/user-role.js";
+import { AuthController } from "./auth.controller.js";
+
+const SESSION: AuthSessionResult = {
+  accessToken: "access-token",
+  accessTokenExpiresIn: 900,
+  refreshToken: "new-token",
+  refreshTokenExpiresAt: new Date("2026-10-29T12:00:00.000Z"),
+  user: {
+    id: "user-1",
+    email: "ana@example.com",
+    name: "Ana",
+    role: UserRole.SELLER,
+    mustChangePassword: false,
+  },
+};
+
+function setUp(
+  use: {
+    refresh?: (command: RefreshSessionCommand) => Promise<AuthSessionResult>;
+    logout?: (command: LogoutCommand) => Promise<void>;
+    changePassword?: (command: ChangePasswordCommand) => Promise<AuthSessionResult>;
+  } = {},
+) {
+  const refreshSession = { execute: vi.fn(use.refresh ?? (() => Promise.resolve(SESSION))) };
+  const logoutSession = { execute: vi.fn(use.logout ?? (() => Promise.resolve())) };
+  const changePassword = {
+    execute: vi.fn(use.changePassword ?? (() => Promise.resolve(SESSION))),
+  };
+  const requestPasswordReset = { execute: vi.fn(() => Promise.resolve()) };
+  // Keeps the work instead of running it, as the real tasks only run after the response.
+  const scheduled: (() => Promise<unknown>)[] = [];
+  const runInBackground = vi.fn((_name: string, work: () => Promise<unknown>) => {
+    scheduled.push(work);
+  });
+  const backgroundTasks: BackgroundTasks = { run: runInBackground };
+  const cookie = {
+    read: vi.fn(() => "old-token"),
+    write: vi.fn(),
+    clear: vi.fn(),
+  };
+  const controller = new AuthController(
+    {} as LoginUseCase,
+    refreshSession as unknown as RefreshSessionUseCase,
+    logoutSession as unknown as LogoutUseCase,
+    changePassword as unknown as ChangePasswordUseCase,
+    requestPasswordReset as unknown as RequestPasswordResetUseCase,
+    backgroundTasks,
+    cookie,
+  );
+  const req = {} as Request;
+  const res = {} as Response;
+  const refresh = () => controller.refresh(req, "Firefox", res);
+  const logout = () => controller.logout(req, res);
+  const changeOwnPassword = () =>
+    controller.changePassword(
+      SESSION.user,
+      { currentPassword: "current-password", newPassword: "new-password" },
+      "Firefox",
+      res,
+    );
+  const forgotPassword = () => controller.forgotPassword({ email: "ana@example.com" });
+  return {
+    forgotPassword,
+    requestPasswordReset,
+    runInBackground,
+    scheduled,
+    refreshSession,
+    logoutSession,
+    changePassword,
+    cookie,
+    req,
+    res,
+    refresh,
+    logout,
+    changeOwnPassword,
+  };
+}
+
+describe("AuthController.refresh", () => {
+  it("renews the session with the token of the cookie and writes the new one", async () => {
+    const { refreshSession, cookie, req, res, refresh } = setUp();
+
+    const body = await refresh();
+
+    expect(cookie.read).toHaveBeenCalledWith(req);
+    expect(refreshSession.execute).toHaveBeenCalledWith({
+      refreshToken: "old-token",
+      userAgent: "Firefox",
+    });
+    expect(cookie.write).toHaveBeenCalledExactlyOnceWith(
+      res,
+      "new-token",
+      SESSION.refreshTokenExpiresAt,
+    );
+    expect(cookie.clear).not.toHaveBeenCalled();
+    expect(body).toEqual({ accessToken: "access-token", expiresIn: 900, user: SESSION.user });
+  });
+
+  it("clears the cookie and rethrows when the session cannot be renewed", async () => {
+    const error = new InvalidSessionError();
+    const { cookie, res, refresh } = setUp({ refresh: () => Promise.reject(error) });
+
+    await expect(refresh()).rejects.toBe(error);
+
+    expect(cookie.clear).toHaveBeenCalledExactlyOnceWith(res);
+    expect(cookie.write).not.toHaveBeenCalled();
+  });
+
+  it("keeps the cookie on any other failure, which says nothing about the token", async () => {
+    const error = new Error("database down");
+    const { cookie, refresh } = setUp({ refresh: () => Promise.reject(error) });
+
+    await expect(refresh()).rejects.toBe(error);
+
+    expect(cookie.clear).not.toHaveBeenCalled();
+  });
+});
+
+describe("AuthController.logout", () => {
+  it("ends the session of the cookie and clears it", async () => {
+    const { logoutSession, cookie, req, res, logout } = setUp();
+
+    await expect(logout()).resolves.toBeUndefined();
+
+    expect(cookie.read).toHaveBeenCalledWith(req);
+    expect(logoutSession.execute).toHaveBeenCalledExactlyOnceWith({ refreshToken: "old-token" });
+    expect(cookie.clear).toHaveBeenCalledExactlyOnceWith(res);
+    expect(cookie.write).not.toHaveBeenCalled();
+  });
+
+  it("keeps the cookie and rethrows when the session could not be ended", async () => {
+    const error = new Error("database down");
+    const { cookie, logout } = setUp({ logout: () => Promise.reject(error) });
+
+    await expect(logout()).rejects.toBe(error);
+
+    expect(cookie.clear).not.toHaveBeenCalled();
+  });
+});
+
+describe("AuthController.changePassword", () => {
+  it("changes the password of the authenticated user and writes the new session", async () => {
+    const { changePassword, cookie, res, changeOwnPassword } = setUp();
+
+    const body = await changeOwnPassword();
+
+    expect(changePassword.execute).toHaveBeenCalledExactlyOnceWith({
+      userId: "user-1",
+      currentPassword: "current-password",
+      newPassword: "new-password",
+      userAgent: "Firefox",
+    });
+    expect(cookie.write).toHaveBeenCalledExactlyOnceWith(
+      res,
+      "new-token",
+      SESSION.refreshTokenExpiresAt,
+    );
+    expect(body).toEqual({ accessToken: "access-token", expiresIn: 900, user: SESSION.user });
+  });
+
+  it("leaves the cookie alone and rethrows when the password is not changed", async () => {
+    const error = new InvalidCurrentPasswordError();
+    const { cookie, changeOwnPassword } = setUp({ changePassword: () => Promise.reject(error) });
+
+    await expect(changeOwnPassword()).rejects.toBe(error);
+
+    expect(cookie.write).not.toHaveBeenCalled();
+    expect(cookie.clear).not.toHaveBeenCalled();
+  });
+});
+
+describe("AuthController.forgotPassword", () => {
+  it("answers before the request is processed, which runs in the background", async () => {
+    const { requestPasswordReset, runInBackground, scheduled, forgotPassword } = setUp();
+
+    expect(forgotPassword()).toBeUndefined();
+
+    expect(requestPasswordReset.execute).not.toHaveBeenCalled();
+    expect(runInBackground).toHaveBeenCalledExactlyOnceWith(
+      "Password reset request",
+      expect.any(Function),
+    );
+    await scheduled[0]?.();
+    expect(requestPasswordReset.execute).toHaveBeenCalledExactlyOnceWith({
+      email: "ana@example.com",
+    });
+  });
+});
