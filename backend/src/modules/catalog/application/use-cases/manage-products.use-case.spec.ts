@@ -60,6 +60,10 @@ class InMemoryProducts extends ProductRepository {
   existsBySlug(): Promise<never> {
     return Promise.reject(new Error("Not used"));
   }
+
+  lockSlug(): Promise<never> {
+    return Promise.reject(new Error("Not used"));
+  }
 }
 
 class FakeCategories extends CategoryRepository {
@@ -103,6 +107,9 @@ class FakeCategories extends CategoryRepository {
     return Promise.reject(new Error("Not used"));
   }
   lockHierarchy(): Promise<never> {
+    return Promise.reject(new Error("Not used"));
+  }
+  lockSlug(): Promise<never> {
     return Promise.reject(new Error("Not used"));
   }
   save(): Promise<never> {

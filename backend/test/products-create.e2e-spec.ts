@@ -300,6 +300,24 @@ describe("POST /admin/products (e2e)", () => {
     expect((response.body as ProductBody).slug).toBe("cuaderno-rayado-a4-2");
   });
 
+  it("gives two products created at once with the same title different slugs and SKUs", async () => {
+    const responses = await Promise.all([post(), post()]);
+
+    expect(responses.map((response) => response.status)).toEqual([201, 201]);
+    const bodies = responses.map((response) => response.body as ProductBody);
+    expect(bodies.map((body) => body.slug).sort()).toEqual([
+      "cuaderno-rayado-a4",
+      "cuaderno-rayado-a4-2",
+    ]);
+    expect(bodies.map((body) => body.sku).sort()).toEqual(["LMS-000001", "LMS-000002"]);
+  });
+
+  it("cuts the slug of a long title whose letters grow", async () => {
+    const response = await post(data({ title: "ß".repeat(200) })).expect(201);
+
+    expect((response.body as ProductBody).slug).toBe("s".repeat(220));
+  });
+
   it("takes five images", async () => {
     const response = await post(
       data(),

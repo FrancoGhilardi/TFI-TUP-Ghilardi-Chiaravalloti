@@ -57,7 +57,13 @@ class InMemoryCategoryRepository extends CategoryRepository {
   }
 
   existsBySlug(slug: Slug): Promise<boolean> {
+    this.events.push(`slug exists ${slug.toString()}`);
     return Promise.resolve(this.categories.some((category) => category.slug.equals(slug)));
+  }
+
+  lockSlug(slug: Slug): Promise<void> {
+    this.events.push(`lock slug ${slug.toString()}`);
+    return Promise.resolve();
   }
 
   findAncestorIds(id: string): Promise<string[]> {
@@ -238,18 +244,28 @@ describe("CreateCategoryUseCase", () => {
     expect(find(NEW_ID)?.createdAt).toBe(NOW);
   });
 
-  it("locks the parent, checks the name and saves, in one transaction", async () => {
+  it("locks the slug, then the parent, checks the name and saves, in one transaction", async () => {
     const { events, create } = setUp([category("parent-1")]);
 
     await create.execute({ name: "Cuadernos", parentId: "parent-1", sortOrder: 2 });
 
     expect(events).toEqual([
       "begin",
+      "lock slug cuadernos",
+      "slug exists cuadernos",
       "find parent-1",
       "check name Cuadernos",
       `save ${NEW_ID}`,
       "commit",
     ]);
+  });
+
+  it("cuts a long name to the 120 characters of a category slug", async () => {
+    const { create } = setUp([]);
+
+    const result = await create.execute({ name: "ß".repeat(100) });
+
+    expect(result.slug).toBe("s".repeat(120));
   });
 
   it("creates it under an inactive parent, and inactive when asked", async () => {
