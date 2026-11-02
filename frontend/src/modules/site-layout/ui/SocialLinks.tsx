@@ -1,3 +1,4 @@
+import { ExternalLink } from "@/modules/core/ui/ExternalLink";
 import { InstagramIcon } from "@/modules/core/ui/icons/InstagramIcon";
 import { WhatsAppIcon } from "@/modules/core/ui/icons/WhatsAppIcon";
 
@@ -13,26 +14,14 @@ export const SocialLinks = ({ instagramUrl, whatsappUrl }: SocialLinksProps) => 
   return (
     <ul className="mt-3.5 flex gap-2.5">
       <li>
-        <a
-          href={instagramUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Instagram"
-          className={linkStyles}
-        >
+        <ExternalLink href={instagramUrl} aria-label="Instagram" className={linkStyles}>
           <InstagramIcon />
-        </a>
+        </ExternalLink>
       </li>
       <li>
-        <a
-          href={whatsappUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="WhatsApp"
-          className={linkStyles}
-        >
+        <ExternalLink href={whatsappUrl} aria-label="WhatsApp" className={linkStyles}>
           <WhatsAppIcon />
-        </a>
+        </ExternalLink>
       </li>
     </ul>
   );

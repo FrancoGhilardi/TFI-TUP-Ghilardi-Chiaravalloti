@@ -6,6 +6,7 @@ import { useState } from "react";
 import type { CategoryNode } from "@/modules/catalog";
 import { useOnMediaQueryMatch } from "@/modules/core/hooks/useOnMediaQueryMatch";
 import { cn } from "@/modules/core/lib/utils";
+import { ExternalLink } from "@/modules/core/ui/ExternalLink";
 import { WhatsAppIcon } from "@/modules/core/ui/icons/WhatsAppIcon";
 import { Button } from "@/modules/core/ui/primitives/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/modules/core/ui/primitives/sheet";
@@ -66,15 +67,13 @@ export const MobileMenu = ({ categories, whatsappUrl, className }: MobileMenuPro
             </li>
           </ul>
         </nav>
-        <a
+        <ExternalLink
           href={whatsappUrl}
-          target="_blank"
-          rel="noopener noreferrer"
           className={cn(mobileMenuRowStyles, "flex items-center gap-2 border-b-0 text-wa-strong")}
         >
           <WhatsAppIcon />
           Consultar por WhatsApp
-        </a>
+        </ExternalLink>
       </SheetContent>
     </Sheet>
   );

@@ -6,6 +6,7 @@ const VALID = {
   NEXT_PUBLIC_API_URL: "http://localhost:3001",
   NEXT_PUBLIC_WHATSAPP_NUMBER: "5492622380159",
   NEXT_PUBLIC_WHATSAPP_DISPLAY: "2622 38-0159",
+  NEXT_PUBLIC_STORAGE_URL: "http://127.0.0.1:54321",
 };
 
 describe("parsePublicConfig", () => {
@@ -14,6 +15,7 @@ describe("parsePublicConfig", () => {
       apiBaseUrl: "http://localhost:3001/api/v1",
       whatsappNumber: "5492622380159",
       whatsappDisplay: "2622 38-0159",
+      storageOrigin: "http://127.0.0.1:54321",
     });
   });
 
@@ -41,6 +43,24 @@ describe("parsePublicConfig", () => {
     (value) => {
       expect(() => parsePublicConfig({ ...VALID, NEXT_PUBLIC_WHATSAPP_NUMBER: value })).toThrow(
         /NEXT_PUBLIC_WHATSAPP_NUMBER/,
+      );
+    },
+  );
+
+  it("keeps only the origin of the storage URL", () => {
+    const config = parsePublicConfig({
+      ...VALID,
+      NEXT_PUBLIC_STORAGE_URL: "https://abc.supabase.co/storage/v1/",
+    });
+
+    expect(config.storageOrigin).toBe("https://abc.supabase.co");
+  });
+
+  it.each([undefined, "", "abc.supabase.co", "ftp://abc.supabase.co"])(
+    "rejects the storage URL %s naming the variable",
+    (value) => {
+      expect(() => parsePublicConfig({ ...VALID, NEXT_PUBLIC_STORAGE_URL: value })).toThrow(
+        /NEXT_PUBLIC_STORAGE_URL/,
       );
     },
   );

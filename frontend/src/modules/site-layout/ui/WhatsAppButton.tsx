@@ -1,3 +1,4 @@
+import { ExternalLink } from "@/modules/core/ui/ExternalLink";
 import { WhatsAppIcon } from "@/modules/core/ui/icons/WhatsAppIcon";
 import { Button } from "@/modules/core/ui/primitives/button";
 
@@ -9,10 +10,10 @@ interface WhatsAppButtonProps {
 export const WhatsAppButton = ({ href, className }: WhatsAppButtonProps) => {
   return (
     <Button asChild variant="whatsapp" size="sm" className={className}>
-      <a href={href} target="_blank" rel="noopener noreferrer">
+      <ExternalLink href={href}>
         <WhatsAppIcon />
         WhatsApp
-      </a>
+      </ExternalLink>
     </Button>
   );
 };

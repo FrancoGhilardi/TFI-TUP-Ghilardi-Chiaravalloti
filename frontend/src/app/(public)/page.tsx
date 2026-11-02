@@ -1,10 +1,10 @@
-const HomePage = () => {
-  return (
-    <section className="flex flex-1 flex-col items-center justify-center gap-4 p-8">
-      <h1 className="text-4xl font-bold">Librería Mi Sueño</h1>
-      <p className="text-lg text-ink-soft">Catálogo en construcción.</p>
-    </section>
-  );
+import { HomePage } from "@/modules/home";
+
+// Regenerated at most once a minute, also when the API was down at build time.
+export const revalidate = 60;
+
+const Home = () => {
+  return <HomePage />;
 };
 
-export default HomePage;
+export default Home;

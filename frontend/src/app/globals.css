@@ -24,6 +24,14 @@
   --color-coral-soft: #f6e0d5;
   --color-wa: #1faf54;
 
+  /* Lighter tones used only by the illustrations and the hero background. */
+  --color-cream-light: #fcf8ef;
+  --color-paper: #f7eccf;
+  --color-teal-light: #5b918e;
+  --color-coral-light: #d57b5e;
+  --color-gold-light: #eecb72;
+  --color-line-strong: #d9c9a6;
+
   /* Darker than the brand tone wherever text sits on them, to meet WCAG AA contrast. */
   --color-wa-strong: #157a3a;
   --color-wa-strong-hover: #136f35;
@@ -33,6 +41,11 @@
 
   --shadow-soft: 0 1px 2px rgb(71 56 38 / 0.06), 0 8px 24px -12px rgb(71 56 38 / 0.18);
   --shadow-raised: 0 2px 6px rgb(71 56 38 / 0.08), 0 24px 48px -20px rgb(71 56 38 / 0.28);
+
+  --text-display: clamp(2.5rem, 5.4vw, 4.1rem);
+  --text-display--line-height: 1.05;
+  --text-section: clamp(1.7rem, 3.4vw, 2.4rem);
+  --text-section--line-height: 1.2;
 
   --radius-card: 18px;
   --container-site: 1180px;
@@ -119,6 +132,14 @@
   [role="button"]:not(:disabled) {
     cursor: pointer;
   }
+}
+
+/* Warm glow behind the home hero, from the design. */
+@utility bg-hero {
+  background:
+    radial-gradient(120% 90% at 88% -10%, var(--color-gold-soft) 0%, transparent 45%),
+    radial-gradient(90% 80% at 6% 110%, var(--color-teal-soft) 0%, transparent 50%),
+    linear-gradient(180deg, var(--color-cream-light) 0%, var(--color-cream) 100%);
 }
 
 @media (prefers-reduced-motion: reduce) {

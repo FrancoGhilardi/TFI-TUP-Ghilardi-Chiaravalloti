@@ -24,6 +24,7 @@ pnpm dev                  # http://localhost:3000
 | `NEXT_PUBLIC_API_URL`         | Yes      | Origin of the backend API, such as `http://localhost:3001`. The `/api/v1` prefix is added by the app. |
 | `NEXT_PUBLIC_WHATSAPP_NUMBER` | Yes      | Store WhatsApp number in international format, digits only, such as `5492622380159`.                  |
 
+| `NEXT_PUBLIC_STORAGE_URL` | Yes | Supabase origin serving the public product images, such as `http://127.0.0.1:54321`. |
 | `NEXT_PUBLIC_WHATSAPP_DISPLAY` | Yes | The same number as shown to customers, such as `2622 38-0159`. |
 
 The rest of the store details (Instagram, city, hours, email, services) live
@@ -51,14 +52,30 @@ Each feature is a module in `src/modules/<module>/` with `domain/`, `application
 `infrastructure/` and `ui/` layers; the routes in `src/app/` only compose modules. A module's
 `index.ts` is its public surface: other modules import `@/modules/<module>`, never its folders.
 
-| Module        | Holds                                                                                                                                                                                                                                    |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `core`        | `config/` (validated `publicConfig`, `siteConfig`), `http/` (API client and errors), `lib/utils.ts` (`cn`), `hooks/` (hooks shared by every module), `ui/` (shared components, fonts, icons) and `ui/primitives/` (shadcn/ui components) |
-| `catalog`     | Category tree (`getCategoryTree`, `CategoryNode`)                                                                                                                                                                                        |
-| `site-layout` | `StoreShell`: header, navigation, mobile menu and footer of the public pages                                                                                                                                                             |
-| `whatsapp`    | `wa.me` links (`generalInquiryUrl`)                                                                                                                                                                                                      |
+| Module          | Holds                                                                                                                                                                                                                                    |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `core`          | `config/` (validated `publicConfig`, `siteConfig`), `http/` (API client and errors), `lib/utils.ts` (`cn`), `hooks/` (hooks shared by every module), `ui/` (shared components, fonts, icons) and `ui/primitives/` (shadcn/ui components) |
+| `catalog`       | Category tree, product cards (`getFeaturedProducts`, `getNewProducts`), `ProductGrid`, `CategoryGrid` and the catalog URLs                                                                                                               |
+| `site-layout`   | `StoreShell`: header, navigation, mobile menu and footer of the public pages                                                                                                                                                             |
+| `home`          | Home page: hero with search, services strip and the product and category sections                                                                                                                                                        |
+| `institutional` | Store copy blocks such as `AboutTeaser`, with their text in `content/`                                                                                                                                                                   |
+| `whatsapp`      | `wa.me` links (`generalInquiryUrl`)                                                                                                                                                                                                      |
 
 Public pages live in the `src/app/(public)/` route group, whose layout renders `StoreShell`.
+
+Catalog URLs use Spanish query parameters: `q`, `categoria`, `pagina`, `destacados=true` and
+`novedades=true`.
+
+Product images go through `next/image`, limited to the public objects of
+`NEXT_PUBLIC_STORAGE_URL`. Next refuses to optimize images from private addresses, so that guard is
+lifted only when the storage runs on this machine (`localhost`, `127.0.0.1`).
+
+Response bodies are checked with Zod (`parseResponse` from `core/http`) before mapping them; a body
+of another shape is an `UNEXPECTED_RESPONSE` `ApiError`.
+
+Data a page can do without (navigation categories, home sections) is read with
+`recoverFromApiError` and `OPTIONAL_READ_TIMEOUT_MS` from `core/http`: a failure or a slow API leaves
+that part out instead of breaking the page.
 
 ### UI components
 

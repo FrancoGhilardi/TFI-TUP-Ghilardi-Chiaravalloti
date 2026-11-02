@@ -1,9 +1,8 @@
 "use client";
 
-import type { CategoryNode } from "@/modules/catalog";
+import { categoryHref, type CategoryNode } from "@/modules/catalog";
 import { cn } from "@/modules/core/lib/utils";
 
-import { categoryHref } from "../domain/navigation";
 import { mobileMenuRowStyles } from "./mobile-menu-styles";
 import { MobileMenuRow } from "./MobileMenuRow";
 
