@@ -2384,11 +2384,12 @@ classDiagram
         +execute(command: ReorderProductImagesCommand) Promise~AdminProductImageResult[]~
     }
     class DeleteProductImageUseCase {
+        -products: ProductRepository
         -images: ProductImageRepository
         -policy: ProductImagePolicy
         -uploader: ProductImageUploader
         -transaction: TransactionManager
-        +execute(command: DeleteProductImageCommand) Promise~void~
+        +execute(command: DeleteProductImageCommand) Promise~DeletedProductImageResult~
     }
     class RetryProductImageProcessingUseCase {
         -products: ProductRepository
@@ -2526,7 +2527,7 @@ Todas las operaciones sobre una imagen existente verifican que el producto exist
 
 **Reordenamiento.** Se recibe la lista de imágenes en el nuevo orden, que pasan a ocupar las posiciones consecutivas desde 1; la lista debe contener exactamente las imágenes del producto, cada una una sola vez (`InvalidImageOrderError`). Dentro de una transacción, con el producto y sus imágenes bloqueados, se aplica el nuevo orden mediante `ProductImagePolicy` y se guardan todas las imágenes en una sola sentencia; como la restricción de posición única (`libreria.uq_product_images_position`) es diferible, se valida al final de esa sentencia y no imagen por imagen. Si el orden no cambia, no se guarda nada.
 
-**Eliminación.** Dentro de una transacción, se verifica que no se trate de la última imagen del producto, se elimina el registro y se reacomodan las posiciones de las imágenes restantes. Solo una vez confirmada la transacción se eliminan el archivo original y sus variantes, para no perder archivos si la operación en la base de datos falla.
+**Eliminación.** Dentro de una transacción, con el producto y sus imágenes bloqueados, se verifica que no se trate de la última imagen del producto, en cualquier estado (`LastProductImageError`, 422), se elimina el registro y se renumeran las imágenes restantes desde 1, guardando solo las que se movieron; el bloqueo hace que dos eliminaciones simultáneas nunca dejen el producto sin imágenes. Solo una vez confirmada la transacción se eliminan el archivo original y su versión pública, para no perder archivos si la operación en la base de datos falla. Los dos archivos se eliminan a la vez, y cada uno se reintenta una vez tras una espera breve; si Storage igual lo conserva, la respuesta sigue siendo exitosa, porque la imagen ya no existe, y cada archivo que quedó se registra en el log con su causa, para eliminarlo a mano. Un procesamiento de la imagen que termine después no la encuentra y elimina su propio archivo.
 
 **Reintento de procesamiento.** Solo para una imagen cuyo procesamiento falló (si no, `ImageNotFailedError`): vuelve al estado pendiente y, una vez confirmado, se publica de nuevo el evento de procesamiento, lo que permite recuperarla sin necesidad de volver a cargar el archivo.
 
