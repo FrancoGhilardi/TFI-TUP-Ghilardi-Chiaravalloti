@@ -11,6 +11,12 @@ import type { SearchCatalogQuery } from "../dto/search-catalog.query.js";
 export abstract class CatalogQueries {
   abstract findPage(query: SearchCatalogQuery, now: Date): Promise<Page<ProductCardResult>>;
 
+  /** Visible featured products. */
+  abstract findFeatured(limit: number, now: Date): Promise<ProductCardResult[]>;
+
+  /** Visible products whose "new" mark still runs at `now`. */
+  abstract findNew(limit: number, now: Date): Promise<ProductCardResult[]>;
+
   /** The visible product with that slug, or `null`. */
   abstract findPageBySlug(slug: string, now: Date): Promise<ProductPage | null>;
 
