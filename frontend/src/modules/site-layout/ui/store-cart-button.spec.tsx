@@ -41,6 +41,6 @@ describe("StoreCartButton", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Abrir carrito" }));
 
-    expect(screen.getByRole("dialog", { name: "Tu carrito" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Tu reserva" })).toBeInTheDocument();
   });
 });

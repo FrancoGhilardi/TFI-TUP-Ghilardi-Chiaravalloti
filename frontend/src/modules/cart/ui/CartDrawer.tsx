@@ -1,5 +1,6 @@
 "use client";
 
+import { Sparkles } from "lucide-react";
 import Link from "next/link";
 
 import { formatPrice } from "@/modules/core/formatters/price";
@@ -28,7 +29,7 @@ interface CartDrawerProps {
 /** The cart in a panel at the side: change quantities, remove, empty it or order it by chat. */
 export const CartDrawer = ({ open, onOpenChange }: CartDrawerProps) => {
   const { items, total, orderUrl, setQuantity, remove, clear } = useCart();
-  const { title, empty, browse, total: totalLabel, order } = cartContent.drawer;
+  const { title, empty, browse, total: totalLabel, order, orderNote } = cartContent.drawer;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -38,7 +39,10 @@ export const CartDrawer = ({ open, onOpenChange }: CartDrawerProps) => {
         </SheetHeader>
         {items.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
-            <p className="text-ink-soft">{empty}</p>
+            <div>
+              <p className="font-semibold text-ink">{empty.title}</p>
+              <p className="mt-1.5 text-ink-soft">{empty.text}</p>
+            </div>
             <Button asChild variant="outline" className="h-11 px-6">
               <SheetClose asChild>
                 <Link href="/productos">{browse}</Link>
@@ -68,6 +72,10 @@ export const CartDrawer = ({ open, onOpenChange }: CartDrawerProps) => {
                   {order}
                 </ExternalLink>
               </Button>
+              <p className="flex items-center justify-center gap-1.5 text-center text-sm text-ink-soft">
+                <Sparkles className="size-4 shrink-0 text-gold" aria-hidden="true" />
+                {orderNote}
+              </p>
               <ClearCartButton onConfirm={clear} />
             </SheetFooter>
           </>

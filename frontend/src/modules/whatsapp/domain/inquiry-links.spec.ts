@@ -51,11 +51,14 @@ describe("cartInquiryUrl", () => {
     expect(url.origin + url.pathname).toBe("https://wa.me/5492622380159");
     expect(url.searchParams.get("text")).toBe(
       [
-        "¡Hola Librería Mi Sueño! Quería hacer este pedido:",
+        "¡Hola Librería Mi Sueño! Quiero reservar este pedido:",
+        "",
         "• 2× Cuaderno A4 — $\u00a019.600",
         "• 1× Lápiz & goma — $\u00a01.500,50",
+        "",
         "Total: $\u00a021.100,50",
-        "¿Puedo pasar a retirarlo?",
+        "",
+        "¿Está disponible para pasar a buscarlo por el local?",
       ].join("\n"),
     );
   });
