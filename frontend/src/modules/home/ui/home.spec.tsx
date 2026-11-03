@@ -42,7 +42,7 @@ describe("HomeHero", () => {
     render(<HomeHero />);
 
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-      "Todo para crear,estudiar y soñar.",
+      "Todo para crear, estudiar y soñar.",
     );
     expect(screen.getByRole("link", { name: "Ver catálogo" })).toHaveAttribute(
       "href",
