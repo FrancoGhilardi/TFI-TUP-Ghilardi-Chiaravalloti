@@ -1,11 +1,7 @@
-import { Container } from "@/modules/core/ui/Container";
+import { AboutPage } from "@/modules/institutional";
 
-const AboutPage = () => {
-  return (
-    <Container className="py-12">
-      <h1 className="text-4xl font-semibold">Sobre nosotros</h1>
-    </Container>
-  );
+const AboutUsPage = () => {
+  return <AboutPage />;
 };
 
-export default AboutPage;
+export default AboutUsPage;
