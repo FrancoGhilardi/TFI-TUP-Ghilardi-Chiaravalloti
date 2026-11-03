@@ -18,6 +18,10 @@ const envSchema = z.object({
     protocol: /^https?$/,
     error: "Must be the http(s) URL of Supabase, such as http://127.0.0.1:54321",
   }),
+  NEXT_PUBLIC_SITE_URL: z.url({
+    protocol: /^https?$/,
+    error: "Must be the http(s) URL of this store, such as http://localhost:3000",
+  }),
 });
 
 export interface PublicConfig {
@@ -29,6 +33,8 @@ export interface PublicConfig {
   whatsappDisplay: string;
   /** Origin of Supabase, which serves the public product images. */
   storageOrigin: string;
+  /** Public origin of the store, for the absolute links it shares (such as in a WhatsApp message). */
+  siteOrigin: string;
 }
 
 /** Validates the raw variables; throws an error naming each invalid one. */
@@ -47,6 +53,7 @@ export function parsePublicConfig(raw: Record<string, string | undefined>): Publ
     whatsappNumber: result.data.NEXT_PUBLIC_WHATSAPP_NUMBER,
     whatsappDisplay: result.data.NEXT_PUBLIC_WHATSAPP_DISPLAY,
     storageOrigin: new URL(result.data.NEXT_PUBLIC_STORAGE_URL).origin,
+    siteOrigin: new URL(result.data.NEXT_PUBLIC_SITE_URL).origin,
   };
 }
 
@@ -56,4 +63,5 @@ export const publicConfig = parsePublicConfig({
   NEXT_PUBLIC_WHATSAPP_NUMBER: process.env.NEXT_PUBLIC_WHATSAPP_NUMBER,
   NEXT_PUBLIC_WHATSAPP_DISPLAY: process.env.NEXT_PUBLIC_WHATSAPP_DISPLAY,
   NEXT_PUBLIC_STORAGE_URL: process.env.NEXT_PUBLIC_STORAGE_URL,
+  NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
 });

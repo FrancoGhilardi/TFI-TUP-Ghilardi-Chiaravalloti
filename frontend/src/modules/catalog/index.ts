@@ -13,5 +13,8 @@ export { getFeaturedProducts, getNewProducts } from "./infrastructure/products-a
 export { CategoryGrid } from "./ui/CategoryGrid";
 export { ProductGrid } from "./ui/ProductGrid";
 export { CatalogPage } from "./ui/CatalogPage";
+export { ProductDetailPage } from "./ui/ProductDetailPage";
+export { ProductErrorState } from "./ui/ProductErrorState";
+export { ProductNotFoundState } from "./ui/ProductNotFoundState";
 export { SearchForm } from "./ui/SearchForm";
 export { StoreSearch } from "./ui/StoreSearch";

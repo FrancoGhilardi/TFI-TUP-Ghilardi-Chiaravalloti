@@ -13,6 +13,11 @@ export const PRODUCT_GRID_LAYOUTS = {
     imageSizes:
       "(min-width: 1024px) 220px, (min-width: 861px) calc((100vw - 300px) / 3), (min-width: 681px) 33vw, 50vw",
   },
+  // Under the product, full width: 4 per row from the tablet width up.
+  related: {
+    columns: "grid-cols-2 min-[681px]:grid-cols-4",
+    imageSizes: "(min-width: 1280px) 280px, (min-width: 681px) 25vw, 50vw",
+  },
 } as const;
 
 export type ProductGridLayout = keyof typeof PRODUCT_GRID_LAYOUTS;

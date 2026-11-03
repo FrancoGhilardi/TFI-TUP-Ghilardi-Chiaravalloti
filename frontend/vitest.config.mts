@@ -9,6 +9,7 @@ export default defineConfig({
       NEXT_PUBLIC_WHATSAPP_NUMBER: "5492622380159",
       NEXT_PUBLIC_WHATSAPP_DISPLAY: "2622 38-0159",
       NEXT_PUBLIC_STORAGE_URL: "http://127.0.0.1:54321",
+      NEXT_PUBLIC_SITE_URL: "http://localhost:3000",
     },
     projects: [
       {
