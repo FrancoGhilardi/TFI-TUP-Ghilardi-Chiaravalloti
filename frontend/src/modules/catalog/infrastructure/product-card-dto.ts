@@ -6,15 +6,16 @@ import { DECIMAL_PRICE } from "@/modules/core/formatters/price";
 
 import type { ProductCard } from "../domain/product-card";
 
-const price = z.string().regex(DECIMAL_PRICE);
+/** A price as the API sends it: decimal text with up to two decimals. */
+export const priceText = z.string().regex(DECIMAL_PRICE);
 
 /** `ProductCardResponseDto` of the API, limited to what the store uses. */
 export const productCardSchema = z.object({
   id: z.string(),
   slug: z.string(),
   title: z.string(),
-  price,
-  salePrice: price.nullable(),
+  price: priceText,
+  salePrice: priceText.nullable(),
   isOnSale: z.boolean(),
   isNew: z.boolean(),
   isFeatured: z.boolean(),

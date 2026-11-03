@@ -7,6 +7,7 @@ const VALID = {
   NEXT_PUBLIC_WHATSAPP_NUMBER: "5492622380159",
   NEXT_PUBLIC_WHATSAPP_DISPLAY: "2622 38-0159",
   NEXT_PUBLIC_STORAGE_URL: "http://127.0.0.1:54321",
+  NEXT_PUBLIC_SITE_URL: "http://localhost:3000",
 };
 
 describe("parsePublicConfig", () => {
@@ -16,6 +17,7 @@ describe("parsePublicConfig", () => {
       whatsappNumber: "5492622380159",
       whatsappDisplay: "2622 38-0159",
       storageOrigin: "http://127.0.0.1:54321",
+      siteOrigin: "http://localhost:3000",
     });
   });
 
@@ -70,6 +72,24 @@ describe("parsePublicConfig", () => {
     (value) => {
       expect(() => parsePublicConfig({ ...VALID, NEXT_PUBLIC_WHATSAPP_DISPLAY: value })).toThrow(
         /NEXT_PUBLIC_WHATSAPP_DISPLAY/,
+      );
+    },
+  );
+
+  it("keeps only the origin of the site URL", () => {
+    const config = parsePublicConfig({
+      ...VALID,
+      NEXT_PUBLIC_SITE_URL: "https://libreriamisueno.com.ar/inicio/",
+    });
+
+    expect(config.siteOrigin).toBe("https://libreriamisueno.com.ar");
+  });
+
+  it.each([undefined, "", "libreriamisueno.com.ar", "ftp://libreriamisueno.com.ar"])(
+    "rejects the site URL %s naming the variable",
+    (value) => {
+      expect(() => parsePublicConfig({ ...VALID, NEXT_PUBLIC_SITE_URL: value })).toThrow(
+        /NEXT_PUBLIC_SITE_URL/,
       );
     },
   );

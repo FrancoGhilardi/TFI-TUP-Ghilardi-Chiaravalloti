@@ -26,6 +26,7 @@ pnpm dev                  # http://localhost:3000
 
 | `NEXT_PUBLIC_STORAGE_URL` | Yes | Supabase origin serving the public product images, such as `http://127.0.0.1:54321`. |
 | `NEXT_PUBLIC_WHATSAPP_DISPLAY` | Yes | The same number as shown to customers, such as `2622 38-0159`. |
+| `NEXT_PUBLIC_SITE_URL` | Yes | Public origin of this store, such as `http://localhost:3000`; used for the absolute links it shares, like the product link in a WhatsApp message. |
 
 The rest of the store details (Instagram, city, hours, email, services) live
 in `src/modules/core/config/site.ts`.
@@ -55,11 +56,12 @@ Each feature is a module in `src/modules/<module>/` with `domain/`, `application
 | Module          | Holds                                                                                                                                                                                                                                                                                                                                                                                     |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `core`          | `config/` (validated `publicConfig`, `siteConfig`), `http/` (API client and errors), `providers/` (`QueryProvider`), `lib/utils.ts` (`cn`), `hooks/` (shared hooks such as `useHydrated` and `useDebouncedValue`), `lib/pagination.ts`, `ui/` (shared components such as `Pagination`, `StatusMessage`, `ExternalLink`, plus fonts and icons) and `ui/primitives/` (shadcn/ui components) |
-| `catalog`       | Category tree, product cards, the catalog page (`CatalogPage`: filters, sort, pagination, states), the header search (`StoreSearch`), `ProductGrid`, `CategoryGrid` and the catalog URLs                                                                                                                                                                                                  |
+| `catalog`       | Category tree, product cards, the catalog page (`CatalogPage`: filters, sort, pagination, states), the product page (`ProductDetailPage`), the header search (`StoreSearch`), `ProductGrid`, `CategoryGrid` and the catalog URLs                                                                                                                                                          |
 | `site-layout`   | `StoreShell`: header, navigation, mobile menu and footer of the public pages                                                                                                                                                                                                                                                                                                              |
 | `home`          | Home page: hero with search, services strip and the product and category sections                                                                                                                                                                                                                                                                                                         |
 | `institutional` | Store copy blocks such as `AboutTeaser`, with their text in `content/`                                                                                                                                                                                                                                                                                                                    |
-| `whatsapp`      | `wa.me` links (`generalInquiryUrl`)                                                                                                                                                                                                                                                                                                                                                       |
+| `cart`          | The cart: pure rules (`addToCart`, `syncProduct`), the persisted Zustand store, `AddToCart`, `CartSyncNotice` and the counter hook `useCartCount`; independent of `catalog`                                                                                                                                                                                                               |
+| `whatsapp`      | `wa.me` links (`generalInquiryUrl`, `productInquiryUrl`)                                                                                                                                                                                                                                                                                                                                  |
 
 Public pages live in the `src/app/(public)/` route group, whose layout renders `StoreShell`.
 
@@ -135,6 +137,20 @@ TanStack Query holds the reads the browser makes, with its `queryFn` calling `co
 `QueryProvider` in `core/providers` wraps the root layout (answers stay fresh for 60 s, no refetch
 on window focus, no automatic retry). Zustand holds global state: persisted in `localStorage` for
 the cart, in memory for the panel session. The access token is never stored in the browser.
+
+### Product page
+
+`/productos/{slug}` shows the gallery, price (the sale price with the regular one struck through),
+stock, description, similar products, "Agregar al carrito" and a WhatsApp inquiry. It is ISR: no
+product is built ahead (`generateStaticParams` returns nothing, so `next build` does not need the
+API); the first visit renders the page and it is served from cache for 60 s. A slug the API does
+not know or does not show is a 404 (`not-found.tsx`); any other failure goes to `error.tsx`.
+
+The cart lives in the browser (`localStorage`, key `lms-cart-v1`) as a copy of each product (id,
+slug, title, current price, stock, image, quantity); it never holds more than the stock. It is not
+revalidated on its own: opening the page of a product that is in the cart refreshes that copy,
+lowers the quantity to the stock if needed, and says so. The header counter shows nothing until the
+browser has read the cart.
 
 ### Header search
 

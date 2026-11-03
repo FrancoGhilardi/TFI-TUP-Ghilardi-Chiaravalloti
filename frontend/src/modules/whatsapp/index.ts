@@ -1,1 +1,1 @@
-export { generalInquiryUrl } from "./domain/inquiry-links";
+export { generalInquiryUrl, productInquiryUrl } from "./domain/inquiry-links";
