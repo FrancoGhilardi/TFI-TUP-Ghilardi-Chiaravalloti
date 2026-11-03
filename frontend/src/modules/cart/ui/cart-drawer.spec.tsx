@@ -27,13 +27,13 @@ describe("CartDrawer", () => {
   it("tells an empty cart apart and offers the catalog", () => {
     renderDrawer();
 
-    expect(screen.getByRole("dialog", { name: "Tu carrito" })).toBeInTheDocument();
-    expect(screen.getByText("Todavía no agregaste productos.")).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Tu reserva" })).toBeInTheDocument();
+    expect(screen.getByText("Tu reserva está vacía")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Ver productos" })).toHaveAttribute(
       "href",
       "/productos",
     );
-    expect(screen.queryByRole("link", { name: "Pedir por WhatsApp" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Reservar por WhatsApp" })).not.toBeInTheDocument();
   });
 
   it("lists each product with its subtotal and the total", () => {
@@ -86,7 +86,7 @@ describe("CartDrawer", () => {
     await userEvent.click(screen.getByRole("button", { name: "Quitar «Cuaderno A4» del carrito" }));
 
     expect(useCartStore.getState().items).toEqual([]);
-    expect(screen.getByText("Todavía no agregaste productos.")).toBeInTheDocument();
+    expect(screen.getByText("Tu reserva está vacía")).toBeInTheDocument();
   });
 
   it("empties the cart only after confirming", async () => {
@@ -111,11 +111,12 @@ describe("CartDrawer", () => {
     useCartStore.getState().add(product(), 2);
     renderDrawer();
 
-    const link = screen.getByRole("link", { name: "Pedir por WhatsApp" });
+    const link = screen.getByRole("link", { name: "Reservar por WhatsApp" });
     const text = new URL(link.getAttribute("href") ?? "").searchParams.get("text");
 
     expect(text).toContain("• 2× Cuaderno A4 — $ 19.600");
     expect(text).toContain("Total: $ 19.600");
+    expect(screen.getByText("Coordinás el pago y el retiro directamente por chat.")).toBeVisible();
     await userEvent.click(link);
     expect(useCartStore.getState().items).toHaveLength(1);
   });

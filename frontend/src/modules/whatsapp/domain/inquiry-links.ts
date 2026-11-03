@@ -47,6 +47,6 @@ export function cartInquiryUrl(number: string, { lines, total }: CartInquiry): s
     .join("\n");
   return chatUrl(
     number,
-    `¡Hola Librería Mi Sueño! Quería hacer este pedido:\n${items}\nTotal: ${formatPrice(total)}\n¿Puedo pasar a retirarlo?`,
+    `¡Hola Librería Mi Sueño! Quiero reservar este pedido:\n\n${items}\n\nTotal: ${formatPrice(total)}\n\n¿Está disponible para pasar a buscarlo por el local?`,
   );
 }
