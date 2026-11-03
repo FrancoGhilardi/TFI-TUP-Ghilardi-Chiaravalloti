@@ -1,4 +1,7 @@
 export { getStoreCategoryTree, getStoreRootCategories } from "./application/store-categories";
+export { getCatalogMetadata } from "./application/get-catalog-metadata";
+export { getCatalogSitemapPaths } from "./application/get-sitemap-paths";
+export { getProductMetadata } from "./application/get-product-metadata";
 export { type CategoryNode, rootCategories } from "./domain/category";
 export { categoryIconKey, type CategoryIconKey } from "./domain/category-icons";
 export { currentPrice, hasRunningSale, type ProductCard } from "./domain/product-card";

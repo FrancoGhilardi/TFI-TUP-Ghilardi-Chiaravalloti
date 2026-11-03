@@ -46,3 +46,29 @@ export const getFeaturedProducts = cache((timeoutMs?: number) =>
 export const getNewProducts = cache((timeoutMs?: number) =>
   getProductCards("/products/new", timeoutMs),
 );
+
+/** The most the API returns in a page of the catalog. */
+const SLUGS_PAGE_SIZE = 50;
+/** The API refuses pages beyond this one. */
+const LAST_API_PAGE = 500;
+
+const slugPageSchema = z.object({
+  items: z.array(z.object({ slug: z.string() })),
+  totalPages: z.number(),
+});
+
+/** The slug of every product in the store, in the order of the catalog. */
+export async function getAllProductSlugs(): Promise<string[]> {
+  const slugs: string[] = [];
+  let totalPages = 1;
+  for (let page = 1; page <= Math.min(totalPages, LAST_API_PAGE); page++) {
+    const body = await apiClient.get<unknown>("/products", {
+      query: { page, limit: SLUGS_PAGE_SIZE },
+      next: { revalidate: PRODUCTS_REVALIDATE_SECONDS },
+    });
+    const result = parseResponse(slugPageSchema, body);
+    slugs.push(...result.items.map((item) => item.slug));
+    totalPages = result.totalPages;
+  }
+  return slugs;
+}
