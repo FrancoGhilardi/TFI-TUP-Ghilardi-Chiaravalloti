@@ -9,6 +9,7 @@ import {
   FEATURED_CATALOG_HREF,
   NEW_ARRIVALS_CATALOG_HREF,
   parseCatalogQuery,
+  searchableTerm,
   toApiParams,
 } from "./catalog-query";
 
@@ -156,5 +157,20 @@ describe("canonicalCatalogHref", () => {
     ["an unknown parameter", { q: "lapiz", ref: "home" }, "/productos?q=lapiz"],
   ])("points %s to the store's URL", (_name, raw, expected) => {
     expect(canonicalCatalogHref(raw)).toBe(expected);
+  });
+});
+
+describe("searchableTerm", () => {
+  it.each([
+    [undefined, undefined],
+    ["", undefined],
+    ["a", undefined],
+    ["   a  ", undefined],
+    ["ab", "ab"],
+    ["  lápiz negro  ", "lápiz negro"],
+    ["a".repeat(100), "a".repeat(100)],
+    ["a".repeat(101), undefined],
+  ])("reads %j as %j", (raw, expected) => {
+    expect(searchableTerm(raw)).toBe(expected);
   });
 });

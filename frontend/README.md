@@ -52,14 +52,14 @@ Each feature is a module in `src/modules/<module>/` with `domain/`, `application
 `infrastructure/` and `ui/` layers; the routes in `src/app/` only compose modules. A module's
 `index.ts` is its public surface: other modules import `@/modules/<module>`, never its folders.
 
-| Module          | Holds                                                                                                                                                                                                                                                                                                                             |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `core`          | `config/` (validated `publicConfig`, `siteConfig`), `http/` (API client and errors), `lib/utils.ts` (`cn`), `hooks/` (shared hooks such as `useHydrated`), `lib/pagination.ts`, `ui/` (shared components such as `Pagination`, `StatusMessage`, `ExternalLink`, plus fonts and icons) and `ui/primitives/` (shadcn/ui components) |
-| `catalog`       | Category tree, product cards, the catalog page (`CatalogPage`: filters, sort, pagination, states), `ProductGrid`, `CategoryGrid` and the catalog URLs                                                                                                                                                                             |
-| `site-layout`   | `StoreShell`: header, navigation, mobile menu and footer of the public pages                                                                                                                                                                                                                                                      |
-| `home`          | Home page: hero with search, services strip and the product and category sections                                                                                                                                                                                                                                                 |
-| `institutional` | Store copy blocks such as `AboutTeaser`, with their text in `content/`                                                                                                                                                                                                                                                            |
-| `whatsapp`      | `wa.me` links (`generalInquiryUrl`)                                                                                                                                                                                                                                                                                               |
+| Module          | Holds                                                                                                                                                                                                                                                                                                                                                                                     |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `core`          | `config/` (validated `publicConfig`, `siteConfig`), `http/` (API client and errors), `providers/` (`QueryProvider`), `lib/utils.ts` (`cn`), `hooks/` (shared hooks such as `useHydrated` and `useDebouncedValue`), `lib/pagination.ts`, `ui/` (shared components such as `Pagination`, `StatusMessage`, `ExternalLink`, plus fonts and icons) and `ui/primitives/` (shadcn/ui components) |
+| `catalog`       | Category tree, product cards, the catalog page (`CatalogPage`: filters, sort, pagination, states), the header search (`StoreSearch`), `ProductGrid`, `CategoryGrid` and the catalog URLs                                                                                                                                                                                                  |
+| `site-layout`   | `StoreShell`: header, navigation, mobile menu and footer of the public pages                                                                                                                                                                                                                                                                                                              |
+| `home`          | Home page: hero with search, services strip and the product and category sections                                                                                                                                                                                                                                                                                                         |
+| `institutional` | Store copy blocks such as `AboutTeaser`, with their text in `content/`                                                                                                                                                                                                                                                                                                                    |
+| `whatsapp`      | `wa.me` links (`generalInquiryUrl`)                                                                                                                                                                                                                                                                                                                                                       |
 
 Public pages live in the `src/app/(public)/` route group, whose layout renders `StoreShell`.
 
@@ -131,6 +131,16 @@ export function getFeaturedProducts() {
 
 ### Client state
 
-TanStack Query is added with the first data read from the browser (the admin panel), its
-`queryFn` calling `core/http`. Zustand holds global state: persisted in `localStorage` for the
-cart, in memory for the panel session. The access token is never stored in the browser.
+TanStack Query holds the reads the browser makes, with its `queryFn` calling `core/http`; the
+`QueryProvider` in `core/providers` wraps the root layout (answers stay fresh for 60 s, no refetch
+on window focus, no automatic retry). Zustand holds global state: persisted in `localStorage` for
+the cart, in memory for the panel session. The access token is never stored in the browser.
+
+### Header search
+
+The magnifier button in the header opens a panel (`StoreSearch`, `catalog/ui`). Once the visitor
+stops typing for 300 ms and the text has at least 2 characters (at most 100), it asks
+`GET /search?limit=5` from the browser and lists the matching products and categories; the same
+term inside 60 s is served from memory and a newer term cancels the older request. Enter, or
+"Ver todos los resultados", goes to `/productos?q=<term>` with the term alone. The panel needs
+JavaScript; the hero and the catalog toolbar search with a plain `GET` form.

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { getStoreRootCategories } from "@/modules/catalog";
+import { getStoreRootCategories, StoreSearch } from "@/modules/catalog";
 import { publicConfig } from "@/modules/core/config/env";
 import { SkipLink } from "@/modules/core/ui/SkipLink";
 import { generalInquiryUrl } from "@/modules/whatsapp";
@@ -26,6 +26,7 @@ export const StoreShell = async ({ children }: StoreShellProps) => {
       <SiteHeader
         categories={categories}
         whatsappUrl={whatsappUrl}
+        search={<StoreSearch />}
         cart={<CartButton count={0} />}
       />
       <main id={MAIN_CONTENT_ID} tabIndex={-1} className="flex flex-1 flex-col outline-none">
