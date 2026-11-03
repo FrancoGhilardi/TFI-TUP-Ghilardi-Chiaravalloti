@@ -5,6 +5,8 @@ import {
   addToCart,
   type CartItem,
   type CartProduct,
+  removeItem,
+  setQuantity,
   type SyncNotice,
   syncProduct,
 } from "../domain/cart";
@@ -17,6 +19,10 @@ interface CartState {
   syncNotice: SyncNotice | null;
   /** Returns how many units went in. */
   add: (product: CartProduct, quantity: number) => number;
+  /** Sets the units of a product in the cart, within its stock; zero takes it out. */
+  setQuantity: (productId: string, quantity: number) => void;
+  remove: (productId: string) => void;
+  clear: () => void;
   sync: (product: CartProduct) => void;
   clearSyncNotice: () => void;
 }
@@ -37,6 +43,10 @@ export const useCartStore = create<CartState>()(
         }
         return added;
       },
+      setQuantity: (productId, quantity) =>
+        set({ items: setQuantity(get().items, productId, quantity) }),
+      remove: (productId) => set({ items: removeItem(get().items, productId) }),
+      clear: () => set({ items: [] }),
       sync: (product) => {
         const { items, notice } = syncProduct(get().items, product);
         set({ items, syncNotice: notice });

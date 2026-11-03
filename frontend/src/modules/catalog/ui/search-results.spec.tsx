@@ -14,6 +14,7 @@ const product = (slug: string, overrides: Partial<ProductCard> = {}): ProductCar
   title: `Producto ${slug}`,
   price: "9800.00",
   salePrice: null,
+  stock: 5,
   isOnSale: false,
   isNew: false,
   isFeatured: false,

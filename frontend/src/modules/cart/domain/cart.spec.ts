@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { addToCart, type CartItem, type CartProduct, cartCount, syncProduct } from "./cart";
+import {
+  addToCart,
+  type CartItem,
+  type CartProduct,
+  cartCount,
+  cartTotal,
+  lineSubtotal,
+  removeItem,
+  setQuantity,
+  syncProduct,
+} from "./cart";
 
 const product = (overrides: Partial<CartProduct> = {}): CartProduct => ({
   id: "p1",
@@ -128,5 +138,62 @@ describe("cartCount", () => {
   it("sums the units of every product", () => {
     expect(cartCount([])).toBe(0);
     expect(cartCount([item({ quantity: 2 }), item({ id: "p2", quantity: 3 })])).toBe(5);
+  });
+});
+
+describe("setQuantity", () => {
+  it("sets the quantity of a product in its place", () => {
+    const other = item({ id: "p2", slug: "otro" });
+
+    expect(setQuantity([item(), other], "p1", 4)).toEqual([item({ quantity: 4 }), other]);
+  });
+
+  it("never goes above the stock", () => {
+    expect(setQuantity([item({ stock: 3 })], "p1", 10)).toEqual([item({ stock: 3, quantity: 3 })]);
+  });
+
+  it("takes the product out at zero or below", () => {
+    expect(setQuantity([item()], "p1", 0)).toEqual([]);
+    expect(setQuantity([item()], "p1", -2)).toEqual([]);
+  });
+
+  it("leaves the cart as it is for an unknown product or the same quantity", () => {
+    const items = [item()];
+
+    expect(setQuantity(items, "nope", 3)).toBe(items);
+    expect(setQuantity(items, "p1", 2)).toBe(items);
+  });
+
+  it("ignores a quantity that is not a number", () => {
+    const items = [item()];
+
+    expect(setQuantity(items, "p1", Number.NaN)).toBe(items);
+  });
+});
+
+describe("removeItem", () => {
+  it("takes one product out and keeps the rest", () => {
+    const other = item({ id: "p2", slug: "otro" });
+
+    expect(removeItem([item(), other], "p1")).toEqual([other]);
+  });
+});
+
+describe("lineSubtotal and cartTotal", () => {
+  it("multiplies the price by the quantity", () => {
+    expect(lineSubtotal(item({ price: "9800.00", quantity: 2 }))).toBe("19600.00");
+  });
+
+  it("adds the lines without floating point drift", () => {
+    const items = [
+      item({ price: "0.10", quantity: 3 }),
+      item({ id: "p2", price: "1500.50", quantity: 2 }),
+    ];
+
+    expect(cartTotal(items)).toBe("3001.30");
+  });
+
+  it("is zero for an empty cart", () => {
+    expect(cartTotal([])).toBe("0.00");
   });
 });

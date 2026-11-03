@@ -15,6 +15,8 @@ export interface ProductCard {
   price: string;
   /** Running sale price, or `null` without a running sale. */
   salePrice: string | null;
+  /** Units in stock; the card offers to add the product only while there are any. */
+  stock: number;
   isOnSale: boolean;
   isNew: boolean;
   isFeatured: boolean;

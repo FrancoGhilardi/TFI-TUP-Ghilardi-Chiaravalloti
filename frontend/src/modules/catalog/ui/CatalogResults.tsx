@@ -1,9 +1,11 @@
+import { QuickAddToCart } from "@/modules/cart";
 import { Pagination } from "@/modules/core/ui/Pagination";
 
 import type { CatalogView } from "../application/catalog-view";
 import { activeFilters } from "../domain/active-filters";
 import { catalogHref, type CatalogQuery } from "../domain/catalog-query";
 import type { CategoryNode } from "../domain/category";
+import { cartProductOfCard } from "../domain/product-detail";
 import { CatalogEmptyState } from "./CatalogEmptyState";
 import { CatalogErrorState } from "./CatalogErrorState";
 import { PageOutOfRange } from "./PageOutOfRange";
@@ -33,7 +35,11 @@ export const CatalogResults = ({ view, query, tree }: CatalogResultsProps) => {
             filters={activeFilters(query, tree)}
             query={query}
           />
-          <ProductGrid products={view.page.items} layout="catalog" />
+          <ProductGrid
+            products={view.page.items}
+            layout="catalog"
+            renderAction={(product) => <QuickAddToCart product={cartProductOfCard(product)} />}
+          />
           <Pagination
             current={view.page.page}
             total={view.page.totalPages}

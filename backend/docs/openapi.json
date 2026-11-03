@@ -846,6 +846,10 @@
           "slug": {
             "type": "string"
           },
+          "stock": {
+            "description": "Units in stock; `0` when the product cannot be bought.",
+            "type": "number"
+          },
           "title": {
             "type": "string"
           }
@@ -856,6 +860,7 @@
           "title",
           "price",
           "salePrice",
+          "stock",
           "isOnSale",
           "isNew",
           "isFeatured",

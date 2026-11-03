@@ -24,6 +24,7 @@ export interface AddToCartControl {
 /** The quantity picked for a product and the act of putting it in the cart. */
 export function useAddToCart(product: CartProduct): AddToCartControl {
   const addToCart = useCartStore((state) => state.add);
+  const inCart = useCartStore((state) => state.items.some((item) => item.id === product.id));
   const [selected, setSelected] = useState(1);
   const [outcome, setOutcome] = useState<AddOutcome | null>(null);
 
@@ -45,6 +46,7 @@ export function useAddToCart(product: CartProduct): AddToCartControl {
         requested: quantity,
       }));
     },
-    outcome,
+    // What was said about the cart stops being true once the product leaves it.
+    outcome: inCart ? outcome : null,
   };
 }

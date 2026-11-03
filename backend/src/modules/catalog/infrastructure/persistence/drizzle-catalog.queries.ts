@@ -52,7 +52,7 @@ const SHOWN_PRICE = sql`priced.shown_price`;
  * the titles that start with it, as the search box does. An unknown order fails here rather
  * than sorting in a way nobody asked for.
  */
-function orderOf(query: CatalogPageQuery): SQL {
+function requestedOrder(query: CatalogPageQuery): SQL {
   switch (query.sort) {
     case ProductSort.RELEVANCE:
       return query.text === undefined
@@ -71,9 +71,14 @@ function orderOf(query: CatalogPageQuery): SQL {
   }
 }
 
+/** Whatever the order asked, what is out of stock comes after what can be bought. */
+function orderOf(query: CatalogPageQuery): SQL {
+  return sql`(p.stock = 0) ASC, ${requestedOrder(query)}`;
+}
+
 // A card: the product, its first image to show and its primary category if visible.
 const CARD_COLUMNS = sql`
-  p.id, p.slug, p.title, p.price, p.sale_price, p.is_on_sale, p.sale_ends_at,
+  p.id, p.slug, p.title, p.price, p.sale_price, p.is_on_sale, p.sale_ends_at, p.stock,
   p.is_new, p.new_until, p.is_featured,
   image.id AS image_id, image.position AS image_position, image.public_key AS image_key,
   image.alt_text AS image_alt_text, image.width AS image_width, image.height AS image_height,
@@ -107,6 +112,7 @@ interface CardRow extends MarkColumns {
   slug: string;
   title: string;
   price: string;
+  stock: number;
   is_featured: boolean;
   image_id: string;
   image_position: number;
@@ -414,6 +420,7 @@ export class DrizzleCatalogQueries extends CatalogQueries {
       slug: row.slug,
       title: row.title,
       price: row.price,
+      stock: row.stock,
       salePrice: marks.salePrice,
       isOnSale: marks.isOnSale,
       isNew: marks.isNew,

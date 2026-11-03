@@ -86,3 +86,46 @@ export function syncProduct(items: CartItem[], product: CartProduct): SyncResult
 export function cartCount(items: CartItem[]): number {
   return items.reduce((total, item) => total + item.quantity, 0);
 }
+
+/**
+ * Sets how many units of a product the cart holds. The stock is the ceiling and zero takes the
+ * product out; a product that is not in the cart is left alone.
+ */
+export function setQuantity(items: CartItem[], productId: string, quantity: number): CartItem[] {
+  const item = items.find((existing) => existing.id === productId);
+  if (!item || Number.isNaN(quantity)) {
+    return items;
+  }
+  const target = Math.min(Math.max(Math.trunc(quantity), 0), Math.max(item.stock, 0));
+  if (target === 0) {
+    return items.filter((existing) => existing.id !== productId);
+  }
+  if (target === item.quantity) {
+    return items;
+  }
+  return items.map((existing) =>
+    existing.id === productId ? { ...existing, quantity: target } : existing,
+  );
+}
+
+export function removeItem(items: CartItem[], productId: string): CartItem[] {
+  return items.filter((existing) => existing.id !== productId);
+}
+
+function toCents(price: string): number {
+  return Math.round(Number(price) * 100);
+}
+
+function fromCents(cents: number): string {
+  return (cents / 100).toFixed(2);
+}
+
+/** What the units of one product cost, as decimal text such as `"19600.00"`. */
+export function lineSubtotal(item: CartItem): string {
+  return fromCents(toCents(item.price) * item.quantity);
+}
+
+/** What the whole cart costs, as decimal text. Added in cents so decimals never drift. */
+export function cartTotal(items: CartItem[]): string {
+  return fromCents(items.reduce((sum, item) => sum + toCents(item.price) * item.quantity, 0));
+}
