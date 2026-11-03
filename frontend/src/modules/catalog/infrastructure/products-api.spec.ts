@@ -2,7 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError, apiClient } from "@/modules/core/http";
 
-import { getFeaturedProducts, getNewProducts, searchProducts } from "./products-api";
+import {
+  getAllProductSlugs,
+  getFeaturedProducts,
+  getNewProducts,
+  searchProducts,
+} from "./products-api";
 
 vi.mock("@/modules/core/http", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/modules/core/http")>()),
@@ -142,5 +147,67 @@ describe("products API", () => {
     await expect(searchProducts({ sort: "RELEVANCE", page: 1, limit: 20 })).rejects.toBeInstanceOf(
       ApiError,
     );
+  });
+});
+
+describe("getAllProductSlugs", () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.get).mockReset();
+  });
+
+  const page = (slugs: string[], totalPages: number) => ({
+    items: slugs.map((slug) => ({ slug, title: slug })),
+    page: 1,
+    limit: 50,
+    totalItems: 0,
+    totalPages,
+  });
+
+  it("reads every page of the catalog in turn, 50 at a time, and joins the slugs", async () => {
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce(page(["a", "b"], 3))
+      .mockResolvedValueOnce(page(["c"], 3))
+      .mockResolvedValueOnce(page(["d"], 3));
+
+    await expect(getAllProductSlugs()).resolves.toEqual(["a", "b", "c", "d"]);
+
+    expect(apiClient.get).toHaveBeenCalledTimes(3);
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, "/products", {
+      query: { page: 1, limit: 50 },
+      next: { revalidate: 60 },
+    });
+    expect(apiClient.get).toHaveBeenNthCalledWith(3, "/products", {
+      query: { page: 3, limit: 50 },
+      next: { revalidate: 60 },
+    });
+  });
+
+  it("gives an empty list for an empty catalog", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue(page([], 0));
+
+    await expect(getAllProductSlugs()).resolves.toEqual([]);
+    expect(apiClient.get).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops at the last page the API accepts", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue(page(["a"], 900));
+
+    await getAllProductSlugs();
+
+    expect(apiClient.get).toHaveBeenCalledTimes(500);
+  });
+
+  it("fails on a response of another shape", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: "nope" });
+
+    await expect(getAllProductSlugs()).rejects.toMatchObject({ code: "UNEXPECTED_RESPONSE" });
+  });
+
+  it("lets an API failure through", async () => {
+    vi.mocked(apiClient.get).mockRejectedValue(
+      new ApiError({ status: 503, code: "UNAVAILABLE", message: "down" }),
+    );
+
+    await expect(getAllProductSlugs()).rejects.toBeInstanceOf(ApiError);
   });
 });
