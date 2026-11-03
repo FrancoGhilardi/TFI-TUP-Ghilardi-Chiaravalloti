@@ -37,7 +37,7 @@ export const AboutHero = () => {
           </Button>
         </div>
       </div>
-      <DaisyMark size={300} className="mx-auto w-full max-w-60 min-[781px]:max-w-75" />
+      <DaisyMark size={300} className="mx-auto hidden w-full max-w-75 min-[781px]:block" />
     </section>
   );
 };

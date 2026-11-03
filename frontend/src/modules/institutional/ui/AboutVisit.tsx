@@ -47,7 +47,7 @@ export const AboutVisit = () => {
           </Button>
         </div>
       </div>
-      <DaisyMark size={220} className="mx-auto max-w-50 min-[781px]:max-w-none" />
+      <DaisyMark size={220} className="mx-auto hidden min-[781px]:block" />
     </section>
   );
 };
