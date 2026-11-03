@@ -140,6 +140,7 @@ describe("DrizzleCatalogQueries (e2e)", () => {
             title: "Cuaderno A4",
             price: "10.00",
             salePrice: null,
+            stock: 0,
             isOnSale: false,
             isNew: false,
             isFeatured: false,
