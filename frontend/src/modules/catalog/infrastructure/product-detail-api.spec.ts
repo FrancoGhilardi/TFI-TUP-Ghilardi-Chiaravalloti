@@ -18,6 +18,7 @@ const card = {
   title: "Lápiz",
   price: "450.00",
   salePrice: null,
+  stock: 5,
   isOnSale: false,
   isNew: false,
   isFeatured: false,

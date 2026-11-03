@@ -1,5 +1,8 @@
 import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it } from "vitest";
+
+import { useCartStore } from "@/modules/cart/application/cart-store";
 
 import type { Page } from "@/modules/core/http";
 
@@ -15,6 +18,7 @@ const card = (id: string): ProductCard => ({
   title: `Producto ${id}`,
   price: "1000.00",
   salePrice: null,
+  stock: 5,
   isOnSale: false,
   isNew: false,
   isFeatured: false,
@@ -37,7 +41,46 @@ const page = (overrides: Partial<Page<ProductCard>>): Page<ProductCard> => ({
 
 const query = parseCatalogQuery({ q: "lapiz", destacados: "true", pagina: "2" });
 
+beforeEach(() => {
+  localStorage.clear();
+  useCartStore.setState({ items: [], syncNotice: null });
+});
+
 describe("CatalogResults", () => {
+  it("adds a product to the cart from its card, without opening it", async () => {
+    const items = [
+      { ...card("1"), isOnSale: true, salePrice: "800.00", stock: 3 },
+      { ...card("2"), stock: 0 },
+    ];
+    render(
+      <CatalogResults
+        view={catalogView({ status: "ok", page: page({ items }) })}
+        query={query}
+        tree={[]}
+      />,
+    );
+
+    const [add, soldOut] = [
+      screen.getByRole("button", { name: "Agregar" }),
+      screen.getByRole("button", { name: "Sin stock" }),
+    ];
+    await userEvent.click(add);
+
+    expect(soldOut).toBeDisabled();
+    expect(screen.getByText("Agregaste 1 al carrito")).toBeInTheDocument();
+    expect(useCartStore.getState().items).toEqual([
+      {
+        id: "1",
+        slug: "producto-1",
+        title: "Producto 1",
+        price: "800.00",
+        stock: 3,
+        imageUrl: items[0].image.url,
+        quantity: 1,
+      },
+    ]);
+  });
+
   it("shows the total, the active filters, the products and the pagination keeping the filters", () => {
     render(
       <CatalogResults

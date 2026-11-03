@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -7,6 +7,7 @@ import type { CartProduct } from "../domain/cart";
 import { AddToCart } from "./AddToCart";
 import { CartSyncNotice } from "./CartSyncNotice";
 import { QuantitySelector } from "./QuantitySelector";
+import { QuickAddToCart } from "./QuickAddToCart";
 
 const product = (overrides: Partial<CartProduct> = {}): CartProduct => ({
   id: "p1",
@@ -102,6 +103,45 @@ describe("AddToCart", () => {
 
     expect(screen.getByRole("button", { name: "Sin stock" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Sumar uno" })).toBeDisabled();
+  });
+});
+
+describe("QuickAddToCart", () => {
+  it("puts one unit in the cart and confirms it", async () => {
+    render(<QuickAddToCart product={product()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Agregar" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent("Agregaste 1 al carrito");
+    expect(useCartStore.getState().items).toEqual([{ ...product(), quantity: 1 }]);
+  });
+
+  it("drops the confirmation when the product leaves the cart", async () => {
+    render(<QuickAddToCart product={product()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Agregar" }));
+    expect(screen.getByRole("status")).toHaveTextContent("Agregaste 1 al carrito");
+
+    act(() => useCartStore.getState().remove("p1"));
+
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+  });
+
+  it("says so when the cart already holds every unit in stock", async () => {
+    useCartStore.getState().add(product({ stock: 1 }), 1);
+    render(<QuickAddToCart product={product({ stock: 1 })} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Agregar" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Ya tenés en el carrito todas las unidades disponibles",
+    );
+    expect(useCartStore.getState().items[0].quantity).toBe(1);
+  });
+
+  it("is disabled and says why without stock", () => {
+    render(<QuickAddToCart product={product({ stock: 0 })} />);
+
+    expect(screen.getByRole("button", { name: "Sin stock" })).toBeDisabled();
   });
 });
 

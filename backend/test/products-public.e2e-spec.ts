@@ -371,6 +371,7 @@ describe("GET /products and /products/:slug (e2e)", () => {
         price: "50.00",
         salePrice: "20.00",
         isOnSale: true,
+        stock: 4,
       });
       expect(range.body).toMatchObject({ totalItems: 3 });
       expect(titlesOf(await list({ isOnSale: true }))).toEqual(["Oferta"]);
@@ -381,6 +382,20 @@ describe("GET /products and /products/:slug (e2e)", () => {
         "Oferta",
         "Barata",
       ]);
+    });
+
+    it("puts what is out of stock after what can be bought, in every order", async () => {
+      const soldOut = await shown("Agotado", 0);
+      const cheapest = await shown("Barato", 1);
+      const dearest = await shown("Caro", 2);
+      await set(soldOut, "price = 5, stock = 0");
+      await set(cheapest, "price = 10, stock = 3");
+      await set(dearest, "price = 20, stock = 3");
+
+      expect(titlesOf(await list({}))).toEqual(["Barato", "Caro", "Agotado"]);
+      expect(titlesOf(await list({ sort: "PRICE_ASC" }))).toEqual(["Barato", "Caro", "Agotado"]);
+      expect(titlesOf(await list({ sort: "PRICE_DESC" }))).toEqual(["Caro", "Barato", "Agotado"]);
+      expect(titlesOf(await list({ sort: "TITLE_ASC" }))).toEqual(["Barato", "Caro", "Agotado"]);
     });
 
     it("puts first the titles that start with the search, or sorts by date or title", async () => {

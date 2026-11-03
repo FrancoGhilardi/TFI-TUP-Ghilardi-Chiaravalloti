@@ -8,6 +8,8 @@ interface QuantitySelectorProps {
   canIncrease: boolean;
   onDecrease: () => void;
   onIncrease: () => void;
+  /** Product the selector belongs to, to tell it apart from others on the same page. */
+  subject?: string;
 }
 
 const stepStyles =
@@ -20,17 +22,19 @@ export const QuantitySelector = ({
   canIncrease,
   onDecrease,
   onIncrease,
+  subject,
 }: QuantitySelectorProps) => {
-  const { label, less, more } = cartContent.quantity;
+  const { label, less, more, of } = cartContent.quantity;
+  const named = (text: string) => (subject ? of(text, subject) : text);
   return (
     <div
       role="group"
-      aria-label={label}
+      aria-label={named(label)}
       className="inline-flex items-center overflow-hidden rounded-full border-[1.5px] border-line"
     >
       <button
         type="button"
-        aria-label={less}
+        aria-label={named(less)}
         disabled={!canDecrease}
         onClick={onDecrease}
         className={stepStyles}
@@ -40,7 +44,7 @@ export const QuantitySelector = ({
       <span className="min-w-10 text-center font-semibold tabular-nums">{quantity}</span>
       <button
         type="button"
-        aria-label={more}
+        aria-label={named(more)}
         disabled={!canIncrease}
         onClick={onIncrease}
         className={stepStyles}

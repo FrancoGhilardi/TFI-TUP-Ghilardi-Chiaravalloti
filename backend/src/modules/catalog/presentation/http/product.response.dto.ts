@@ -26,6 +26,8 @@ export class ProductCardResponseDto implements ProductCardResult {
   price!: string;
   /** The running sale price, or `null` without a running sale. */
   salePrice!: string | null;
+  /** Units in stock; `0` when the product cannot be bought. */
+  stock!: number;
   isOnSale!: boolean;
   isNew!: boolean;
   isFeatured!: boolean;

@@ -27,6 +27,23 @@ beforeEach(() => {
 });
 
 describe("cart store", () => {
+  it("changes quantities within the stock, removes and clears, and keeps it in the browser", () => {
+    const { add, setQuantity, remove, clear } = useCartStore.getState();
+    add(product({ stock: 4 }), 1);
+    add(product({ id: "p2", slug: "otro" }), 1);
+
+    setQuantity("p1", 9);
+    expect(useCartStore.getState().items[0].quantity).toBe(4);
+    expect(storedCart().state.items[0].quantity).toBe(4);
+
+    remove("p1");
+    expect(useCartStore.getState().items.map((item) => item.id)).toEqual(["p2"]);
+
+    clear();
+    expect(useCartStore.getState().items).toEqual([]);
+    expect(storedCart().state.items).toEqual([]);
+  });
+
   it("adds, reports how many went in and keeps only the items in the browser", () => {
     expect(useCartStore.getState().add(product(), 2)).toBe(2);
     expect(useCartStore.getState().add(product(), 9)).toBe(3);

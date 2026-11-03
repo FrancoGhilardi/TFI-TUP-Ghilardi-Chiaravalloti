@@ -1,4 +1,5 @@
 import { act, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { useCartStore } from "@/modules/cart/application/cart-store";
@@ -33,5 +34,13 @@ describe("StoreCartButton", () => {
 
     const button = screen.getByRole("button", { name: "Abrir carrito, 3 productos" });
     expect(button).toHaveTextContent("3");
+  });
+
+  it("opens the cart drawer", async () => {
+    render(<StoreCartButton />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Abrir carrito" }));
+
+    expect(screen.getByRole("dialog", { name: "Tu carrito" })).toBeInTheDocument();
   });
 });

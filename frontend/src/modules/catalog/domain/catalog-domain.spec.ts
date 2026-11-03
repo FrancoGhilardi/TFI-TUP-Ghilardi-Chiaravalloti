@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { categoryIconKey } from "./category-icons";
 import { currentPrice, hasRunningSale, type ProductCard } from "./product-card";
+import { cartProductOfCard } from "./product-detail";
 
 const product = (overrides: Partial<ProductCard> = {}): ProductCard => ({
   id: "1",
@@ -9,6 +10,7 @@ const product = (overrides: Partial<ProductCard> = {}): ProductCard => ({
   title: "Cuaderno",
   price: "9800.00",
   salePrice: null,
+  stock: 5,
   isOnSale: false,
   isNew: false,
   isFeatured: false,
@@ -44,5 +46,18 @@ describe("categoryIconKey", () => {
     ["impresiones", "generic"],
   ])("maps %s to %s", (slug, key) => {
     expect(categoryIconKey(slug)).toBe(key);
+  });
+});
+
+describe("cartProductOfCard", () => {
+  it("keeps what the cart needs, with the price the customer pays now", () => {
+    expect(cartProductOfCard(product({ isOnSale: true, salePrice: "8000.00", stock: 3 }))).toEqual({
+      id: "1",
+      slug: "cuaderno",
+      title: "Cuaderno",
+      price: "8000.00",
+      stock: 3,
+      imageUrl: "https://x/y.webp",
+    });
   });
 });

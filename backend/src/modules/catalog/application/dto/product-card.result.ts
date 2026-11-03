@@ -20,6 +20,8 @@ export interface ProductCardResult {
   title: string;
   price: string;
   salePrice: string | null;
+  /** Units in stock, so the store can offer to add the product without opening it. */
+  stock: number;
   isOnSale: boolean;
   isNew: boolean;
   isFeatured: boolean;

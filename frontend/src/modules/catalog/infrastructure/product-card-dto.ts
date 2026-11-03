@@ -16,6 +16,7 @@ export const productCardSchema = z.object({
   title: z.string(),
   price: priceText,
   salePrice: priceText.nullable(),
+  stock: z.number().int().nonnegative(),
   isOnSale: z.boolean(),
   isNew: z.boolean(),
   isFeatured: z.boolean(),

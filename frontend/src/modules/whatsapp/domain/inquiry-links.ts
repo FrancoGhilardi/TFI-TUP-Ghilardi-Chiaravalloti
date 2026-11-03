@@ -26,3 +26,27 @@ export function productInquiryUrl(number: string, { title, price, href }: Produc
     `¡Hola Librería Mi Sueño! Quería consultar por «${title}» (${formatPrice(price)}): ${href}`,
   );
 }
+
+export interface CartInquiryLine {
+  quantity: number;
+  title: string;
+  /** What the units cost together, as decimal text such as `"19600.00"`. */
+  subtotal: string;
+}
+
+interface CartInquiry {
+  lines: CartInquiryLine[];
+  /** What the whole cart costs, as decimal text. */
+  total: string;
+}
+
+/** Chat with the store to order what is in the cart, one line per product and the total. */
+export function cartInquiryUrl(number: string, { lines, total }: CartInquiry): string {
+  const items = lines
+    .map(({ quantity, title, subtotal }) => `• ${quantity}× ${title} — ${formatPrice(subtotal)}`)
+    .join("\n");
+  return chatUrl(
+    number,
+    `¡Hola Librería Mi Sueño! Quería hacer este pedido:\n${items}\nTotal: ${formatPrice(total)}\n¿Puedo pasar a retirarlo?`,
+  );
+}

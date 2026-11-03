@@ -16,6 +16,7 @@ const product: ProductCard = {
   title: "Cuaderno A4",
   price: "9800.00",
   salePrice: null,
+  stock: 5,
   isOnSale: false,
   isNew: false,
   isFeatured: true,

@@ -33,6 +33,18 @@ export function productPageUrl(siteOrigin: string, slug: string): string {
   return new URL(productHref(slug), siteOrigin).toString();
 }
 
+/** The listed product as the cart keeps it, so a card can add it without opening the page. */
+export function cartProductOfCard(card: ProductCard): CartProduct {
+  return {
+    id: card.id,
+    slug: card.slug,
+    title: card.title,
+    price: currentPrice(card),
+    stock: card.stock,
+    imageUrl: card.image.url,
+  };
+}
+
 /** The product as the cart keeps it: what the customer pays now, and the stock that limits them. */
 export function cartProductOf(product: ProductDetail): CartProduct {
   return {
