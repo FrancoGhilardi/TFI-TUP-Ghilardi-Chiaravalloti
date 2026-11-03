@@ -14,3 +14,4 @@ export { CategoryGrid } from "./ui/CategoryGrid";
 export { ProductGrid } from "./ui/ProductGrid";
 export { CatalogPage } from "./ui/CatalogPage";
 export { SearchForm } from "./ui/SearchForm";
+export { StoreSearch } from "./ui/StoreSearch";

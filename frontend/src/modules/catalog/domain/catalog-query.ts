@@ -59,9 +59,11 @@ function firstValue(raw: RawSearchParams, param: CatalogParam): string | undefin
   return (Array.isArray(value) ? value[0] : value)?.trim();
 }
 
-function parseSearch(value: string | undefined): string | undefined {
-  return value && value.length >= SEARCH_MIN_LENGTH && value.length <= SEARCH_MAX_LENGTH
-    ? value
+/** The text to search for, or `undefined` while it is too short or too long to be sent. */
+export function searchableTerm(raw: string | undefined): string | undefined {
+  const term = raw?.trim();
+  return term && term.length >= SEARCH_MIN_LENGTH && term.length <= SEARCH_MAX_LENGTH
+    ? term
     : undefined;
 }
 
@@ -79,7 +81,7 @@ export function parseCatalogQuery(raw: RawSearchParams): CatalogQuery {
   const category = firstValue(raw, "category");
   const sort = firstValue(raw, "sort");
   return {
-    q: parseSearch(firstValue(raw, "q")),
+    q: searchableTerm(firstValue(raw, "q")),
     category:
       category && category.length <= CATEGORY_MAX_LENGTH && SLUG.test(category)
         ? category
