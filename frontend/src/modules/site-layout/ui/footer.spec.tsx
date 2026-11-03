@@ -61,4 +61,21 @@ describe("SiteFooter", () => {
       whatsappUrl,
     );
   });
+
+  it("gives the address, the opening hours of each day", () => {
+    render(<SiteFooter categories={[]} whatsappUrl={whatsappUrl} />);
+
+    const contact = within(screen.getByRole("region", { name: "Contacto" }));
+    expect(contact.getByText("San Martín 204, B6451XAC San Carlos, Mendoza")).toBeInTheDocument();
+    expect(
+      contact.getByText("Lunes a viernes · 8:00 a 12:30 y 17:00 a 20:30 h"),
+    ).toBeInTheDocument();
+    expect(contact.getByText("Sábados · 9:00 a 12:30 h")).toBeInTheDocument();
+  });
+
+  it("puts the tagline under the brand name", () => {
+    render(<SiteFooter categories={[]} whatsappUrl={whatsappUrl} />);
+
+    expect(screen.getByText("Cerca tuyo, en cada sueño")).toBeInTheDocument();
+  });
 });

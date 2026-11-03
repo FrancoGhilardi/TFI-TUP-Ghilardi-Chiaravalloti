@@ -53,12 +53,14 @@ describe("AboutPage", () => {
     }
   });
 
-  it("shows the city and hours of the site configuration, with no unconfirmed address note", () => {
+  it("shows the address and each opening hours line of the site configuration", () => {
     render(<AboutPage />);
 
     const visit = screen.getByRole("region", { name: "¿Pasás a visitarnos?" });
-    expect(within(visit).getByText(siteConfig.city)).toBeInTheDocument();
-    expect(within(visit).getByText(siteConfig.hours)).toBeInTheDocument();
+    expect(within(visit).getByText(siteConfig.address)).toBeInTheDocument();
+    for (const { days, time } of siteConfig.hours) {
+      expect(within(visit).getByText(`${days} · ${time}`)).toBeInTheDocument();
+    }
     expect(screen.queryByText(/dirección a confirmar/i)).not.toBeInTheDocument();
   });
 
@@ -69,7 +71,7 @@ describe("AboutPage", () => {
     const contact = within(visit).getByRole("link", { name: "Hablar con la librería" });
     const directions = within(visit).getByRole("link", { name: "Cómo llegar" });
     expect(contact).toHaveAttribute("href", INQUIRY);
-    expect(directions).toHaveAttribute("href", siteConfig.mapsUrl);
+    expect(directions).toHaveAttribute("href", "https://maps.app.goo.gl/fEBdQFBgGmq7ve1v6");
     for (const link of [contact, directions]) {
       expect(link).toHaveAttribute("target", "_blank");
       expect(link).toHaveAttribute("rel", expect.stringContaining("noopener"));

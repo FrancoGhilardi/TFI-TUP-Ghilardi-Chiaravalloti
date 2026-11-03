@@ -34,10 +34,10 @@ export const aboutContent = {
   },
   visit: {
     title: "¿Pasás a visitarnos?",
-    text: "Estamos en Mendoza. Escribinos por WhatsApp y coordinamos tu pedido o tu trabajo de impresión.",
+    text: "Estamos en La Consulta, San Carlos, Mendoza. Escribinos por WhatsApp y coordinamos tu pedido o tu trabajo de impresión.",
     contactCta: "Hablar con la librería",
     directionsCta: "Cómo llegar",
-    cityLabel: "Ubicación",
+    addressLabel: "Dirección",
     hoursLabel: "Horarios",
   },
 } as const;

@@ -39,8 +39,8 @@ export const SiteFooter = ({ categories, whatsappUrl }: SiteFooterProps) => {
     <ExternalLink key="whatsapp" href={whatsappUrl} className={linkStyles}>
       WhatsApp: {publicConfig.whatsappDisplay}
     </ExternalLink>,
-    siteConfig.city,
-    siteConfig.hours,
+    siteConfig.address,
+    ...siteConfig.hours.map(({ days, time }) => `${days} · ${time}`),
     <a key="email" href={`mailto:${siteConfig.email}`} className={linkStyles}>
       {siteConfig.email}
     </a>,
@@ -51,7 +51,8 @@ export const SiteFooter = ({ categories, whatsappUrl }: SiteFooterProps) => {
       <Container className="grid grid-cols-1 gap-7 py-14 min-[481px]:grid-cols-2 min-[781px]:grid-cols-[1.4fr_1fr_1fr_1.2fr] min-[781px]:gap-8">
         <div>
           <Wordmark tone="onDark" size="lg" />
-          <p className="mt-3.5 text-[0.92rem]">{siteConfig.description}</p>
+          <p className="mt-1 font-script text-2xl text-gold">{siteConfig.tagline}</p>
+          <p className="mt-3 text-[0.92rem]">{siteConfig.description}</p>
           <SocialLinks instagramUrl={siteConfig.instagramUrl} whatsappUrl={whatsappUrl} />
         </div>
         <FooterColumn title="Tienda" items={storeLinks} />

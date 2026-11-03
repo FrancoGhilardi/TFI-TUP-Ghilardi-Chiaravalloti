@@ -52,6 +52,14 @@ describe("HomeHero", () => {
     expect(inquiry.getAttribute("href")).toMatch(/^https:\/\/wa\.me\/5492622380159\?text=/);
     expect(inquiry).toHaveAttribute("target", "_blank");
   });
+
+  it("signs the banner with the store's tagline, outside the heading", () => {
+    render(<HomeHero />);
+
+    const tagline = screen.getByText("Cerca tuyo, en cada sueño");
+    expect(tagline).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1 })).not.toContainElement(tagline);
+  });
 });
 
 describe("HeroSearch", () => {

@@ -1,3 +1,4 @@
+import { siteConfig } from "@/modules/core/config/site";
 import { Container } from "@/modules/core/ui/Container";
 import { Eyebrow } from "@/modules/core/ui/Eyebrow";
 import { ScriptWord } from "@/modules/core/ui/ScriptWord";
@@ -22,8 +23,14 @@ export const HomeHero = () => {
           <HeroSearch />
           <HeroActions />
         </div>
-        <div className="row-start-1 mx-auto aspect-square w-full max-w-70 nav:col-start-2 nav:ml-auto nav:max-w-115">
-          <HeroIllustration />
+        <div className="row-start-1 mx-auto flex w-full max-w-70 flex-col items-center gap-1 nav:col-start-2 nav:ml-auto nav:max-w-115">
+          <div className="aspect-square w-full">
+            <HeroIllustration />
+          </div>
+          {/* The brand's line, signed under the illustration so it does not compete with the heading. */}
+          <p className="font-script text-3xl text-coral-strong nav:text-4xl">
+            {siteConfig.tagline}
+          </p>
         </div>
       </Container>
     </section>
