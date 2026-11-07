@@ -8,6 +8,7 @@ import { QueryProvider } from "@/modules/core/providers/QueryProvider";
 import { sessionAuthApi } from "../application/session-client";
 import { useSessionStore } from "../application/session-store";
 import type { LoginResult } from "../infrastructure/auth-api";
+import { expectNoStoredSession } from "../testing/expect-no-stored-session";
 import { ChangePasswordPage } from "./ChangePasswordPage";
 
 const replace = vi.fn();
@@ -178,6 +179,7 @@ describe("ChangePasswordPage", () => {
     expect(screen.getByLabelText("Contraseña nueva")).toHaveValue("");
     expect(screen.getByLabelText("Repetí la contraseña nueva")).toHaveValue("");
     expect(useSessionStore.getState().accessToken).toBe("token-renewed");
+    expectNoStoredSession();
   });
 
   it("shows the API's message for a wrong current password and keeps what was typed", async () => {

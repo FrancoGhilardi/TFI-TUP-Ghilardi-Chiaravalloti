@@ -195,3 +195,16 @@ describe("changePassword", () => {
     });
   });
 });
+
+describe("logout", () => {
+  it("posts with the cookie and resolves on the empty 204 answer", async () => {
+    const { api, fetchMock } = setup(() => new Response(null, { status: 204 }));
+
+    await expect(api.logout()).resolves.toBeUndefined();
+
+    const request = fetchMock.mock.calls[0][0] as Request;
+    expect(request.method).toBe("POST");
+    expect(request.url).toBe(`${BASE_URL}/auth/logout`);
+    expect(request.credentials).toBe("include");
+  });
+});

@@ -1,3 +1,4 @@
+export { useLogout } from "./application/useLogout";
 export { useSessionUser } from "./application/useSessionUser";
 export { changePasswordMetadata, forgotPasswordMetadata } from "./domain/password-metadata";
 export { loginMetadata } from "./domain/login-metadata";
