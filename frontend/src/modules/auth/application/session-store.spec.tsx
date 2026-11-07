@@ -41,3 +41,27 @@ describe("session store", () => {
     expect(sessionStorage.length).toBe(0);
   });
 });
+
+describe("session store expiry", () => {
+  it("drops the token and the user when the session ends", () => {
+    useSessionStore.getState().start(login);
+
+    useSessionStore.getState().expire();
+
+    expect(useSessionStore.getState()).toMatchObject({
+      status: "anonymous",
+      accessToken: null,
+      user: null,
+    });
+  });
+});
+
+describe("session store restore", () => {
+  it("tells when the session could not be looked up and goes back to trying", () => {
+    useSessionStore.getState().markUnavailable();
+    expect(useSessionStore.getState().status).toBe("unavailable");
+
+    useSessionStore.getState().retry();
+    expect(useSessionStore.getState().status).toBe("loading");
+  });
+});

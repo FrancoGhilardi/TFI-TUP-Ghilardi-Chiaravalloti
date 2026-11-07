@@ -22,7 +22,12 @@ export interface LoginCredentials {
   password: string;
 }
 
-/** What starts a session: the token to send in each request and who it belongs to. */
+export interface PasswordChange {
+  currentPassword: string;
+  newPassword: string;
+}
+
+/** What starts or renews a session: the token to send in each request and who it belongs to. */
 export interface LoginResult {
   accessToken: string;
   /** Seconds until the access token expires. */
@@ -35,6 +40,23 @@ export function createAuthApi(client: ApiClient) {
     /** `POST /auth/login`: the refresh token comes back in a cookie the browser keeps. */
     async login(credentials: LoginCredentials, signal?: AbortSignal): Promise<LoginResult> {
       const body = await client.post<unknown>("/auth/login", { body: credentials, signal });
+      return parseResponse(sessionSchema, body);
+    },
+
+    /** `POST /auth/forgot-password`: always answers 204, whether the email exists or not. */
+    async forgotPassword(email: string, signal?: AbortSignal): Promise<void> {
+      await client.post<void>("/auth/forgot-password", { body: { email }, signal });
+    },
+
+    /** `POST /auth/refresh`: the cookie's refresh token is rotated and a new access token given. */
+    async refresh(signal?: AbortSignal): Promise<LoginResult> {
+      const body = await client.post<unknown>("/auth/refresh", { signal });
+      return parseResponse(sessionSchema, body);
+    },
+
+    /** `POST /auth/change-password`: needs a signed-in client; gives the renewed session. */
+    async changePassword(change: PasswordChange, signal?: AbortSignal): Promise<LoginResult> {
+      const body = await client.post<unknown>("/auth/change-password", { body: change, signal });
       return parseResponse(sessionSchema, body);
     },
   };
