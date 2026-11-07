@@ -48,6 +48,11 @@ export function createAuthApi(client: ApiClient) {
       await client.post<void>("/auth/forgot-password", { body: { email }, signal });
     },
 
+    /** `POST /auth/logout`: closes the session of the refresh cookie and the ones renewed from it. */
+    async logout(signal?: AbortSignal): Promise<void> {
+      await client.post<void>("/auth/logout", { signal });
+    },
+
     /** `POST /auth/refresh`: the cookie's refresh token is rotated and a new access token given. */
     async refresh(signal?: AbortSignal): Promise<LoginResult> {
       const body = await client.post<unknown>("/auth/refresh", { signal });

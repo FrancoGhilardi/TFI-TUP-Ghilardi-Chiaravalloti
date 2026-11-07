@@ -65,3 +65,21 @@ describe("session store restore", () => {
     expect(useSessionStore.getState().status).toBe("loading");
   });
 });
+
+describe("session store sign out", () => {
+  it("clears the token and the user, and a new sign in starts a session again", () => {
+    useSessionStore.getState().start(login);
+
+    useSessionStore.getState().signOut();
+    expect(useSessionStore.getState()).toMatchObject({
+      status: "signedOut",
+      accessToken: null,
+      user: null,
+    });
+
+    useSessionStore.getState().start(login);
+    expect(useSessionStore.getState().status).toBe("authenticated");
+    expect(localStorage.length).toBe(0);
+    expect(sessionStorage.length).toBe(0);
+  });
+});

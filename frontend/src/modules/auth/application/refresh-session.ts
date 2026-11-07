@@ -21,11 +21,19 @@ export function refreshSession(): Promise<boolean> {
     .refresh()
     .then(
       (result) => {
-        useSessionStore.getState().start(result);
+        const session = useSessionStore.getState();
+        // A session closed on purpose while this was on its way must stay closed.
+        if (session.status === "signedOut") {
+          return false;
+        }
+        session.start(result);
         return true;
       },
       (error: unknown) => {
         const session = useSessionStore.getState();
+        if (session.status === "signedOut") {
+          return false;
+        }
         if (isRejection(error)) {
           session.expire();
         } else if (session.status === "loading") {

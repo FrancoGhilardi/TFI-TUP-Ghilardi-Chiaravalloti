@@ -91,6 +91,23 @@ describe("PanelGate", () => {
     );
   });
 
+  it("sends a person who closed the session to sign in, without a way back, and shows nothing", async () => {
+    useSessionStore.getState().start({ accessToken: "t", expiresIn: 900, user });
+    const { rerender } = renderGate();
+    expect(screen.getByText("Pantalla del panel")).toBeInTheDocument();
+
+    act(() => useSessionStore.getState().signOut());
+    rerender(
+      <PanelGate>
+        <p>Pantalla del panel</p>
+      </PanelGate>,
+    );
+
+    expect(screen.queryByText("Pantalla del panel")).not.toBeInTheDocument();
+    await vi.waitFor(() => expect(replace).toHaveBeenCalledWith("/admin/login"));
+    expect(refreshSession).not.toHaveBeenCalled();
+  });
+
   it("says the session could not be checked and lets the person try again", async () => {
     vi.mocked(refreshSession).mockImplementation(async () => {
       useSessionStore.getState().markUnavailable();

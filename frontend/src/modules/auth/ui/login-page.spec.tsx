@@ -7,6 +7,7 @@ import { QueryProvider } from "@/modules/core/providers/QueryProvider";
 
 import { useSessionStore } from "../application/session-store";
 import { authApi, type LoginResult } from "../infrastructure/auth-api";
+import { expectNoStoredSession } from "../testing/expect-no-stored-session";
 import { LoginPage } from "./LoginPage";
 
 const replace = vi.fn();
@@ -114,6 +115,7 @@ describe("LoginPage", () => {
       status: "authenticated",
       accessToken: "token-123",
     });
+    expectNoStoredSession();
   });
 
   it("keeps the button busy once signed in, so a second click does nothing", async () => {

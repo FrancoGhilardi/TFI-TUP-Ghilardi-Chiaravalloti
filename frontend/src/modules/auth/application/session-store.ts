@@ -1,10 +1,8 @@
 import { create } from "zustand";
 
 import type { LoginResult } from "../infrastructure/auth-api";
+import type { SessionStatus } from "../domain/session-status";
 import type { AuthenticatedUser } from "../domain/user";
-
-/** `unavailable`: the session could not be restored for a reason that says nothing about it. */
-type SessionStatus = "loading" | "authenticated" | "anonymous" | "unavailable";
 
 interface SessionState {
   status: SessionStatus;
@@ -14,6 +12,8 @@ interface SessionState {
   start: (login: LoginResult) => void;
   /** The session is over, or there never was one to restore. */
   expire: () => void;
+  /** The person closed the session on purpose. */
+  signOut: () => void;
   /** The API could not be asked, so whether there is a session is still unknown. */
   markUnavailable: () => void;
   /** Tries to restore the session again. */
@@ -27,6 +27,7 @@ export const useSessionStore = create<SessionState>()((set) => ({
   user: null,
   start: ({ accessToken, user }) => set({ status: "authenticated", accessToken, user }),
   expire: () => set({ status: "anonymous", accessToken: null, user: null }),
+  signOut: () => set({ status: "signedOut", accessToken: null, user: null }),
   markUnavailable: () => set({ status: "unavailable" }),
   retry: () => set({ status: "loading" }),
 }));

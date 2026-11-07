@@ -28,6 +28,17 @@ describe("panelGateDestination", () => {
     ).toBe("/admin/login?next=%2Fadmin%2Fproductos%2Fnuevo");
   });
 
+  it("sends a person who closed the session to a plain sign in, without a way back", () => {
+    expect(
+      panelGateDestination({
+        status: "signedOut",
+        user: null,
+        pathname: "/admin/productos",
+        search: "pagina=3",
+      }),
+    ).toBe("/admin/login");
+  });
+
   it("keeps the query of the address in the way back", () => {
     expect(
       panelGateDestination({
