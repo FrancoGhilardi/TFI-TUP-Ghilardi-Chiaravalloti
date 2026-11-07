@@ -3,9 +3,10 @@ import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 
-import { destinationAfterLogin } from "../domain/post-login-destination";
-import { loginErrorMessage } from "../domain/login-error";
+import { authContent } from "../content/auth";
+import { authErrorMessage } from "../domain/auth-error";
 import { type LoginFormValues, loginFormSchema } from "../domain/login-form";
+import { destinationAfterLogin } from "../domain/post-login-destination";
 import { authApi } from "../infrastructure/auth-api";
 import { useSessionStore } from "./session-store";
 
@@ -34,6 +35,8 @@ export function useLogin(next: string | undefined) {
     submit: form.handleSubmit((values) => mutation.mutate(values)),
     // Stays busy after success: the page is on its way out and a second click must do nothing.
     isBusy: mutation.isPending || mutation.isSuccess,
-    errorMessage: mutation.isError ? loginErrorMessage(mutation.error) : null,
+    errorMessage: mutation.isError
+      ? authErrorMessage(mutation.error, authContent.login.unexpected)
+      : null,
   };
 }

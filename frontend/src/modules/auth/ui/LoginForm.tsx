@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, CircleAlert } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/modules/core/ui/primitives/button";
@@ -9,6 +9,7 @@ import { TextField } from "@/modules/core/ui/TextField";
 import { useLogin } from "../application/useLogin";
 import { authContent } from "../content/auth";
 import { ADMIN_PATHS } from "../domain/routes";
+import { FormAlert } from "./FormAlert";
 import { PasswordField } from "./PasswordField";
 
 interface LoginFormProps {
@@ -23,15 +24,7 @@ export const LoginForm = ({ next }: LoginFormProps) => {
 
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-4">
-      {/* Stays mounted, as an alert must, so a message that shows up is announced. */}
-      <div role="alert" className="empty:hidden">
-        {errorMessage && (
-          <div className="flex items-start gap-2.5 rounded-2xl bg-coral-soft px-3.5 py-3 text-sm text-ink">
-            <CircleAlert className="mt-0.5 size-4 shrink-0 text-coral-strong" aria-hidden="true" />
-            <span>{errorMessage}</span>
-          </div>
-        )}
-      </div>
+      <FormAlert message={errorMessage} />
       <TextField
         id="login-email"
         type="email"
