@@ -27,3 +27,47 @@ export interface AdminProductRow extends AdminProductSummary {
   /** When it was given a logical delete; `null` while it is not deleted. */
   deletedAt: Date | null;
 }
+
+export type ImageStatus = "PENDING" | "PROCESSED" | "FAILED";
+
+/** An image of a product as the panel reads it. */
+export interface AdminProductImage {
+  id: string;
+  position: number;
+  altText: string | null;
+  mimeType: string;
+  sizeBytes: number | null;
+  status: ImageStatus;
+  /** Signed link to the original; it expires, so it is read again with every list. */
+  previewUrl: string | null;
+}
+
+/** A product as the edit form shows it. */
+export interface AdminProductDetail {
+  id: string;
+  sku: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  /** Decimal text, such as `"1500.00"`. */
+  price: string;
+  salePrice: string | null;
+  saleEndsAt: Date | null;
+  stock: number;
+  sortOrder: number;
+  isActive: boolean;
+  isFeatured: boolean;
+  isOnSale: boolean;
+  isNew: boolean;
+  newUntil: Date | null;
+  primaryCategoryId: string;
+  /** The primary one first; hidden or deleted ones included. */
+  categories: { id: string; name: string; slug: string }[];
+  relatedProducts: { id: string; title: string; sku: string; slug: string }[];
+  images: AdminProductImage[];
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+  createdBy: { id: string; name: string } | null;
+  updatedBy: { id: string; name: string } | null;
+}

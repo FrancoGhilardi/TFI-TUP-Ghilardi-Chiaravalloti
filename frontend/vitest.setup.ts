@@ -25,3 +25,6 @@ window.matchMedia ??= (query: string) =>
     removeListener: () => {},
     dispatchEvent: () => false,
   }) as MediaQueryList;
+
+// jsdom has no layout, so it cannot scroll; the command list asks the selected item to scroll.
+Element.prototype.scrollIntoView ??= () => {};

@@ -8,8 +8,8 @@ import { TextField } from "@/modules/core/ui/TextField";
 import { useForgotPassword } from "../application/useForgotPassword";
 import { authContent } from "../content/auth";
 import { ADMIN_PATHS } from "../domain/routes";
-import { FormAlert } from "./FormAlert";
-import { FormNotice } from "./FormNotice";
+import { FormAlert } from "@/modules/core/ui/FormAlert";
+import { FormNotice } from "@/modules/core/ui/FormNotice";
 
 const LINK_CLASS =
   "rounded-sm text-sm font-semibold text-teal outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50";
