@@ -38,7 +38,6 @@ export const authContent = {
     pageDescription: "Cambiá la contraseña de tu cuenta del panel.",
     title: "Cambiar contraseña",
     leadRequired: "Ingresaste con una clave temporal. Elegí una contraseña nueva para seguir.",
-    leadOptional: "Elegí una contraseña nueva para tu cuenta.",
     currentPassword: { label: "Contraseña actual", placeholder: "Tu contraseña actual" },
     newPassword: {
       label: "Contraseña nueva",
@@ -60,6 +59,13 @@ export const authContent = {
       mismatch: "Las contraseñas no coinciden.",
       sameAsCurrent: "La contraseña nueva tiene que ser distinta de la actual.",
     },
+  },
+  logout: {
+    label: "Cerrar sesión",
+    title: "¿Cerrar sesión?",
+    description:
+      "Vas a salir del panel en este dispositivo. Las sesiones de otros dispositivos siguen abiertas.",
+    cancel: "Cancelar",
   },
   gate: {
     loading: "Cargando el panel…",

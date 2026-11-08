@@ -208,3 +208,76 @@ describe("logout", () => {
     expect(request.credentials).toBe("include");
   });
 });
+
+describe("me", () => {
+  const profile = {
+    id: "u1",
+    email: "marta@libreriamisueno.com.ar",
+    name: "Marta",
+    role: "SELLER",
+    mustChangePassword: false,
+  };
+
+  function setupMe(body: unknown) {
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async () => json(body));
+    const api = createAuthApi(
+      createApiClient({
+        baseUrl: BASE_URL,
+        getAccessToken: () => "token-abc",
+        fetch: fetchMock,
+      }),
+    );
+    return { api, fetchMock };
+  }
+
+  it("gives the person's data, with the dates when the API sends them", async () => {
+    const { api, fetchMock } = setupMe({
+      ...profile,
+      lastLoginAt: "2026-11-07T10:00:00.000Z",
+      createdAt: "2026-01-02T09:00:00.000Z",
+    });
+
+    await expect(api.me()).resolves.toEqual({
+      name: "Marta",
+      email: "marta@libreriamisueno.com.ar",
+      role: "SELLER",
+      lastLoginAt: new Date("2026-11-07T10:00:00.000Z"),
+      createdAt: new Date("2026-01-02T09:00:00.000Z"),
+    });
+    const request = fetchMock.mock.calls[0][0] as Request;
+    expect(request.url).toBe(`${BASE_URL}/auth/me`);
+    expect(request.headers.get("Authorization")).toBe("Bearer token-abc");
+  });
+
+  it("leaves the dates out when the API does not send them", async () => {
+    const { api } = setupMe(profile);
+
+    const result = await api.me();
+
+    expect(result).toEqual({
+      name: "Marta",
+      email: "marta@libreriamisueno.com.ar",
+      role: "SELLER",
+    });
+    expect(result).not.toHaveProperty("lastLoginAt");
+  });
+
+  it("leaves a date out when the API sends it empty, as for someone who never signed in", async () => {
+    const { api } = setupMe({
+      ...profile,
+      lastLoginAt: null,
+      createdAt: "2026-01-02T09:00:00.000Z",
+    });
+
+    const result = await api.me();
+
+    expect(result).not.toHaveProperty("lastLoginAt");
+    expect(result.createdAt).toEqual(new Date("2026-01-02T09:00:00.000Z"));
+  });
+
+  it("fails on a response of another shape", async () => {
+    const { api } = setupMe({ name: "Marta" });
+
+    await expect(api.me()).rejects.toMatchObject({ code: "UNEXPECTED_RESPONSE" });
+  });
+});

@@ -20,7 +20,11 @@ export function useLogout() {
   const signOut = useSessionStore((state) => state.signOut);
 
   const mutation = useMutation({
-    onMutate: signOut,
+    onMutate: () => {
+      // What is still on its way must not go out with a session that is being closed.
+      void queryClient.cancelQueries();
+      signOut();
+    },
     mutationFn: () => authApi.logout().catch(() => undefined),
     onSuccess: () => {
       // After the panel screens are gone, or one that is still mounted would fetch again.
