@@ -1,5 +1,6 @@
+import { canOpenPanelPath, isWithin } from "./panel-access";
 import { ADMIN_PATHS } from "./routes";
-import type { AuthenticatedUser, UserRole } from "./user";
+import type { AuthenticatedUser } from "./user";
 
 // Sentinel origin to read a path the way a browser would, whatever it looks like.
 const BASE = "http://panel.invalid";
@@ -11,14 +12,6 @@ const AUTH_SCREENS: string[] = [
   ADMIN_PATHS.forgotPassword,
   ADMIN_PATHS.changePassword,
 ];
-
-/** Sections only some roles may open. */
-const ROLE_SECTIONS: { path: string; roles: UserRole[] }[] = [
-  { path: ADMIN_PATHS.users, roles: ["ADMIN"] },
-];
-
-const isWithin = (pathname: string, section: string): boolean =>
-  pathname === section || pathname.startsWith(`${section}/`);
 
 /**
  * The address to go back to after signing in, or `undefined` when `raw` is not one. Only a path
@@ -42,12 +35,6 @@ export function safeNextPath(raw: string | undefined): string | undefined {
   return insidePanel && !isAuthScreen ? `${pathname}${url.search}` : undefined;
 }
 
-function canOpen(role: UserRole, pathname: string): boolean {
-  return ROLE_SECTIONS.every(
-    ({ path, roles }) => !isWithin(pathname, path) || roles.includes(role),
-  );
-}
-
 /**
  * Where a person goes after signing in. A temporary password comes first, whatever the address
  * they were heading to; then that address when their role may open it; then the products.
@@ -57,7 +44,7 @@ export function destinationAfterLogin(user: AuthenticatedUser, next?: string): s
     return ADMIN_PATHS.changePassword;
   }
   const safe = safeNextPath(next);
-  if (safe && canOpen(user.role, new URL(safe, BASE).pathname)) {
+  if (safe && canOpenPanelPath(user.role, new URL(safe, BASE).pathname)) {
     return safe;
   }
   return ADMIN_PATHS.products;

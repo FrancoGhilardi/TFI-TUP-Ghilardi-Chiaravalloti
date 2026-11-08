@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -10,9 +10,14 @@ import { useSessionStore } from "../application/session-store";
 import type { LoginResult } from "../infrastructure/auth-api";
 import { expectNoStoredSession } from "../testing/expect-no-stored-session";
 import { ChangePasswordPage } from "./ChangePasswordPage";
+import { ChangePasswordSection } from "./ChangePasswordSection";
 
 const replace = vi.fn();
+const logout = vi.fn();
 
+vi.mock("../application/useLogout", () => ({
+  useLogout: () => ({ logout, isBusy: false }),
+}));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace }) }));
 vi.mock("../application/session-client", () => ({
   sessionAuthApi: { changePassword: vi.fn() },
@@ -46,6 +51,13 @@ const renderPage = () =>
     </QueryProvider>,
   );
 
+const renderSection = () =>
+  render(
+    <QueryProvider>
+      <ChangePasswordSection />
+    </QueryProvider>,
+  );
+
 const fill = async (
   person: ReturnType<typeof userEvent.setup>,
   values: { current?: string; next?: string; confirm?: string },
@@ -60,6 +72,7 @@ const fill = async (
 
 beforeEach(() => {
   replace.mockReset();
+  logout.mockReset();
   vi.mocked(sessionAuthApi.changePassword).mockReset();
   signIn(false);
 });
@@ -84,15 +97,30 @@ describe("ChangePasswordPage", () => {
     expect(screen.getByLabelText("Repetí la contraseña nueva")).toHaveAttribute("type", "password");
   });
 
-  it("does not mention a temporary password when the person chose to change it", () => {
+  it("sends someone with nothing pending to their account and shows nothing", async () => {
+    const { container } = renderPage();
+
+    await vi.waitFor(() => expect(replace).toHaveBeenCalledWith("/admin/mi-cuenta"));
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("lets the person sign out, after confirming, when the change is required", async () => {
+    signIn(true);
+    const person = userEvent.setup();
     renderPage();
 
-    expect(screen.queryByText(/clave temporal/)).not.toBeInTheDocument();
+    await person.click(screen.getByRole("button", { name: "Cerrar sesión" }));
+    expect(await screen.findByRole("alertdialog")).toHaveTextContent("¿Cerrar sesión?");
+    await person.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Cerrar sesión" }),
+    );
+
+    expect(logout).toHaveBeenCalledTimes(1);
   });
 
   it("lets each password be seen and hidden", async () => {
     const person = userEvent.setup();
-    renderPage();
+    renderSection();
 
     const buttons = screen.getAllByRole("button", { name: "Mostrar contraseña" });
     expect(buttons).toHaveLength(3);
@@ -130,7 +158,7 @@ describe("ChangePasswordPage", () => {
     ],
   ])("rejects %s without calling the API", async (_case, values, message) => {
     const person = userEvent.setup();
-    renderPage();
+    renderSection();
 
     await fill(person, values);
 
@@ -165,7 +193,7 @@ describe("ChangePasswordPage", () => {
   it("stays, tells it worked and clears the fields when the person chose to change it", async () => {
     vi.mocked(sessionAuthApi.changePassword).mockResolvedValue(renewed);
     const person = userEvent.setup();
-    renderPage();
+    renderSection();
 
     await fill(person, {
       current: "vieja-clave-1",
@@ -191,7 +219,7 @@ describe("ChangePasswordPage", () => {
       }),
     );
     const person = userEvent.setup();
-    renderPage();
+    renderSection();
 
     await fill(person, {
       current: "equivocada-1",
@@ -212,7 +240,7 @@ describe("ChangePasswordPage", () => {
       new ApiError({ status: 429, code: "TOO_MANY_REQUESTS", message: "x", retryAfter: 60 }),
     );
     const person = userEvent.setup();
-    renderPage();
+    renderSection();
 
     await fill(person, {
       current: "vieja-clave-1",
@@ -228,7 +256,7 @@ describe("ChangePasswordPage", () => {
       new ApiError({ status: 0, code: "NETWORK_ERROR", message: "No pudimos conectarnos." }),
     );
     const person = userEvent.setup();
-    renderPage();
+    renderSection();
 
     await fill(person, {
       current: "vieja-clave-1",
@@ -242,7 +270,7 @@ describe("ChangePasswordPage", () => {
   it("can be filled and sent with the keyboard alone", async () => {
     vi.mocked(sessionAuthApi.changePassword).mockResolvedValue(renewed);
     const person = userEvent.setup();
-    renderPage();
+    renderSection();
 
     await person.tab();
     expect(screen.getByLabelText("Contraseña actual")).toHaveFocus();

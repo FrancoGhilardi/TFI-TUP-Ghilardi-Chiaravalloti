@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { type ApiClient, createApiClient, parseResponse } from "@/modules/core/http";
 
+import type { AccountProfile } from "../domain/account-profile";
 import type { AuthenticatedUser } from "../domain/user";
 
 /** `AccessTokenResponseDto` of the API. */
@@ -15,6 +16,18 @@ const sessionSchema = z.object({
     role: z.enum(["ADMIN", "SELLER"]),
     mustChangePassword: z.boolean(),
   }),
+});
+
+/**
+ * `AuthenticatedUserResponseDto` of the API. The dates are read when it sends them and left out
+ * when it does not, so the screen that shows them works with either.
+ */
+const profileSchema = z.object({
+  name: z.string(),
+  email: z.string(),
+  role: z.enum(["ADMIN", "SELLER"]),
+  lastLoginAt: z.string().pipe(z.coerce.date()).nullish(),
+  createdAt: z.string().pipe(z.coerce.date()).nullish(),
 });
 
 export interface LoginCredentials {
@@ -46,6 +59,17 @@ export function createAuthApi(client: ApiClient) {
     /** `POST /auth/forgot-password`: always answers 204, whether the email exists or not. */
     async forgotPassword(email: string, signal?: AbortSignal): Promise<void> {
       await client.post<void>("/auth/forgot-password", { body: { email }, signal });
+    },
+
+    /** `GET /auth/me`: the signed-in person's data, for a client with a session. */
+    async me(signal?: AbortSignal): Promise<AccountProfile> {
+      const body = await client.get<unknown>("/auth/me", { signal });
+      const { lastLoginAt, createdAt, ...profile } = parseResponse(profileSchema, body);
+      return {
+        ...profile,
+        ...(lastLoginAt && { lastLoginAt }),
+        ...(createdAt && { createdAt }),
+      };
     },
 
     /** `POST /auth/logout`: closes the session of the refresh cookie and the ones renewed from it. */

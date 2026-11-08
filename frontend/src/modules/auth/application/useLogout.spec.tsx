@@ -91,6 +91,17 @@ describe("useLogout", () => {
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/admin/login"));
   });
 
+  it("stops what is still on its way before the session is closed", async () => {
+    vi.mocked(authApi.logout).mockResolvedValue(undefined);
+    const { result } = renderLogout();
+    const cancel = vi.spyOn(result.current.queryClient, "cancelQueries");
+
+    act(() => result.current.logout());
+
+    await waitFor(() => expect(replace).toHaveBeenCalled());
+    expect(cancel).toHaveBeenCalledTimes(1);
+  });
+
   it("leaves nothing that was fetched for the person in memory", async () => {
     vi.mocked(authApi.logout).mockResolvedValue(undefined);
     const { result } = renderLogout();
