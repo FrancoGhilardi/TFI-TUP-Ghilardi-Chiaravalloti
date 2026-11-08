@@ -1,4 +1,6 @@
 export { useAdminProducts } from "./application/useAdminProducts";
+export { EditProductPage } from "./ui/EditProductPage";
+export { NewProductPage } from "./ui/NewProductPage";
 export { ProductsPage } from "./ui/ProductsPage";
 export { ProductThumb } from "./ui/ProductThumb";
 export { useLatestProducts } from "./application/useLatestProducts";

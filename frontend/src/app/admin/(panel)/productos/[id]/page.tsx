@@ -1,7 +1,8 @@
-import { AdminPlaceholder } from "@/modules/admin-shell";
+import { EditProductPage } from "@/modules/admin-products";
 
-const AdminProductPage = () => {
-  return <AdminPlaceholder title="Producto" />;
+const AdminProductPage = async ({ params }: PageProps<"/admin/productos/[id]">) => {
+  const { id } = await params;
+  return <EditProductPage id={id} />;
 };
 
 export default AdminProductPage;

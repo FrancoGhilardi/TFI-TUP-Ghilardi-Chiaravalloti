@@ -256,3 +256,201 @@ describe("admin products api remove and restore", () => {
     await expect(api.restore("p1")).resolves.toBeUndefined();
   });
 });
+
+const detail = {
+  id: "p1",
+  sku: "LMS-000001",
+  slug: "cuaderno-rayado",
+  title: "Cuaderno rayado",
+  description: null,
+  price: "1500.00",
+  salePrice: "1200.00",
+  saleEndsAt: "2026-12-02T02:59:00.000Z",
+  stock: 7,
+  sortOrder: 0,
+  isActive: true,
+  isFeatured: false,
+  isOnSale: true,
+  isNew: false,
+  newUntil: null,
+  primaryCategoryId: "c1",
+  categories: [{ id: "c1", name: "Cuadernos", slug: "cuadernos" }],
+  relatedProducts: [{ id: "p2", title: "Regla", sku: "LMS-000002", slug: "regla" }],
+  images: [
+    {
+      id: "i1",
+      position: 1,
+      altText: null,
+      mimeType: "image/png",
+      sizeBytes: 1234,
+      status: "PROCESSED",
+      previewUrl: "https://storage.test/sign/i1",
+      createdAt: "2026-11-01T12:00:00.000Z",
+    },
+  ],
+  createdAt: "2026-11-01T12:00:00.000Z",
+  updatedAt: "2026-11-02T12:00:00.000Z",
+  deletedAt: null,
+  createdBy: { id: "u1", name: "Marta" },
+  updatedBy: null,
+};
+
+describe("admin products api get", () => {
+  it("reads the product as the form shows it", async () => {
+    const { api, requestOf } = setup(() => json(detail));
+
+    const product = await api.get("p1");
+
+    expect(requestOf().url).toBe(`${BASE_URL}/admin/products/p1`);
+    expect(product).toMatchObject({
+      id: "p1",
+      title: "Cuaderno rayado",
+      description: null,
+      salePrice: "1200.00",
+      saleEndsAt: new Date("2026-12-02T02:59:00.000Z"),
+      newUntil: null,
+      deletedAt: null,
+      primaryCategoryId: "c1",
+      createdBy: { id: "u1", name: "Marta" },
+      updatedBy: null,
+    });
+    expect(product.relatedProducts).toEqual([
+      { id: "p2", title: "Regla", sku: "LMS-000002", slug: "regla" },
+    ]);
+    expect(product.images[0]).toMatchObject({ id: "i1", status: "PROCESSED", position: 1 });
+  });
+
+  it("reads a deleted product, with its date", async () => {
+    const { api } = setup(() => json({ ...detail, deletedAt: "2026-11-05T09:00:00.000Z" }));
+
+    const product = await api.get("p1");
+
+    expect(product.deletedAt).toEqual(new Date("2026-11-05T09:00:00.000Z"));
+  });
+
+  it("fails with the API's not-found error", async () => {
+    const { api } = setup(() =>
+      json(
+        {
+          timestamp: "2026-11-01T12:00:00.000Z",
+          statusCode: 404,
+          code: "PRODUCT_NOT_FOUND",
+          message: "No encontramos ese producto.",
+          path: "/admin/products/p1",
+        },
+        404,
+      ),
+    );
+
+    await expect(api.get("p1")).rejects.toMatchObject({ status: 404, code: "PRODUCT_NOT_FOUND" });
+  });
+
+  it("fails on a response of another shape", async () => {
+    const { api } = setup(() => json({ ...detail, categories: "x" }));
+
+    await expect(api.get("p1")).rejects.toMatchObject({ code: "UNEXPECTED_RESPONSE" });
+  });
+});
+
+describe("admin products api create", () => {
+  const request = {
+    title: "Cuaderno",
+    price: "1500.00",
+    isOnSale: false,
+    stock: 3,
+    isFeatured: false,
+    isNew: false,
+    sortOrder: 0,
+    isActive: true,
+    categoryIds: ["c1"],
+    primaryCategoryId: "c1",
+    imageAltTexts: ["Tapa", ""],
+  };
+
+  it("sends the product as JSON in `data` and the images in order, in one multipart request", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async () => json(detail, 201));
+    const api = createAdminProductsApi(
+      createApiClient({ baseUrl: BASE_URL, getAccessToken: () => "token-abc", fetch: fetchMock }),
+    );
+    const first = new File(["uno"], "uno.png", { type: "image/png" });
+    const second = new File(["dos"], "dos.webp", { type: "image/webp" });
+
+    await expect(api.create(request, [first, second])).resolves.toBeUndefined();
+
+    const sent = fetchMock.mock.calls[0][0] as Request;
+    expect(sent.method).toBe("POST");
+    expect(sent.url).toBe(`${BASE_URL}/admin/products`);
+    expect(sent.headers.get("Content-Type")).toMatch(/^multipart\/form-data; boundary=/);
+    expect(sent.headers.get("Authorization")).toBe("Bearer token-abc");
+    const form = await sent.formData();
+    expect(JSON.parse(form.get("data") as string)).toEqual(request);
+    const files = form.getAll("images") as File[];
+    expect(files.map((file) => file.name)).toEqual(["uno.png", "dos.webp"]);
+    expect(await files[1].text()).toBe("dos");
+  });
+
+  it("does not read what the API answers once it created the product", async () => {
+    const { api } = setup(() => json({ created: true }, 201));
+
+    await expect(
+      api.create(request, [new File(["x"], "a.png", { type: "image/png" })]),
+    ).resolves.toBeUndefined();
+  });
+
+  it("fails with the API's refusal, keeping the field it names", async () => {
+    const { api } = setup(() =>
+      json(
+        {
+          timestamp: "2026-11-01T12:00:00.000Z",
+          statusCode: 400,
+          code: "VALIDATION_FAILED",
+          message: "Revisá los datos.",
+          details: [{ field: "title", messages: ["El título es obligatorio."] }],
+          path: "/admin/products",
+        },
+        400,
+      ),
+    );
+
+    const failure = await api
+      .create(request, [new File(["x"], "a.png", { type: "image/png" })])
+      .catch((error: unknown) => error);
+
+    expect(failure).toMatchObject({ status: 400, code: "VALIDATION_FAILED" });
+    expect((failure as { fieldErrors: () => unknown }).fieldErrors()).toEqual({
+      title: ["El título es obligatorio."],
+    });
+  });
+});
+
+describe("admin products api update", () => {
+  it("patches only what it is given", async () => {
+    const { api, requestOf } = setup(() => json(detail));
+
+    await expect(api.update("p1", { stock: 4, isOnSale: false })).resolves.toBeUndefined();
+
+    expect(requestOf().method).toBe("PATCH");
+    expect(requestOf().url).toBe(`${BASE_URL}/admin/products/p1`);
+    expect(await requestOf().json()).toEqual({ stock: 4, isOnSale: false });
+  });
+
+  it("fails with the API's refusal", async () => {
+    const { api } = setup(() =>
+      json(
+        {
+          timestamp: "2026-11-01T12:00:00.000Z",
+          statusCode: 422,
+          code: "SALE_PRICE_NOT_LOWER",
+          message: "El precio de oferta tiene que ser menor.",
+          path: "/admin/products/p1",
+        },
+        422,
+      ),
+    );
+
+    await expect(api.update("p1", { salePrice: "2000.00" })).rejects.toMatchObject({
+      status: 422,
+      code: "SALE_PRICE_NOT_LOWER",
+    });
+  });
+});

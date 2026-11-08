@@ -78,9 +78,14 @@ function toWithCredentials(credentials: RequestCredentials | undefined): boolean
 
 /**
  * axios labels any POST, PUT or PATCH body without its own type as a form, which would hide a
- * Blob's real type (`fetch` alone would use it), so the Blob's type is sent explicitly.
+ * Blob's real type (`fetch` alone would use it), so the Blob's type is sent explicitly. A
+ * `FormData` gets no type at all (`false` keeps axios from setting one): `fetch` then writes the
+ * `multipart/form-data` one with the boundary that separates its parts.
  */
-function bodyHeaders(body: RequestBody | undefined): RequestHeaders | undefined {
+function bodyHeaders(body: RequestBody | undefined): Record<string, string | false> | undefined {
+  if (body instanceof FormData) {
+    return { "Content-Type": false };
+  }
   return body instanceof Blob && body.type ? { "Content-Type": body.type } : undefined;
 }
 

@@ -4,8 +4,8 @@ import type { useChangePassword } from "../application/useChangePassword";
 import { Button } from "@/modules/core/ui/primitives/button";
 
 import { authContent } from "../content/auth";
-import { FormAlert } from "./FormAlert";
-import { FormNotice } from "./FormNotice";
+import { FormAlert } from "@/modules/core/ui/FormAlert";
+import { FormNotice } from "@/modules/core/ui/FormNotice";
 import { PasswordField } from "./PasswordField";
 
 type ChangePasswordFormProps = ReturnType<typeof useChangePassword>;

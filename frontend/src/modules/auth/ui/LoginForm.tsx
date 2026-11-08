@@ -9,7 +9,7 @@ import { TextField } from "@/modules/core/ui/TextField";
 import { useLogin } from "../application/useLogin";
 import { authContent } from "../content/auth";
 import { ADMIN_PATHS } from "../domain/routes";
-import { FormAlert } from "./FormAlert";
+import { FormAlert } from "@/modules/core/ui/FormAlert";
 import { PasswordField } from "./PasswordField";
 
 interface LoginFormProps {

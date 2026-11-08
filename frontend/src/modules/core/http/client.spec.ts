@@ -94,6 +94,20 @@ describe("createApiClient", () => {
       await expect(call().request.text()).resolves.toContain("Cuaderno");
     });
 
+    it("sends a FormData as multipart with its own boundary, without being told to", async () => {
+      const { client, call } = setup();
+      const form = new FormData();
+      form.append("data", "{}");
+      form.append("images", new File(["foto"], "a.png", { type: "image/png" }));
+
+      await client.post("/admin/products", { body: form });
+
+      expect(call().headers.get("Content-Type")).toMatch(/^multipart\/form-data; boundary=/);
+      const parts = await call().request.formData();
+      expect(parts.get("data")).toBe("{}");
+      expect((parts.get("images") as File).name).toBe("a.png");
+    });
+
     it("sends a Blob as is", async () => {
       const { client, call } = setup();
 
