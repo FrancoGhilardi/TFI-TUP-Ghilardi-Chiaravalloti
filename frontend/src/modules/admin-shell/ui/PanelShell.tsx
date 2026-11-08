@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { canOpenPanelPath, useSessionUser } from "@/modules/auth";
+import { Toaster } from "@/modules/core/ui/primitives/sonner";
 import { SkipLink } from "@/modules/core/ui/SkipLink";
 
 import { shellContent } from "../content/shell";
@@ -31,21 +32,25 @@ export const PanelShell = ({ children }: PanelShellProps) => {
     return children;
   }
   return (
-    <div className="min-h-dvh bg-cream lg:grid lg:grid-cols-[278px_1fr]">
-      <SkipLink targetId={shellContent.contentId} />
-      <aside className="sticky top-0 hidden h-dvh lg:block">
-        <SidebarContent user={user} pathname={pathname} />
-      </aside>
-      <div className="flex min-w-0 flex-col">
-        <Topbar user={user} pathname={pathname} />
-        <main
-          id={shellContent.contentId}
-          tabIndex={-1}
-          className="mx-auto w-full max-w-[1320px] flex-1 px-4 py-7 pb-20 outline-none lg:px-7"
-        >
-          {canOpenPanelPath(user.role, pathname) ? children : <Forbidden />}
-        </main>
+    <>
+      {/* Outside the grid: its live region is an element of its own and would take a cell. */}
+      <Toaster />
+      <div className="min-h-dvh bg-cream lg:grid lg:grid-cols-[278px_1fr]">
+        <SkipLink targetId={shellContent.contentId} />
+        <aside className="sticky top-0 hidden h-dvh lg:block">
+          <SidebarContent user={user} pathname={pathname} />
+        </aside>
+        <div className="flex min-w-0 flex-col">
+          <Topbar user={user} pathname={pathname} />
+          <main
+            id={shellContent.contentId}
+            tabIndex={-1}
+            className="mx-auto w-full max-w-[1320px] flex-1 px-4 py-7 pb-20 outline-none lg:px-7"
+          >
+            {canOpenPanelPath(user.role, pathname) ? children : <Forbidden />}
+          </main>
+        </div>
       </div>
-    </div>
+    </>
   );
 };

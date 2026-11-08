@@ -1,8 +1,6 @@
 import type { ReactNode } from "react";
 
-import type { AdminProductSummary } from "@/modules/admin-products";
-
-import { ProductThumb } from "./ProductThumb";
+import { type AdminProductSummary, ProductThumb } from "@/modules/admin-products";
 
 interface ProductRowProps {
   product: AdminProductSummary;

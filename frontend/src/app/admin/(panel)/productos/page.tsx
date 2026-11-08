@@ -1,7 +1,7 @@
-import { AdminPlaceholder } from "@/modules/admin-shell";
+import { ProductsPage } from "@/modules/admin-products";
 
 const AdminProductsPage = () => {
-  return <AdminPlaceholder title="Productos" />;
+  return <ProductsPage />;
 };
 
 export default AdminProductsPage;

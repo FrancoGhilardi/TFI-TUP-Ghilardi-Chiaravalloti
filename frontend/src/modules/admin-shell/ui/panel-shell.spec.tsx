@@ -78,6 +78,15 @@ describe("PanelShell", () => {
     expect(screen.getByRole("navigation", { name: "Migas de pan" })).toHaveTextContent("Productos");
   });
 
+  it("keeps the sidebar and the content as the only places of the layout grid", () => {
+    signIn("ADMIN");
+    renderShell();
+
+    const grid = screen.getByRole("main").closest(".lg\\:grid");
+    expect(grid).not.toBeNull();
+    expect([...grid!.children].map((child) => child.tagName)).toEqual(["A", "ASIDE", "DIV"]);
+  });
+
   it("shows an admin the users entry", () => {
     signIn("ADMIN");
     renderShell();

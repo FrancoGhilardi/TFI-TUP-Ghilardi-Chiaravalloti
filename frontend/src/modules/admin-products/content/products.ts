@@ -1,0 +1,73 @@
+/** Copy of the panel's products list, kept apart so it can change without touching UI. */
+export const productsContent = {
+  eyebrow: "Catálogo",
+  title: "Productos",
+  lead: "Cargá, editá y ordená lo que se muestra en la tienda. Las bajas son lógicas: siempre podés reactivar.",
+  newProduct: "Nuevo producto",
+  search: {
+    label: "Buscar",
+    placeholder: "Buscar por título o SKU (ej. LMS-000012)…",
+  },
+  state: { label: "Estado" },
+  category: { label: "Categoría", all: "Todas las categorías", selected: "Categoría elegida" },
+  marks: {
+    label: "Marcas:",
+    featured: "Destacado",
+    onSale: "Oferta vigente",
+    isNew: "Novedad vigente",
+  },
+  stock: { label: "Stock ≤", ariaLabel: "Stock máximo", placeholder: "—" },
+  clear: "Limpiar filtros",
+  table: {
+    caption: "Productos",
+    columns: {
+      product: "Producto",
+      sku: "SKU",
+      category: "Categoría principal",
+      price: "Precio",
+      stock: "Stock",
+      marks: "Marcas",
+      state: "Estado",
+      modified: "Modificado",
+      actions: "Acciones",
+    },
+    states: { active: "Activo", inactive: "Inactivo", deleted: "Dado de baja" },
+    marks: { featured: "Dest.", onSale: "Oferta", isNew: "Nuevo" },
+    noMarks: "—",
+    noCategory: "—",
+    sortBy: (column: string) => `Ordenar por ${column}`,
+    summary: (from: number, to: number, total: number) => `${from}–${to} de ${total}`,
+  },
+  actions: {
+    edit: (title: string) => `Editar ${title}`,
+    view: (title: string) => `Ver ${title}`,
+    remove: (title: string) => `Dar de baja ${title}`,
+    restore: (title: string) => `Reactivar ${title}`,
+  },
+  confirmRemove: {
+    title: (title: string) => `¿Dar de baja "${title}"?`,
+    description: "El producto deja de verse en la tienda y podés reactivarlo cuando quieras.",
+    confirm: "Dar de baja",
+  },
+  empty: {
+    filteredTitle: "No hay productos con estos filtros",
+    filteredText: "Probá con otra búsqueda o limpiá los filtros.",
+    noneTitle: "Todavía no hay productos",
+    noneText: "Cargá el primero para que aparezca en la tienda.",
+  },
+  error: {
+    title: "No pudimos cargar los productos",
+    text: "Revisá tu conexión e intentá de nuevo.",
+    retry: "Reintentar",
+  },
+  outOfRange: {
+    title: "Esa página no existe",
+    text: "Con estos filtros hay menos páginas.",
+    action: "Ir a la primera página",
+  },
+  toasts: {
+    removed: "Producto dado de baja",
+    restored: "Producto reactivado",
+    failed: "No pudimos completar la acción. Probá de nuevo.",
+  },
+} as const;
