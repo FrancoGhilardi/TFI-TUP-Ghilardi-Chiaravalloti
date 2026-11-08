@@ -2,17 +2,7 @@
 
 import type { ReactNode } from "react";
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/modules/core/ui/primitives/alert-dialog";
+import { ConfirmDialog } from "@/modules/core/ui/ConfirmDialog";
 
 import { useLogout } from "../application/useLogout";
 import { authContent } from "../content/auth";
@@ -28,20 +18,15 @@ export const LogoutConfirm = ({ children }: LogoutConfirmProps) => {
   const { label, title, description, cancel } = authContent.logout;
 
   return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>{children}</AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription>{description}</AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>{cancel}</AlertDialogCancel>
-          <AlertDialogAction onClick={logout} disabled={isBusy}>
-            {label}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmDialog
+      title={title}
+      description={description}
+      confirmLabel={label}
+      cancelLabel={cancel}
+      onConfirm={logout}
+      disabled={isBusy}
+    >
+      {children}
+    </ConfirmDialog>
   );
 };

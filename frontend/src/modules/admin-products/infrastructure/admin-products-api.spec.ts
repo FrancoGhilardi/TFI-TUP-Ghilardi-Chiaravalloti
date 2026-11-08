@@ -24,7 +24,7 @@ const product = {
   isFeatured: false,
   isNew: false,
   isOnSale: false,
-  primaryCategory: null,
+  primaryCategory: { id: "c1", name: "Cuadernos", slug: "cuadernos" },
   thumbnail: { id: "i1", url: "https://storage.test/p1.webp", altText: null },
   updatedAt: "2026-11-01T12:00:00.000Z",
   deletedAt: null,
@@ -84,8 +84,16 @@ describe("admin products api", () => {
           title: "Cuaderno rayado",
           stock: 3,
           isActive: true,
+          slug: "cuaderno-rayado",
+          price: "1500.00",
+          salePrice: null,
+          isFeatured: false,
+          isNew: false,
+          isOnSale: false,
+          primaryCategory: { id: "c1", name: "Cuadernos" },
           thumbnailUrl: "https://storage.test/p1.webp",
           updatedAt: new Date("2026-11-01T12:00:00.000Z"),
+          deletedAt: null,
         },
       ],
     });
@@ -128,5 +136,123 @@ describe("admin products api", () => {
     );
 
     await expect(api.list({ limit: 1 })).rejects.toMatchObject({ status: 403, code: "FORBIDDEN" });
+  });
+});
+
+describe("admin products api list rows", () => {
+  it("keeps the offer price, the marks and the date of a delete", async () => {
+    const { api } = setup(() =>
+      json({
+        items: [
+          {
+            ...product,
+            salePrice: "1200.00",
+            isOnSale: true,
+            isFeatured: true,
+            primaryCategory: null,
+            deletedAt: "2026-11-05T09:00:00.000Z",
+          },
+        ],
+        totalItems: 1,
+      }),
+    );
+
+    const { items } = await api.list({ limit: 20 });
+
+    expect(items[0]).toMatchObject({
+      salePrice: "1200.00",
+      isOnSale: true,
+      isFeatured: true,
+      primaryCategory: null,
+      deletedAt: new Date("2026-11-05T09:00:00.000Z"),
+    });
+  });
+
+  it("sends every filter, the sort and the page", async () => {
+    const { api, requestOf } = setup(() => json({ items: [], totalItems: 0 }));
+
+    await api.list({
+      q: "regla",
+      status: "DELETED",
+      categoryId: "3f2b8c1e-5a4d-4e6f-9b0a-1c2d3e4f5a6b",
+      isFeatured: true,
+      isOnSale: true,
+      isNew: true,
+      maxStock: 0,
+      sortBy: "PRICE",
+      sortDir: "ASC",
+      page: 3,
+      limit: 20,
+    });
+
+    expect(Object.fromEntries(new URL(requestOf().url).searchParams)).toEqual({
+      q: "regla",
+      status: "DELETED",
+      categoryId: "3f2b8c1e-5a4d-4e6f-9b0a-1c2d3e4f5a6b",
+      isFeatured: "true",
+      isOnSale: "true",
+      isNew: "true",
+      maxStock: "0",
+      sortBy: "PRICE",
+      sortDir: "ASC",
+      page: "3",
+      limit: "20",
+    });
+  });
+});
+
+describe("admin products api remove and restore", () => {
+  function setupAction(respond: () => Response) {
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async () => respond());
+    const api = createAdminProductsApi(
+      createApiClient({ baseUrl: BASE_URL, getAccessToken: () => "token-abc", fetch: fetchMock }),
+    );
+    return { api, requestOf: () => fetchMock.mock.calls[0][0] as Request };
+  }
+
+  it("deletes with the id in the path and resolves on the empty 204 answer", async () => {
+    const { api, requestOf } = setupAction(() => new Response(null, { status: 204 }));
+
+    await expect(api.remove("p1")).resolves.toBeUndefined();
+
+    expect(requestOf().method).toBe("DELETE");
+    expect(requestOf().url).toBe(`${BASE_URL}/admin/products/p1`);
+    expect(requestOf().headers.get("Authorization")).toBe("Bearer token-abc");
+  });
+
+  it("restores with a post to the restore path", async () => {
+    const { api, requestOf } = setupAction(() => json({ id: "p1", title: "Cuaderno" }));
+
+    await expect(api.restore("p1")).resolves.toBeUndefined();
+
+    expect(requestOf().method).toBe("POST");
+    expect(requestOf().url).toBe(`${BASE_URL}/admin/products/p1/restore`);
+  });
+
+  it("fails with the API's message when the product cannot be restored", async () => {
+    const { api } = setupAction(() =>
+      json(
+        {
+          timestamp: "2026-11-01T12:00:00.000Z",
+          statusCode: 422,
+          code: "PRODUCT_WITHOUT_CATEGORY",
+          message: "Reactivá alguna de sus categorías primero.",
+          path: "/admin/products/p1/restore",
+        },
+        422,
+      ),
+    );
+
+    await expect(api.restore("p1")).rejects.toMatchObject({
+      status: 422,
+      code: "PRODUCT_WITHOUT_CATEGORY",
+      message: "Reactivá alguna de sus categorías primero.",
+    });
+  });
+
+  it("does not mind what the restore answers once it worked", async () => {
+    const { api } = setupAction(() => json({ title: "Cuaderno" }));
+
+    await expect(api.restore("p1")).resolves.toBeUndefined();
   });
 });
