@@ -1,7 +1,7 @@
 import { useProductImages } from "../application/useProductImages";
 import { productFormText, productImagesText } from "../content/product-form";
 import { MAX_IMAGES } from "../domain/image-rules";
-import { FormSection } from "./FormSection";
+import { FormSection } from "@/modules/core/ui/FormSection";
 import { SavedImagesManager } from "./SavedImagesManager";
 
 interface SavedImagesSectionProps {

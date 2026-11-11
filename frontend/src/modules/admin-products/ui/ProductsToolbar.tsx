@@ -7,10 +7,11 @@ import {
   isFiltered,
   PRODUCT_STATES,
   type ProductsQuery,
+  SEARCH_MAX_LENGTH,
 } from "../domain/products-query";
-import { FilterSelect, type FilterOption } from "./FilterSelect";
+import { FilterSelect, type FilterOption } from "@/modules/core/ui/FilterSelect";
+import { SearchField } from "@/modules/core/ui/SearchField";
 import { MarkChip } from "./MarkChip";
-import { SearchField } from "./SearchField";
 import { StockFilter } from "./StockFilter";
 
 interface ProductsToolbarProps {
@@ -20,7 +21,7 @@ interface ProductsToolbarProps {
 
 export const ProductsToolbar = ({ query, go }: ProductsToolbarProps) => {
   const { data: categories = [] } = useCategoryOptions();
-  const { state, category, marks, clear } = productsContent;
+  const { search, state, category, marks, clear } = productsContent;
 
   const categoryOptions: FilterOption[] = [
     { value: "", label: category.all },
@@ -36,6 +37,10 @@ export const ProductsToolbar = ({ query, go }: ProductsToolbarProps) => {
     <div className="flex flex-col gap-3 border-b border-line-soft p-4">
       <div className="flex flex-wrap gap-3">
         <SearchField
+          id="products-search"
+          label={search.label}
+          placeholder={search.placeholder}
+          maxLength={SEARCH_MAX_LENGTH}
           value={query.q ?? ""}
           onSearch={(text) => go({ q: text || undefined }, { replace: true })}
         />

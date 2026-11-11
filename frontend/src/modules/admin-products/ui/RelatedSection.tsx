@@ -5,7 +5,7 @@ import { moveItem } from "../domain/image-rules";
 import type { ProductFormValues, RelatedChoice } from "../domain/product-form";
 import { ChosenRelated } from "./ChosenRelated";
 import { FieldError } from "./FieldError";
-import { FormSection } from "./FormSection";
+import { FormSection } from "@/modules/core/ui/FormSection";
 import { RelatedPicker } from "./RelatedPicker";
 
 interface RelatedSectionProps {

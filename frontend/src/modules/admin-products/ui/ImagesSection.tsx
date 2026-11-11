@@ -3,7 +3,7 @@ import { useFormContext, useWatch } from "react-hook-form";
 import { productFormText, productImagesText } from "../content/product-form";
 import { MAX_IMAGES } from "../domain/image-rules";
 import type { ProductFormValues } from "../domain/product-form";
-import { FormSection } from "./FormSection";
+import { FormSection } from "@/modules/core/ui/FormSection";
 import { NewImagesField } from "./NewImagesField";
 
 /** The images of the product: chosen here when it is being created. */

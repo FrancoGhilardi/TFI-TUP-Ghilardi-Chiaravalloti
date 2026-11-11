@@ -1,7 +1,11 @@
 /** A category as the products filter lists it. */
 export interface CategoryOption {
   id: string;
+  /** The name indented by its level, to read the tree in a flat list. */
   label: string;
+  name: string;
+  /** 0 for a root category. */
+  depth: number;
   /** A hidden category exists but cannot be given to a product. */
   isActive: boolean;
 }
@@ -17,5 +21,5 @@ interface OptionSource {
 /** The name indented by its level, so the tree can be read in a flat list, and marked if hidden. */
 export function categoryOptionOf({ id, name, depth, isActive }: OptionSource): CategoryOption {
   const indent = "\u2003".repeat(depth);
-  return { id, label: `${indent}${name}${isActive ? "" : " (inactiva)"}`, isActive };
+  return { id, label: `${indent}${name}${isActive ? "" : " (inactiva)"}`, name, depth, isActive };
 }

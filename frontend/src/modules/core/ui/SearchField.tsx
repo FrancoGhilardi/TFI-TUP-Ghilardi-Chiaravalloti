@@ -4,25 +4,33 @@ import { useDebouncedInput } from "@/modules/core/hooks/useDebouncedInput";
 import { Input } from "@/modules/core/ui/primitives/input";
 import { Label } from "@/modules/core/ui/primitives/label";
 
-import { productsContent } from "../content/products";
-import { SEARCH_MAX_LENGTH } from "../domain/products-query";
-
 /** How long the typing pauses before the search is applied. */
 const SEARCH_PAUSE_MS = 300;
 
 interface SearchFieldProps {
+  id: string;
+  label: string;
+  placeholder: string;
+  maxLength: number;
   /** The search as the address has it. */
   value: string;
   onSearch: (text: string) => void;
 }
 
-export const SearchField = ({ value, onSearch }: SearchFieldProps) => {
+/** A search box that waits for the typing to pause, and follows the address when it changes. */
+export const SearchField = ({
+  id,
+  label,
+  placeholder,
+  maxLength,
+  value,
+  onSearch,
+}: SearchFieldProps) => {
   const [text, setText] = useDebouncedInput(value, onSearch, SEARCH_PAUSE_MS);
-  const { label, placeholder } = productsContent.search;
 
   return (
     <div className="relative min-w-60 flex-1">
-      <Label htmlFor="products-search" className="sr-only">
+      <Label htmlFor={id} className="sr-only">
         {label}
       </Label>
       <Search
@@ -30,10 +38,10 @@ export const SearchField = ({ value, onSearch }: SearchFieldProps) => {
         aria-hidden="true"
       />
       <Input
-        id="products-search"
+        id={id}
         type="search"
         value={text}
-        maxLength={SEARCH_MAX_LENGTH}
+        maxLength={maxLength}
         placeholder={placeholder}
         autoComplete="off"
         onChange={(event) => setText(event.target.value)}

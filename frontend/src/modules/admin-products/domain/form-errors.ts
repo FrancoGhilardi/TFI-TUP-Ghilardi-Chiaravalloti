@@ -1,4 +1,4 @@
-import { ApiError } from "@/modules/core/http";
+import { type ServerFieldErrors, serverFieldErrors } from "@/modules/core/http";
 
 import { productFormErrors } from "../content/product-form";
 
@@ -21,12 +21,7 @@ export const ERROR_FIELD_ORDER = [
 
 export type ErrorField = (typeof ERROR_FIELD_ORDER)[number];
 
-export interface ServerErrors {
-  /** The server's message for each field it refused. */
-  fields: Partial<Record<ErrorField, string>>;
-  /** What could not be tied to a field (and a failure that is not the API's). */
-  general?: string;
-}
+export type ServerErrors = ServerFieldErrors<ErrorField>;
 
 /** Fields the API names in `VALIDATION_FAILED`, by their name in the request. */
 const FIELD_OF_NAME: Record<string, ErrorField> = {
@@ -66,36 +61,14 @@ const FIELD_OF_CODE: Record<string, ErrorField> = {
   INVALID_IMAGE_COUNT: "images",
 };
 
-/** Splits `relatedProductIds.1` or `imageAltTexts[0]` into the name the API uses for the field. */
-const rootOf = (path: string): string => path.split(/[.[]/)[0];
-
 /**
  * Where the server's refusal belongs on the form: the fields it names (by `VALIDATION_FAILED`'s
  * details or by the error's code) with its own message, and whatever has no field as `general`.
  */
 export function serverErrorsOf(error: unknown): ServerErrors {
-  if (!(error instanceof ApiError)) {
-    return { fields: {}, general: productFormErrors.fallback };
-  }
-
-  const fields: ServerErrors["fields"] = {};
-  const orphans: string[] = [];
-  const place = (field: ErrorField | undefined, message: string) => {
-    if (!field) {
-      orphans.push(message);
-    } else if (!fields[field]) {
-      fields[field] = message;
-    }
-  };
-
-  const byField = error.fieldErrors();
-  if (Object.keys(byField).length > 0) {
-    for (const [path, messages] of Object.entries(byField)) {
-      place(FIELD_OF_NAME[rootOf(path)], messages.join(" "));
-    }
-  } else {
-    place(FIELD_OF_CODE[error.code], error.message);
-  }
-
-  return orphans.length > 0 ? { fields, general: orphans.join(" ") } : { fields };
+  return serverFieldErrors<ErrorField>(error, {
+    fieldOfName: FIELD_OF_NAME,
+    fieldOfCode: FIELD_OF_CODE,
+    fallback: productFormErrors.fallback,
+  });
 }

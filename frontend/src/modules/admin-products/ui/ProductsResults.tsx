@@ -1,11 +1,19 @@
-import { clearedFilters, isFiltered, type ProductsQuery } from "../domain/products-query";
+import { ListFooter } from "@/modules/core/ui/ListFooter";
+import { LoadErrorState } from "@/modules/core/ui/LoadErrorState";
+import { OutOfRangeState } from "@/modules/core/ui/OutOfRangeState";
+import { TableSkeleton } from "@/modules/core/ui/TableSkeleton";
+
+import { productsContent } from "../content/products";
+import {
+  clearedFilters,
+  isFiltered,
+  PRODUCTS_PAGE_SIZE,
+  type ProductsQuery,
+  productsHref,
+} from "../domain/products-query";
 import { useAdminProducts } from "../application/useAdminProducts";
 import { useProductActions } from "../application/useProductActions";
-import { PageOutOfRange } from "./PageOutOfRange";
 import { ProductsEmptyState } from "./ProductsEmptyState";
-import { ProductsErrorState } from "./ProductsErrorState";
-import { ProductsFooter } from "./ProductsFooter";
-import { ProductsSkeleton } from "./ProductsSkeleton";
 import { ProductsTable } from "./ProductsTable";
 
 interface ProductsResultsProps {
@@ -19,17 +27,20 @@ export const ProductsResults = ({ query, go }: ProductsResultsProps) => {
   const { remove, restore, isPending } = useProductActions();
 
   if (list.isPending) {
-    return <ProductsSkeleton />;
+    return <TableSkeleton label={productsContent.loading} />;
   }
   // A refresh that fails keeps showing the last page; only having nothing to show is an error.
   if (!list.data) {
-    return <ProductsErrorState onRetry={() => void list.refetch()} />;
+    return <LoadErrorState {...productsContent.error} onRetry={() => void list.refetch()} framed />;
   }
 
   const { items, total } = list.data;
   if (items.length === 0) {
     return query.page > 1 ? (
-      <PageOutOfRange query={query} />
+      <OutOfRangeState
+        {...productsContent.outOfRange}
+        firstPageHref={productsHref(query, { page: 1 })}
+      />
     ) : (
       <ProductsEmptyState filtered={isFiltered(query)} onClear={() => go(clearedFilters(query))} />
     );
@@ -54,10 +65,13 @@ export const ProductsResults = ({ query, go }: ProductsResultsProps) => {
           onRestore={(id) => void restore(id)}
         />
       </div>
-      <ProductsFooter
-        query={query}
+      <ListFooter
+        page={query.page}
+        pageSize={PRODUCTS_PAGE_SIZE}
         shown={items.length}
         total={total}
+        summary={productsContent.table.summary}
+        hrefFor={(page) => productsHref(query, { page })}
         stale={list.isPlaceholderData}
       />
     </div>
