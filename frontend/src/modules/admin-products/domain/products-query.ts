@@ -1,10 +1,9 @@
 import { ADMIN_PATHS } from "@/modules/auth";
+import { parsePage, readParam, type SearchParamsReader } from "@/modules/core/lib/list-query";
 
 export const PRODUCTS_PATH = ADMIN_PATHS.products;
 export const PRODUCTS_PAGE_SIZE = 20;
 
-/** The API refuses pages beyond this one. */
-const MAX_PAGE = 500;
 export const SEARCH_MAX_LENGTH = 100;
 /** Biggest stock the API accepts. */
 const MAX_STOCK = 2_147_483_647;
@@ -78,11 +77,6 @@ export const EMPTY_PRODUCTS_QUERY: ProductsQuery = {
   page: 1,
 };
 
-/** What `URLSearchParams` and Next's `useSearchParams` have in common. */
-export interface SearchParamsReader {
-  get(name: string): string | null;
-}
-
 /** Parameters of `GET /admin/products` for a query. */
 export interface ProductsApiParams {
   q?: string;
@@ -96,11 +90,6 @@ export interface ProductsApiParams {
   sortDir?: "ASC" | "DESC";
   page?: number;
   limit?: number;
-}
-
-function parsePage(value: string | undefined): number {
-  const page = Number(value);
-  return Number.isInteger(page) && page >= 1 && page <= MAX_PAGE ? page : 1;
 }
 
 function parseStock(value: string | undefined): number | undefined {
@@ -119,8 +108,7 @@ const isState = (value: string | undefined): value is ProductStateFilter =>
 
 /** Reads the address of the list; any invalid value is dropped so the API never receives it. */
 export function parseProductsQuery(params: SearchParamsReader): ProductsQuery {
-  const read = (name: keyof typeof PRODUCTS_PARAMS) =>
-    params.get(PRODUCTS_PARAMS[name])?.trim() || undefined;
+  const read = (name: keyof typeof PRODUCTS_PARAMS) => readParam(params, PRODUCTS_PARAMS[name]);
 
   const q = read("q");
   const state = read("state");

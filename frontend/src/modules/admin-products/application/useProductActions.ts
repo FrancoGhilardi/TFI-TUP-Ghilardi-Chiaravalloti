@@ -1,9 +1,9 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
 
 import { ApiError } from "@/modules/core/http";
+import { useInFlight } from "@/modules/core/hooks/useInFlight";
 import { toast } from "@/modules/core/ui/toast";
 
 import { productsContent } from "../content/products";
@@ -25,8 +25,7 @@ const { toasts } = productsContent;
  */
 export function useProductActions() {
   const queryClient = useQueryClient();
-  const inFlight = useRef(new Set<string>());
-  const [pending, setPending] = useState<ReadonlySet<string>>(new Set());
+  const { run, isPending } = useInFlight();
 
   const mutation = useMutation({
     mutationFn: ({ id, action }: ProductActionRequest) =>
@@ -37,25 +36,18 @@ export function useProductActions() {
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["admin-products"] }),
   });
 
-  const start = async (request: ProductActionRequest) => {
-    if (inFlight.current.has(request.id)) {
-      return;
-    }
-    inFlight.current.add(request.id);
-    setPending(new Set(inFlight.current));
-    try {
-      await mutation.mutateAsync(request);
-    } catch {
-      // Already told by `onError`.
-    } finally {
-      inFlight.current.delete(request.id);
-      setPending(new Set(inFlight.current));
-    }
-  };
+  const start = (request: ProductActionRequest) =>
+    run(request.id, async () => {
+      try {
+        await mutation.mutateAsync(request);
+      } catch {
+        // Already told by `onError`.
+      }
+    });
 
   return {
     remove: (id: string) => start({ id, action: "remove" }),
     restore: (id: string) => start({ id, action: "restore" }),
-    isPending: (id: string) => pending.has(id),
+    isPending,
   };
 }
