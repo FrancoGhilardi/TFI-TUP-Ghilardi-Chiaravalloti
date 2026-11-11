@@ -9,15 +9,20 @@ import { authContent } from "../content/auth";
 
 interface PanelGateProps {
   children: ReactNode;
+  /** What to show while the session is looked up; without it, a short text. */
+  loading?: ReactNode;
 }
 
 /** Shows a panel screen only once there is a session and nothing is pending before it. */
-export const PanelGate = ({ children }: PanelGateProps) => {
+export const PanelGate = ({ children, loading: loadingView }: PanelGateProps) => {
   const { view, retry } = usePanelGate();
   const { loading, unavailable, retry: retryLabel } = authContent.gate;
 
   if (view === "ready") {
     return children;
+  }
+  if (view === "loading" && loadingView) {
+    return loadingView;
   }
   return (
     <main className="grid min-h-dvh place-items-center px-4 text-center text-ink-soft">

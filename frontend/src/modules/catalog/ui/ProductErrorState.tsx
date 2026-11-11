@@ -3,39 +3,40 @@
 import { CloudOff } from "lucide-react";
 import Link from "next/link";
 
-import { Container } from "@/modules/core/ui/Container";
+import { PageState } from "@/modules/core/ui/PageState";
 import { Button } from "@/modules/core/ui/primitives/button";
-import { StatusMessage } from "@/modules/core/ui/StatusMessage";
 
 import { productDetailContent } from "../content/product-detail";
 import { CATALOG_PATH } from "../domain/product-routes";
 
 interface ProductErrorStateProps {
-  /** Renders the page again, as Next gives it to an error boundary. */
-  reset: () => void;
+  /** Reads and renders the page again, as Next gives it to an error boundary. */
+  retry: () => void;
+  /** The identifier Next gives to the failure, to match it with the server's logs. */
+  digest?: string;
 }
 
 /** Shown when the product could not be read for a reason other than not existing. */
-export const ProductErrorState = ({ reset }: ProductErrorStateProps) => {
+export const ProductErrorState = ({ retry, digest }: ProductErrorStateProps) => {
   const { error } = productDetailContent;
   return (
-    <Container className="py-16">
-      <StatusMessage
-        role="alert"
-        icon={CloudOff}
-        title={error.title}
-        description={error.body}
-        actions={
-          <>
-            <Button type="button" onClick={reset}>
-              {error.retry}
-            </Button>
-            <Button asChild variant="outline">
-              <Link href={CATALOG_PATH}>{error.action}</Link>
-            </Button>
-          </>
-        }
-      />
-    </Container>
+    <PageState
+      noIndex
+      role="alert"
+      icon={CloudOff}
+      title={error.title}
+      description={error.body}
+      reference={digest}
+      actions={
+        <>
+          <Button type="button" onClick={retry}>
+            {error.retry}
+          </Button>
+          <Button asChild variant="outline">
+            <Link href={CATALOG_PATH}>{error.action}</Link>
+          </Button>
+        </>
+      }
+    />
   );
 };

@@ -4,11 +4,11 @@ import { ProductErrorState } from "@/modules/catalog";
 
 interface ProductErrorProps {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
 }
 
-const ProductError = ({ reset }: ProductErrorProps) => {
-  return <ProductErrorState reset={reset} />;
+const ProductError = ({ error, retry }: ProductErrorProps) => {
+  return <ProductErrorState retry={retry} digest={error.digest} />;
 };
 
 export default ProductError;
