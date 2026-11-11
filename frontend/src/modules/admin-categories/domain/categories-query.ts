@@ -1,10 +1,9 @@
 import { ADMIN_PATHS } from "@/modules/auth";
+import { parsePage, readParam, type SearchParamsReader } from "@/modules/core/lib/list-query";
 
 export const CATEGORIES_PATH = ADMIN_PATHS.categories;
 export const CATEGORIES_PAGE_SIZE = 50;
 
-/** The API refuses pages beyond this one. */
-const MAX_PAGE = 500;
 export const SEARCH_MAX_LENGTH = 100;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -39,11 +38,6 @@ export interface CategoriesQuery {
 
 export const EMPTY_CATEGORIES_QUERY: CategoriesQuery = { state: DEFAULT_STATE, page: 1 };
 
-/** What `URLSearchParams` and Next's `useSearchParams` have in common. */
-export interface SearchParamsReader {
-  get(name: string): string | null;
-}
-
 /** Parameters of `GET /admin/categories` for a query. */
 export interface CategoriesApiParams {
   q?: string;
@@ -53,25 +47,19 @@ export interface CategoriesApiParams {
   limit?: number;
 }
 
-function parsePage(value: string | undefined): number {
-  const page = Number(value);
-  return Number.isInteger(page) && page >= 1 && page <= MAX_PAGE ? page : 1;
-}
-
 const isState = (value: string | undefined): value is CategoryStateFilter =>
   CATEGORY_STATES.some((state) => state.value === value);
 
 /** Reads the address of the list; any invalid value is dropped so the API never receives it. */
 export function parseCategoriesQuery(params: SearchParamsReader): CategoriesQuery {
-  const read = (name: keyof typeof CATEGORIES_PARAMS) =>
-    params.get(CATEGORIES_PARAMS[name])?.trim() || undefined;
+  const read = (name: keyof typeof CATEGORIES_PARAMS) => readParam(params, CATEGORIES_PARAMS[name]);
 
   const q = read("q");
   const state = read("state");
   const parent = read("parent")?.toLowerCase();
 
   return {
-    q: q?.slice(0, SEARCH_MAX_LENGTH),
+    q: q?.slice(0, SEARCH_MAX_LENGTH).trim() || undefined,
     state: isState(state) ? state : DEFAULT_STATE,
     parent: parent && UUID.test(parent) ? parent : undefined,
     page: parsePage(read("page")),

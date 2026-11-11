@@ -2,6 +2,7 @@ export { panelApiClient } from "./application/session-client";
 export { useAccountProfile } from "./application/useAccountProfile";
 export { useLogout } from "./application/useLogout";
 export { useSessionUser } from "./application/useSessionUser";
+export { useUpdateSessionUser } from "./application/useUpdateSessionUser";
 export { changePasswordMetadata, forgotPasswordMetadata } from "./domain/password-metadata";
 export { loginMetadata } from "./domain/login-metadata";
 export { canOpenPanelPath } from "./domain/panel-access";

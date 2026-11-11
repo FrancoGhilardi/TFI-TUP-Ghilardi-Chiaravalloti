@@ -83,3 +83,37 @@ describe("session store sign out", () => {
     expect(sessionStorage.length).toBe(0);
   });
 });
+
+describe("session store update of the user", () => {
+  it("keeps the name and the email in step with what was saved, and the rest as it was", () => {
+    useSessionStore.getState().start(login);
+
+    useSessionStore
+      .getState()
+      .updateUser({ name: "Marta Gómez", email: "marta.g@libreriamisueno.com.ar" });
+
+    expect(useSessionStore.getState().user).toEqual({
+      ...login.user,
+      name: "Marta Gómez",
+      email: "marta.g@libreriamisueno.com.ar",
+    });
+    expect(useSessionStore.getState().accessToken).toBe("token-123");
+  });
+
+  it("leaves alone what is not given, even when it is there as undefined", () => {
+    useSessionStore.getState().start(login);
+
+    useSessionStore.getState().updateUser({ name: "Marta G.", email: undefined });
+
+    expect(useSessionStore.getState().user).toMatchObject({
+      name: "Marta G.",
+      email: login.user.email,
+    });
+  });
+
+  it("does nothing without a session", () => {
+    useSessionStore.getState().updateUser({ name: "Nadie" });
+
+    expect(useSessionStore.getState()).toMatchObject({ status: "loading", user: null });
+  });
+});

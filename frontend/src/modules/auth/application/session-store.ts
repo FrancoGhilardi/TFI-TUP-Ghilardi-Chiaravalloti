@@ -10,6 +10,8 @@ interface SessionState {
   accessToken: string | null;
   user: AuthenticatedUser | null;
   start: (login: LoginResult) => void;
+  /** Keeps the signed-in user's data in step with what was just saved; nothing without a session. */
+  updateUser: (changes: Pick<Partial<AuthenticatedUser>, "name" | "email">) => void;
   /** The session is over, or there never was one to restore. */
   expire: () => void;
   /** The person closed the session on purpose. */
@@ -26,6 +28,16 @@ export const useSessionStore = create<SessionState>()((set) => ({
   accessToken: null,
   user: null,
   start: ({ accessToken, user }) => set({ status: "authenticated", accessToken, user }),
+  updateUser: (changes) =>
+    set((state) => {
+      if (!state.user) {
+        return {};
+      }
+      const defined = Object.fromEntries(
+        Object.entries(changes).filter(([, value]) => value !== undefined),
+      );
+      return { user: { ...state.user, ...defined } };
+    }),
   expire: () => set({ status: "anonymous", accessToken: null, user: null }),
   signOut: () => set({ status: "signedOut", accessToken: null, user: null }),
   markUnavailable: () => set({ status: "unavailable" }),

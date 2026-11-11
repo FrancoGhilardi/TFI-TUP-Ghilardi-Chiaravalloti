@@ -1,8 +1,7 @@
 import { Controller, useFormContext } from "react-hook-form";
 
+import { StateRadioField } from "@/modules/core/ui/StateRadioField";
 import { TextField } from "@/modules/core/ui/TextField";
-import { Label } from "@/modules/core/ui/primitives/label";
-import { RadioGroup, RadioGroupItem } from "@/modules/core/ui/primitives/radio-group";
 
 import { productFormText } from "../content/product-form";
 import type { ProductFormValues } from "../domain/product-form";
@@ -27,37 +26,21 @@ export const PublicationPanel = () => {
 
   return (
     <FormSection title={title}>
-      <div className="flex flex-col gap-2">
-        <span id="product-state-label" className="text-sm font-semibold text-ink">
-          {state}
-        </span>
-        <Controller
-          control={control}
-          name="isActive"
-          render={({ field }) => (
-            <RadioGroup
-              aria-labelledby="product-state-label"
-              value={field.value ? "active" : "inactive"}
-              onValueChange={(value) => field.onChange(value === "active")}
-              className="grid-cols-2"
-            >
-              {[
-                { value: "active", label: active },
-                { value: "inactive", label: inactive },
-              ].map((option) => (
-                <div
-                  key={option.value}
-                  className="flex items-center gap-2 rounded-xl border-[1.5px] border-line px-3 py-2"
-                >
-                  <RadioGroupItem value={option.value} id={`product-state-${option.value}`} />
-                  <Label htmlFor={`product-state-${option.value}`}>{option.label}</Label>
-                </div>
-              ))}
-            </RadioGroup>
-          )}
-        />
-        <p className="text-sm text-ink-soft">{stateHint}</p>
-      </div>
+      <Controller
+        control={control}
+        name="isActive"
+        render={({ field }) => (
+          <StateRadioField
+            id="product-state"
+            label={state}
+            activeLabel={active}
+            inactiveLabel={inactive}
+            hint={stateHint}
+            active={field.value}
+            onChange={field.onChange}
+          />
+        )}
+      />
 
       <Controller
         control={control}

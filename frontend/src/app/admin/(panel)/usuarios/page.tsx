@@ -1,7 +1,7 @@
-import { AdminPlaceholder } from "@/modules/admin-shell";
+import { UsersPage } from "@/modules/admin-users";
 
 const AdminUsersPage = () => {
-  return <AdminPlaceholder title="Usuarios" />;
+  return <UsersPage />;
 };
 
 export default AdminUsersPage;
