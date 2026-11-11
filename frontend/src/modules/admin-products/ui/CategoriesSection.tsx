@@ -9,7 +9,7 @@ import type { ProductFormValues } from "../domain/product-form";
 import { CategoryPicker } from "./CategoryPicker";
 import { ChosenCategories } from "./ChosenCategories";
 import { FieldError } from "./FieldError";
-import { FormSection } from "./FormSection";
+import { FormSection } from "@/modules/core/ui/FormSection";
 
 interface CategoriesSectionProps {
   /** Categories the product already has, which may be hidden ones the list does not carry. */

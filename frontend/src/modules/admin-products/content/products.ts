@@ -65,6 +65,7 @@ export const productsContent = {
     text: "Con estos filtros hay menos páginas.",
     action: "Ir a la primera página",
   },
+  loading: "Cargando productos",
   toasts: {
     removed: "Producto dado de baja",
     restored: "Producto reactivado",

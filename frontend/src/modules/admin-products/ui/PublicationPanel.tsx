@@ -6,7 +6,7 @@ import { RadioGroup, RadioGroupItem } from "@/modules/core/ui/primitives/radio-g
 
 import { productFormText } from "../content/product-form";
 import type { ProductFormValues } from "../domain/product-form";
-import { FormSection } from "./FormSection";
+import { FormSection } from "@/modules/core/ui/FormSection";
 import { NewMarkFields } from "./NewMarkFields";
 import { OfferFields } from "./OfferFields";
 import { SwitchRow } from "./SwitchRow";

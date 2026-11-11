@@ -6,7 +6,7 @@ import { TextField } from "@/modules/core/ui/TextField";
 import { productFormText } from "../content/product-form";
 import { DESCRIPTION_MAX_LENGTH, TITLE_MAX_LENGTH } from "../content/product-form";
 import type { ProductFormValues } from "../domain/product-form";
-import { FormSection } from "./FormSection";
+import { FormSection } from "@/modules/core/ui/FormSection";
 
 interface DataSectionProps {
   editing: boolean;

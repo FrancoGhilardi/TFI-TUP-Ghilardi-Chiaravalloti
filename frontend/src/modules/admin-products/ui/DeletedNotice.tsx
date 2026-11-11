@@ -1,7 +1,5 @@
-import { Archive } from "lucide-react";
-
 import { formatDate } from "@/modules/core/formatters/date-time";
-import { Button } from "@/modules/core/ui/primitives/button";
+import { ArchivedNotice } from "@/modules/core/ui/ArchivedNotice";
 
 import { useProductActions } from "../application/useProductActions";
 import { productFormText } from "../content/product-form";
@@ -17,20 +15,11 @@ export const DeletedNotice = ({ product }: DeletedNoticeProps) => {
   const { deleted } = productFormText;
 
   return (
-    <div
-      role="status"
-      className="flex flex-wrap items-center gap-3 rounded-2xl bg-coral-soft px-4 py-3 text-sm text-ink"
-    >
-      <Archive className="size-4 shrink-0 text-coral-strong" aria-hidden="true" />
-      <p className="flex-1">{deleted.notice(formatDate(product.deletedAt))}</p>
-      <Button
-        type="button"
-        size="sm"
-        disabled={isPending(product.id)}
-        onClick={() => void restore(product.id)}
-      >
-        {deleted.restore}
-      </Button>
-    </div>
+    <ArchivedNotice
+      message={deleted.notice(formatDate(product.deletedAt))}
+      actionLabel={deleted.restore}
+      pending={isPending(product.id)}
+      onAction={() => void restore(product.id)}
+    />
   );
 };

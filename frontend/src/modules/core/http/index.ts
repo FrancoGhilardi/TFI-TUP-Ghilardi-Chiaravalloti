@@ -17,5 +17,6 @@ export {
   type RequestOptions,
 } from "./client";
 export type { ErrorMessageOverrides } from "./error-messages";
+export { type FieldErrorTables, type ServerFieldErrors, serverFieldErrors } from "./field-errors";
 export { OPTIONAL_READ_TIMEOUT_MS, recoverFromApiError } from "./optional-read";
 export { parseResponse } from "./parse-response";

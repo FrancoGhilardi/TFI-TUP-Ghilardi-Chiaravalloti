@@ -7,6 +7,8 @@ describe("categoryOptionOf", () => {
     expect(categoryOptionOf({ id: "c1", name: "Librería", depth: 0, isActive: true })).toEqual({
       id: "c1",
       label: "Librería",
+      name: "Librería",
+      depth: 0,
       isActive: true,
     });
   });
@@ -21,6 +23,6 @@ describe("categoryOptionOf", () => {
     const option = categoryOptionOf({ id: "c3", name: "Oferta", depth: 1, isActive: false });
 
     expect(option.label).toBe("\u2003Oferta (inactiva)");
-    expect(option.isActive).toBe(false);
+    expect(option).toMatchObject({ name: "Oferta", depth: 1, isActive: false });
   });
 });

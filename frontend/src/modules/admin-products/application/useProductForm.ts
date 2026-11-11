@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { type BaseSyntheticEvent, useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 
+import { useUnsavedChangesWarning } from "@/modules/core/hooks/useUnsavedChangesWarning";
 import { toast } from "@/modules/core/ui/toast";
 
 import { productFormToasts } from "../content/product-form";
@@ -19,7 +20,6 @@ import {
 import { hasChanges, toCreateRequest, toUpdateRequest } from "../domain/product-request";
 import { PRODUCTS_PATH } from "../domain/products-query";
 import { adminProductsApi } from "../infrastructure/admin-products-client";
-import { useUnsavedChangesWarning } from "./useUnsavedChangesWarning";
 
 type ProductFormMode =
   | { mode: "create" }

@@ -2,7 +2,7 @@ import { formatDate, formatDateTime } from "@/modules/core/formatters/date-time"
 
 import { productFormText } from "../content/product-form";
 import type { AdminProductDetail } from "../domain/admin-product";
-import { FormSection } from "./FormSection";
+import { FormSection } from "@/modules/core/ui/FormSection";
 
 interface RecordPanelProps {
   product: AdminProductDetail;

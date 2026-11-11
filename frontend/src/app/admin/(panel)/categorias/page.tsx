@@ -1,7 +1,7 @@
-import { AdminPlaceholder } from "@/modules/admin-shell";
+import { CategoriesPage } from "@/modules/admin-categories";
 
 const AdminCategoriesPage = () => {
-  return <AdminPlaceholder title="Categorías" />;
+  return <CategoriesPage />;
 };
 
 export default AdminCategoriesPage;

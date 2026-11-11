@@ -1,12 +1,16 @@
 "use client";
 
+import { PackageSearch } from "lucide-react";
+
 import { ApiError } from "@/modules/core/http";
+import { FormSkeleton } from "@/modules/core/ui/FormSkeleton";
+import { LoadErrorState } from "@/modules/core/ui/LoadErrorState";
+import { NotFoundState } from "@/modules/core/ui/NotFoundState";
 
 import { useProduct } from "../application/useProduct";
+import { productFormText } from "../content/product-form";
+import { PRODUCTS_PATH } from "../domain/products-query";
 import { ProductForm } from "./ProductForm";
-import { ProductFormSkeleton } from "./ProductFormSkeleton";
-import { ProductLoadError } from "./ProductLoadError";
-import { ProductNotFound } from "./ProductNotFound";
 
 interface EditProductPageProps {
   id: string;
@@ -17,13 +21,13 @@ export const EditProductPage = ({ id }: EditProductPageProps) => {
   const { data, isPending, error, refetch } = useProduct(id);
 
   if (isPending) {
-    return <ProductFormSkeleton />;
+    return <FormSkeleton label={productFormText.loading} />;
   }
   if (!data) {
     return error instanceof ApiError && error.status === 404 ? (
-      <ProductNotFound />
+      <NotFoundState {...productFormText.notFound} href={PRODUCTS_PATH} icon={PackageSearch} />
     ) : (
-      <ProductLoadError onRetry={() => void refetch()} />
+      <LoadErrorState {...productFormText.loadError} onRetry={() => void refetch()} />
     );
   }
   // Remounted whenever the product changes on the server (it was deleted or restored), so the form
