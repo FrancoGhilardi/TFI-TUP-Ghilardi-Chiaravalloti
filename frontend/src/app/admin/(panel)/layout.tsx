@@ -1,13 +1,13 @@
 import { Suspense } from "react";
 
-import { PanelShell } from "@/modules/admin-shell";
+import { PanelShell, PanelSkeleton } from "@/modules/admin-shell";
 import { PanelGate } from "@/modules/auth";
 
 // The gate reads the address' query, which a statically built page can only do on the client.
 const AdminPanelLayout = ({ children }: LayoutProps<"/admin">) => {
   return (
-    <Suspense fallback={null}>
-      <PanelGate>
+    <Suspense fallback={<PanelSkeleton />}>
+      <PanelGate loading={<PanelSkeleton />}>
         <PanelShell>{children}</PanelShell>
       </PanelGate>
     </Suspense>

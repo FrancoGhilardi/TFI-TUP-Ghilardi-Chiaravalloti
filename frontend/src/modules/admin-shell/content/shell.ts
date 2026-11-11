@@ -31,4 +31,8 @@ export const shellContent = {
       "Tu rol no puede abrir esta sección. Si creés que es un error, pedíselo a un administrador.",
     action: "Ir a Productos",
   },
+  /** Said to assistive technology while the grey blocks stand in for the panel. */
+  loading: "Cargando el panel…",
+  /** What the pages for a missing address or a failure lead to. */
+  systemPages: { home: "Ir al inicio del panel" },
 } as const;

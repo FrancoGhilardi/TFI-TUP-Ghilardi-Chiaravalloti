@@ -1,3 +1,5 @@
+import { Skeleton } from "@/modules/core/ui/Skeleton";
+
 interface FormSkeletonProps {
   /** Said to assistive technology while the blocks are grey. */
   label: string;
@@ -7,10 +9,10 @@ interface FormSkeletonProps {
 export const FormSkeleton = ({ label }: FormSkeletonProps) => {
   return (
     <div aria-busy="true" aria-label={label} className="flex flex-col gap-5">
-      <div className="h-24 animate-pulse rounded-xl bg-wheat" />
+      <Skeleton className="h-24" />
       <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
-        <div className="h-96 animate-pulse rounded-xl bg-wheat" />
-        <div className="h-96 animate-pulse rounded-xl bg-wheat" />
+        <Skeleton className="h-96" />
+        <Skeleton className="h-96" />
       </div>
     </div>
   );

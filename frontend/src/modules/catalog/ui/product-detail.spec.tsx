@@ -320,13 +320,13 @@ describe("ProductNotFoundState", () => {
 
 describe("ProductErrorState", () => {
   it("announces the failure, retries on demand and leads to the catalog", async () => {
-    const reset = vi.fn();
-    render(<ProductErrorState reset={reset} />);
+    const retry = vi.fn();
+    render(<ProductErrorState retry={retry} />);
 
     expect(screen.getByRole("alert")).toHaveTextContent("No pudimos cargar el producto");
     await userEvent.click(screen.getByRole("button", { name: "Reintentar" }));
 
-    expect(reset).toHaveBeenCalledOnce();
+    expect(retry).toHaveBeenCalledOnce();
     expect(screen.getByRole("link", { name: "Ver todos los productos" })).toHaveAttribute(
       "href",
       "/productos",

@@ -1,3 +1,5 @@
+import { Skeleton } from "@/modules/core/ui/Skeleton";
+
 const ROWS = 8;
 
 interface TableSkeletonProps {
@@ -10,7 +12,9 @@ export const TableSkeleton = ({ label }: TableSkeletonProps) => {
   return (
     <ul aria-busy="true" aria-label={label} className="flex flex-col gap-3 p-4">
       {Array.from({ length: ROWS }, (_, index) => (
-        <li key={index} className="h-14 animate-pulse rounded-xl bg-wheat" />
+        <li key={index} aria-hidden="true">
+          <Skeleton className="h-14" />
+        </li>
       ))}
     </ul>
   );

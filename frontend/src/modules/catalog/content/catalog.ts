@@ -21,6 +21,8 @@ export const catalogContent = {
     remove: (label: string) => `Quitar filtro ${label}`,
     clear: "Limpiar filtros",
   },
+  /** Said to assistive technology while the grey blocks stand in for the page. */
+  loading: "Cargando productos",
   total: (count: number) => `${count} ${count === 1 ? "producto" : "productos"}`,
   /** Read out by screen readers after each search or filter change. */
   announcement: {

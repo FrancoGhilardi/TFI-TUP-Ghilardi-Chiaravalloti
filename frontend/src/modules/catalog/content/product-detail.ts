@@ -23,6 +23,8 @@ export const productDetailContent = {
     "¿Necesitás impresiones o anillado? Sumalo a tu consulta por WhatsApp.",
   ],
   related: { eyebrow: "También te puede gustar", title: "Productos similares" },
+  /** Said to assistive technology while the grey blocks stand in for the page. */
+  loading: "Cargando el producto",
   notFound: {
     title: "No encontramos este producto",
     body: "Puede que ya no esté disponible. Mirá el resto del catálogo.",

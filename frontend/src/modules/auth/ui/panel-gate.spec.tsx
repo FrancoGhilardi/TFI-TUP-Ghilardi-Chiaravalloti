@@ -62,6 +62,36 @@ describe("PanelGate", () => {
     expect(replace).not.toHaveBeenCalled();
   });
 
+  it("shows what it is given while the session is looked up, in place of its own text", () => {
+    vi.mocked(refreshSession).mockReturnValue(new Promise<boolean>(() => {}));
+
+    render(
+      <PanelGate loading={<p>Esqueleto del panel</p>}>
+        <p>Pantalla del panel</p>
+      </PanelGate>,
+    );
+
+    expect(screen.getByText("Esqueleto del panel")).toBeInTheDocument();
+    expect(screen.queryByText("Cargando el panel…")).not.toBeInTheDocument();
+    expect(screen.queryByText("Pantalla del panel")).not.toBeInTheDocument();
+  });
+
+  it("still offers to try again when the session could not be looked up, whatever it is given to wait", async () => {
+    vi.mocked(refreshSession).mockImplementation(async () => {
+      useSessionStore.getState().markUnavailable();
+      return false;
+    });
+
+    render(
+      <PanelGate loading={<p>Esqueleto del panel</p>}>
+        <p>Pantalla del panel</p>
+      </PanelGate>,
+    );
+
+    expect(await screen.findByRole("button", { name: "Reintentar" })).toBeInTheDocument();
+    expect(screen.queryByText("Esqueleto del panel")).not.toBeInTheDocument();
+  });
+
   it("sends the person to sign in when the session cannot be restored", async () => {
     pathname = "/admin/cambiar-contrasena";
     vi.mocked(refreshSession).mockImplementation(async () => {

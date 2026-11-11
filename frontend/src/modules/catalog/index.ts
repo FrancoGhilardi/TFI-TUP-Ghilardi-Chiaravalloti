@@ -16,7 +16,9 @@ export { getFeaturedProducts, getNewProducts } from "./infrastructure/products-a
 export { CategoryGrid } from "./ui/CategoryGrid";
 export { ProductGrid } from "./ui/ProductGrid";
 export { CatalogPage } from "./ui/CatalogPage";
+export { CatalogSkeleton } from "./ui/CatalogSkeleton";
 export { ProductDetailPage } from "./ui/ProductDetailPage";
+export { ProductDetailSkeleton } from "./ui/ProductDetailSkeleton";
 export { ProductErrorState } from "./ui/ProductErrorState";
 export { ProductNotFoundState } from "./ui/ProductNotFoundState";
 export { SearchForm } from "./ui/SearchForm";

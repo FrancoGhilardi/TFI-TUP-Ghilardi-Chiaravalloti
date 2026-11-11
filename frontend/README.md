@@ -72,6 +72,14 @@ panel lives under `/admin`: `login` and `olvide-mi-contrasena` are open, and the
 `cambiar-contrasena`, `productos/nuevo`, `productos/[id]`) sit behind `PanelGate` and `PanelShell`. `/admin` redirects to
 `/admin/productos`.
 
+Error, missing-address and loading pages are built on `core/ui` (`PageState`, `ErrorPage`,
+`NotFoundPage`, `Skeleton`): `src/app/not-found.tsx` is the store's 404 (composed with
+`StoreShell`), `src/app/(public)/error.tsx` and `src/app/admin/(panel)/error.tsx` keep each frame,
+`src/app/global-error.tsx` replaces the root layout, `src/app/admin/(panel)/[...slug]` gives the
+panel its own 404, and `loading.tsx` files give the catalog, the product page and the rest of the
+store a skeleton (the panel's one is passed to `PanelGate`). They are left out of search engines
+and show the error's `digest` as a reference code, never its message.
+
 ### Catalog URL
 
 `/productos` is rendered on the server from its query string, parsed and sanitized by
