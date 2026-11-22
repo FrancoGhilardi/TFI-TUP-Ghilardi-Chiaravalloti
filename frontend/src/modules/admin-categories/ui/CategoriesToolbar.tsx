@@ -1,9 +1,7 @@
-import { useCategoryOptions } from "../application/useCategoryOptions";
-import { SEARCH_MAX_LENGTH } from "@/modules/core/lib/list-query";
-import { Button } from "@/modules/core/ui/primitives/button";
 import { type FilterOption, FilterSelect } from "@/modules/core/ui/FilterSelect";
-import { SearchField } from "@/modules/core/ui/SearchField";
+import { ListToolbar } from "@/modules/core/ui/ListToolbar";
 
+import { useCategoryOptions } from "../application/useCategoryOptions";
 import { categoriesContent } from "../content/categories";
 import {
   CATEGORY_STATES,
@@ -39,36 +37,30 @@ export const CategoriesToolbar = ({ query, go }: CategoriesToolbarProps) => {
   }
 
   return (
-    <div className="flex flex-col gap-3 border-b border-line-soft p-4">
-      <div className="flex flex-wrap gap-3">
-        <SearchField
-          id="categories-search"
-          label={search.label}
-          placeholder={search.placeholder}
-          maxLength={SEARCH_MAX_LENGTH}
-          value={query.q ?? ""}
-          onSearch={(text) => go({ q: text || undefined }, { replace: true })}
-        />
-        <FilterSelect
-          id="categories-state"
-          label={state.label}
-          value={query.state}
-          options={CATEGORY_STATES.map(({ value, label }) => ({ value, label }))}
-          onChange={(value) => go({ state: value as CategoriesQuery["state"] })}
-        />
-        <FilterSelect
-          id="categories-location"
-          label={location.label}
-          value={query.parent ?? ""}
-          options={locationOptions}
-          onChange={(value) => go({ parent: value || undefined })}
-        />
-        {isFiltered(query) && (
-          <Button type="button" variant="ghost" onClick={() => go(clearedFilters())}>
-            {clear}
-          </Button>
-        )}
-      </div>
-    </div>
+    <ListToolbar
+      search={{
+        id: "categories-search",
+        label: search.label,
+        placeholder: search.placeholder,
+        value: query.q ?? "",
+        onSearch: (text) => go({ q: text || undefined }, { replace: true }),
+      }}
+      clear={isFiltered(query) && { label: clear, onClear: () => go(clearedFilters()) }}
+    >
+      <FilterSelect
+        id="categories-state"
+        label={state.label}
+        value={query.state}
+        options={CATEGORY_STATES.map(({ value, label }) => ({ value, label }))}
+        onChange={(value) => go({ state: value as CategoriesQuery["state"] })}
+      />
+      <FilterSelect
+        id="categories-location"
+        label={location.label}
+        value={query.parent ?? ""}
+        options={locationOptions}
+        onChange={(value) => go({ parent: value || undefined })}
+      />
+    </ListToolbar>
   );
 };

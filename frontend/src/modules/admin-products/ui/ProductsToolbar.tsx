@@ -1,5 +1,6 @@
 import { useCategoryOptions } from "@/modules/admin-categories";
-import { SEARCH_MAX_LENGTH } from "@/modules/core/lib/list-query";
+import { FilterSelect, type FilterOption } from "@/modules/core/ui/FilterSelect";
+import { ListToolbar } from "@/modules/core/ui/ListToolbar";
 import { Button } from "@/modules/core/ui/primitives/button";
 
 import { productsContent } from "../content/products";
@@ -9,8 +10,6 @@ import {
   PRODUCT_STATES,
   type ProductsQuery,
 } from "../domain/products-query";
-import { FilterSelect, type FilterOption } from "@/modules/core/ui/FilterSelect";
-import { SearchField } from "@/modules/core/ui/SearchField";
 import { MarkChip } from "./MarkChip";
 import { StockFilter } from "./StockFilter";
 
@@ -34,60 +33,60 @@ export const ProductsToolbar = ({ query, go }: ProductsToolbarProps) => {
   }
 
   return (
-    <div className="flex flex-col gap-3 border-b border-line-soft p-4">
-      <div className="flex flex-wrap gap-3">
-        <SearchField
-          id="products-search"
-          label={search.label}
-          placeholder={search.placeholder}
-          maxLength={SEARCH_MAX_LENGTH}
-          value={query.q ?? ""}
-          onSearch={(text) => go({ q: text || undefined }, { replace: true })}
-        />
-        <FilterSelect
-          id="products-state"
-          label={state.label}
-          value={query.state}
-          options={PRODUCT_STATES.map(({ value, label }) => ({ value, label }))}
-          onChange={(value) => go({ state: value as ProductsQuery["state"] })}
-        />
-        <FilterSelect
-          id="products-category"
-          label={category.label}
-          value={query.category ?? ""}
-          options={categoryOptions}
-          onChange={(value) => go({ category: value || undefined })}
-        />
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm font-semibold text-ink-soft">{marks.label}</span>
-        <MarkChip pressed={query.featured} onToggle={() => go({ featured: !query.featured })}>
-          {marks.featured}
-        </MarkChip>
-        <MarkChip pressed={query.onSale} onToggle={() => go({ onSale: !query.onSale })}>
-          {marks.onSale}
-        </MarkChip>
-        <MarkChip pressed={query.isNew} onToggle={() => go({ isNew: !query.isNew })}>
-          {marks.isNew}
-        </MarkChip>
-        <StockFilter
-          value={query.maxStock === undefined ? "" : String(query.maxStock)}
-          onChange={(value) =>
-            go({ maxStock: value === "" ? undefined : Number(value) }, { replace: true })
-          }
-        />
-        {isFiltered(query) && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="ml-auto"
-            onClick={() => go(clearedFilters(query))}
-          >
-            {clear}
-          </Button>
-        )}
-      </div>
-    </div>
+    <ListToolbar
+      search={{
+        id: "products-search",
+        label: search.label,
+        placeholder: search.placeholder,
+        value: query.q ?? "",
+        onSearch: (text) => go({ q: text || undefined }, { replace: true }),
+      }}
+      extra={
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-semibold text-ink-soft">{marks.label}</span>
+          <MarkChip pressed={query.featured} onToggle={() => go({ featured: !query.featured })}>
+            {marks.featured}
+          </MarkChip>
+          <MarkChip pressed={query.onSale} onToggle={() => go({ onSale: !query.onSale })}>
+            {marks.onSale}
+          </MarkChip>
+          <MarkChip pressed={query.isNew} onToggle={() => go({ isNew: !query.isNew })}>
+            {marks.isNew}
+          </MarkChip>
+          <StockFilter
+            value={query.maxStock === undefined ? "" : String(query.maxStock)}
+            onChange={(value) =>
+              go({ maxStock: value === "" ? undefined : Number(value) }, { replace: true })
+            }
+          />
+          {isFiltered(query) && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="ml-auto"
+              onClick={() => go(clearedFilters(query))}
+            >
+              {clear}
+            </Button>
+          )}
+        </div>
+      }
+    >
+      <FilterSelect
+        id="products-state"
+        label={state.label}
+        value={query.state}
+        options={PRODUCT_STATES.map(({ value, label }) => ({ value, label }))}
+        onChange={(value) => go({ state: value as ProductsQuery["state"] })}
+      />
+      <FilterSelect
+        id="products-category"
+        label={category.label}
+        value={query.category ?? ""}
+        options={categoryOptions}
+        onChange={(value) => go({ category: value || undefined })}
+      />
+    </ListToolbar>
   );
 };

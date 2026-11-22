@@ -1,15 +1,14 @@
 import { Archive, Pencil, RotateCcw } from "lucide-react";
-import Link from "next/link";
 
-import { ConfirmDialog } from "@/modules/core/ui/ConfirmDialog";
+import { ConfirmRowAction } from "@/modules/core/ui/ConfirmRowAction";
+import { RowActionButton } from "@/modules/core/ui/RowActionButton";
+import { RowActionLink } from "@/modules/core/ui/RowActionLink";
+import { RowActions } from "@/modules/core/ui/RowActions";
 
 import { categoriesContent } from "../content/categories";
-import { CATEGORIES_PATH } from "../domain/categories-query";
 import type { AdminCategoryRow } from "../domain/admin-category";
+import { CATEGORIES_PATH } from "../domain/categories-query";
 import { categoryState } from "../domain/category-state";
-
-const BUTTON =
-  "grid size-9 place-items-center rounded-full text-ink-soft outline-none hover:bg-wheat hover:text-ink focus-visible:ring-3 focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-50";
 
 interface CategoryRowActionsProps {
   category: AdminCategoryRow;
@@ -27,51 +26,34 @@ export const CategoryRowActions = ({
   onRestore,
 }: CategoryRowActionsProps) => {
   const { actions, confirmRemove } = categoriesContent;
-  const deleted = categoryState(category) === "deleted";
+  const { name } = category;
 
-  if (deleted) {
+  if (categoryState(category) === "deleted") {
     return (
-      <span className="flex items-center justify-end gap-1">
-        <button
-          type="button"
-          aria-label={actions.restore(category.name)}
-          title={actions.restore(category.name)}
+      <RowActions>
+        <RowActionButton
+          icon={RotateCcw}
+          label={actions.restore(name)}
           disabled={pending}
           onClick={onRestore}
-          className={BUTTON}
-        >
-          <RotateCcw className="size-[18px]" aria-hidden="true" />
-        </button>
-      </span>
+        />
+      </RowActions>
     );
   }
   return (
-    <span className="flex items-center justify-end gap-1">
-      <Link
+    <RowActions>
+      <RowActionLink
+        icon={Pencil}
+        label={actions.edit(name)}
         href={`${CATEGORIES_PATH}/${category.id}`}
-        aria-label={actions.edit(category.name)}
-        title={actions.edit(category.name)}
-        className={BUTTON}
-      >
-        <Pencil className="size-[18px]" aria-hidden="true" />
-      </Link>
-      <ConfirmDialog
-        title={confirmRemove.title(category.name)}
-        description={confirmRemove.description}
-        confirmLabel={confirmRemove.confirm}
+      />
+      <ConfirmRowAction
+        icon={Archive}
+        label={actions.remove(name)}
+        dialog={{ ...confirmRemove, title: confirmRemove.title(name) }}
         onConfirm={onRemove}
-        disabled={pending}
-      >
-        <button
-          type="button"
-          aria-label={actions.remove(category.name)}
-          title={actions.remove(category.name)}
-          disabled={pending}
-          className={BUTTON}
-        >
-          <Archive className="size-[18px]" aria-hidden="true" />
-        </button>
-      </ConfirmDialog>
-    </span>
+        pending={pending}
+      />
+    </RowActions>
   );
 };

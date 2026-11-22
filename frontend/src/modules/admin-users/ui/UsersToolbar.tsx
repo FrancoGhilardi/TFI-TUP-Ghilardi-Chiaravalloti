@@ -1,7 +1,5 @@
-import { SEARCH_MAX_LENGTH } from "@/modules/core/lib/list-query";
-import { Button } from "@/modules/core/ui/primitives/button";
 import { FilterSelect } from "@/modules/core/ui/FilterSelect";
-import { SearchField } from "@/modules/core/ui/SearchField";
+import { ListToolbar } from "@/modules/core/ui/ListToolbar";
 
 import { usersContent } from "../content/users";
 import {
@@ -21,39 +19,33 @@ export const UsersToolbar = ({ query, go }: UsersToolbarProps) => {
   const { search, role, state, clear } = usersContent;
 
   return (
-    <div className="flex flex-col gap-3 border-b border-line-soft p-4">
-      <div className="flex flex-wrap gap-3">
-        <SearchField
-          id="users-search"
-          label={search.label}
-          placeholder={search.placeholder}
-          maxLength={SEARCH_MAX_LENGTH}
-          value={query.q ?? ""}
-          onSearch={(text) => go({ q: text || undefined }, { replace: true })}
-        />
-        <FilterSelect
-          id="users-role"
-          label={role.label}
-          value={query.role ?? ""}
-          options={[
-            { value: "", label: role.any },
-            ...USER_ROLE_FILTERS.map(({ value, label }) => ({ value, label })),
-          ]}
-          onChange={(value) => go({ role: (value || undefined) as UsersQuery["role"] })}
-        />
-        <FilterSelect
-          id="users-state"
-          label={state.label}
-          value={query.state}
-          options={USER_STATES.map(({ value, label }) => ({ value, label }))}
-          onChange={(value) => go({ state: value as UsersQuery["state"] })}
-        />
-        {isFiltered(query) && (
-          <Button type="button" variant="ghost" onClick={() => go(clearedFilters())}>
-            {clear}
-          </Button>
-        )}
-      </div>
-    </div>
+    <ListToolbar
+      search={{
+        id: "users-search",
+        label: search.label,
+        placeholder: search.placeholder,
+        value: query.q ?? "",
+        onSearch: (text) => go({ q: text || undefined }, { replace: true }),
+      }}
+      clear={isFiltered(query) && { label: clear, onClear: () => go(clearedFilters()) }}
+    >
+      <FilterSelect
+        id="users-role"
+        label={role.label}
+        value={query.role ?? ""}
+        options={[
+          { value: "", label: role.any },
+          ...USER_ROLE_FILTERS.map(({ value, label }) => ({ value, label })),
+        ]}
+        onChange={(value) => go({ role: (value || undefined) as UsersQuery["role"] })}
+      />
+      <FilterSelect
+        id="users-state"
+        label={state.label}
+        value={query.state}
+        options={USER_STATES.map(({ value, label }) => ({ value, label }))}
+        onChange={(value) => go({ state: value as UsersQuery["state"] })}
+      />
+    </ListToolbar>
   );
 };

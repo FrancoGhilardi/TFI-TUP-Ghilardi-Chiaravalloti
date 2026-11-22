@@ -1,16 +1,15 @@
 import { Archive, KeyRound, Pencil, RotateCcw } from "lucide-react";
-import Link from "next/link";
-import { useId } from "react";
 
-import { ConfirmDialog } from "@/modules/core/ui/ConfirmDialog";
+import { BlockedRowAction } from "@/modules/core/ui/BlockedRowAction";
+import { ConfirmRowAction } from "@/modules/core/ui/ConfirmRowAction";
+import { RowActionButton } from "@/modules/core/ui/RowActionButton";
+import { RowActionLink } from "@/modules/core/ui/RowActionLink";
+import { RowActions } from "@/modules/core/ui/RowActions";
 
 import { ownAccountReasons, usersContent } from "../content/users";
 import type { AdminUserRow } from "../domain/admin-user";
 import { userState } from "../domain/user-state";
 import { USERS_PATH } from "../domain/users-query";
-
-const BUTTON =
-  "grid size-9 place-items-center rounded-full text-ink-soft outline-none hover:bg-wheat hover:text-ink focus-visible:ring-3 focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-50";
 
 interface UserRowActionsProps {
   user: AdminUserRow;
@@ -33,102 +32,54 @@ export const UserRowActions = ({
   onResetPassword,
 }: UserRowActionsProps) => {
   const { actions, confirmRemove, confirmResetPassword } = usersContent;
-  const reasonId = useId();
+  const { name } = user;
 
   if (userState(user) === "deleted") {
     return (
-      <span className="flex items-center justify-end gap-1">
-        <button
-          type="button"
-          aria-label={actions.restore(user.name)}
-          title={actions.restore(user.name)}
+      <RowActions>
+        <RowActionButton
+          icon={RotateCcw}
+          label={actions.restore(name)}
           disabled={pending}
           onClick={onRestore}
-          className={BUTTON}
-        >
-          <RotateCcw className="size-[18px]" aria-hidden="true" />
-        </button>
-      </span>
+        />
+      </RowActions>
     );
   }
   return (
-    <span className="flex items-center justify-end gap-1">
-      <Link
-        href={`${USERS_PATH}/${user.id}`}
-        aria-label={actions.edit(user.name)}
-        title={actions.edit(user.name)}
-        className={BUTTON}
-      >
-        <Pencil className="size-[18px]" aria-hidden="true" />
-      </Link>
+    <RowActions>
+      <RowActionLink icon={Pencil} label={actions.edit(name)} href={`${USERS_PATH}/${user.id}`} />
       {own ? (
         <>
-          {/* The title only shows on hover; the description reaches screen readers too. */}
-          <button
-            type="button"
-            aria-label={actions.resetPassword(user.name)}
-            aria-describedby={`${reasonId}-reset`}
-            title={ownAccountReasons.resetPassword}
-            disabled
-            className={BUTTON}
-          >
-            <KeyRound className="size-[18px]" aria-hidden="true" />
-          </button>
-          <span id={`${reasonId}-reset`} className="sr-only">
-            {ownAccountReasons.resetPassword}
-          </span>
-          <button
-            type="button"
-            aria-label={actions.remove(user.name)}
-            aria-describedby={`${reasonId}-remove`}
-            title={ownAccountReasons.remove}
-            disabled
-            className={BUTTON}
-          >
-            <Archive className="size-[18px]" aria-hidden="true" />
-          </button>
-          <span id={`${reasonId}-remove`} className="sr-only">
-            {ownAccountReasons.remove}
-          </span>
+          <BlockedRowAction
+            icon={KeyRound}
+            label={actions.resetPassword(name)}
+            reason={ownAccountReasons.resetPassword}
+          />
+          <BlockedRowAction
+            icon={Archive}
+            label={actions.remove(name)}
+            reason={ownAccountReasons.remove}
+          />
         </>
       ) : (
         <>
-          <ConfirmDialog
-            title={confirmResetPassword.title(user.name)}
-            description={confirmResetPassword.description}
-            confirmLabel={confirmResetPassword.confirm}
+          <ConfirmRowAction
+            icon={KeyRound}
+            label={actions.resetPassword(name)}
+            dialog={{ ...confirmResetPassword, title: confirmResetPassword.title(name) }}
             onConfirm={onResetPassword}
-            disabled={pending}
-          >
-            <button
-              type="button"
-              aria-label={actions.resetPassword(user.name)}
-              title={actions.resetPassword(user.name)}
-              disabled={pending}
-              className={BUTTON}
-            >
-              <KeyRound className="size-[18px]" aria-hidden="true" />
-            </button>
-          </ConfirmDialog>
-          <ConfirmDialog
-            title={confirmRemove.title(user.name)}
-            description={confirmRemove.description}
-            confirmLabel={confirmRemove.confirm}
+            pending={pending}
+          />
+          <ConfirmRowAction
+            icon={Archive}
+            label={actions.remove(name)}
+            dialog={{ ...confirmRemove, title: confirmRemove.title(name) }}
             onConfirm={onRemove}
-            disabled={pending}
-          >
-            <button
-              type="button"
-              aria-label={actions.remove(user.name)}
-              title={actions.remove(user.name)}
-              disabled={pending}
-              className={BUTTON}
-            >
-              <Archive className="size-[18px]" aria-hidden="true" />
-            </button>
-          </ConfirmDialog>
+            pending={pending}
+          />
         </>
       )}
-    </span>
+    </RowActions>
   );
 };
