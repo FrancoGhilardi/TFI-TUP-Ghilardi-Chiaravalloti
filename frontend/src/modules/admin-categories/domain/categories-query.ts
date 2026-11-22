@@ -16,12 +16,12 @@ export const CATEGORY_STATES = [
   { value: "todas", label: "Todas", api: "ALL" },
 ] as const;
 
-export type CategoryStateFilter = (typeof CATEGORY_STATES)[number]["value"];
+type CategoryStateFilter = (typeof CATEGORY_STATES)[number]["value"];
 
 const DEFAULT_STATE: CategoryStateFilter = "vigentes";
 
 /** Names of the query parameters of the categories list, in Spanish like every URL of the app. */
-export const CATEGORIES_PARAMS = {
+const CATEGORIES_PARAMS = {
   q: "q",
   state: "estado",
   parent: "padre",

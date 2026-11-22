@@ -4,7 +4,7 @@ import { RadioGroup, RadioGroupItem } from "@/modules/core/ui/primitives/radio-g
 
 import { productPickersText } from "../content/product-form";
 
-export interface ChosenCategory {
+interface ChosenCategory {
   id: string;
   name: string;
 }

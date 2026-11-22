@@ -30,12 +30,12 @@ const profileSchema = z.object({
   createdAt: z.string().pipe(z.coerce.date()).nullish(),
 });
 
-export interface LoginCredentials {
+interface LoginCredentials {
   email: string;
   password: string;
 }
 
-export interface PasswordChange {
+interface PasswordChange {
   currentPassword: string;
   newPassword: string;
 }

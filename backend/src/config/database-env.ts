@@ -21,7 +21,7 @@ export const postgresUrl = z
     message: "Do not set SSL parameters in the URL; use DATABASE_SSL_MODE and DATABASE_SSL_CA",
   });
 
-export const sslModeSchema = z.enum(["disable", "require", "verify-full"]);
+const sslModeSchema = z.enum(["disable", "require", "verify-full"]);
 export type SslMode = z.infer<typeof sslModeSchema>;
 
 export const databaseSslSchema = z.object({

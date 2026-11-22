@@ -3,7 +3,7 @@ import { ADMIN_PATHS, canOpenPanelPath, type UserRole } from "@/modules/auth";
 import { shellContent } from "../content/shell";
 
 export type MenuItemId = keyof typeof shellContent.menu;
-export type MenuGroup = keyof typeof shellContent.groups;
+type MenuGroup = keyof typeof shellContent.groups;
 
 export interface MenuItem {
   id: MenuItemId;
@@ -14,7 +14,7 @@ export interface MenuItem {
   external?: boolean;
 }
 
-export interface MenuSection {
+interface MenuSection {
   group: MenuGroup;
   label: string;
   items: MenuItem[];

@@ -7,7 +7,7 @@ import { searchableTerm } from "../domain/catalog-query";
 import { SEARCH_DEBOUNCE_MS, type SearchSuggestions } from "../domain/search-term";
 import { searchStore } from "../infrastructure/search-api";
 
-export type StoreSearchStatus = "idle" | "loading" | "error" | "success";
+type StoreSearchStatus = "idle" | "loading" | "error" | "success";
 
 export interface StoreSearchState {
   /** What was actually searched: the debounced text, once long enough. */

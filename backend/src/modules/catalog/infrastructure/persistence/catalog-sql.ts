@@ -42,7 +42,7 @@ export const effectivePriceAt = (now: Date): SQL =>
   sql`(CASE WHEN ${saleRunsAt(now)} THEN p.sale_price ELSE p.price END)`;
 
 /** The marks a listing filters by; one left out filters nothing. */
-export interface MarkFilter {
+interface MarkFilter {
   isFeatured?: boolean;
   isOnSale?: boolean;
   isNew?: boolean;

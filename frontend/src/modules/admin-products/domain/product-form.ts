@@ -60,7 +60,7 @@ export const EMPTY_PRODUCT_FORM: ProductFormValues = {
   images: [],
 };
 
-export interface ProductFormContext {
+interface ProductFormContext {
   mode: "create" | "edit";
   now: Date;
   /** Minutes ahead of UTC of the person's zone on a day. */

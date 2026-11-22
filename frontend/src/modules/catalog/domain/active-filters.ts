@@ -2,7 +2,7 @@ import { type CatalogQuery } from "./catalog-query";
 import type { CategoryNode } from "./category";
 import { findCategoryPath } from "./category-tree";
 
-export type ActiveFilterKind = "search" | "category" | "featured" | "newArrivals";
+type ActiveFilterKind = "search" | "category" | "featured" | "newArrivals";
 
 export interface ActiveFilter {
   kind: ActiveFilterKind;

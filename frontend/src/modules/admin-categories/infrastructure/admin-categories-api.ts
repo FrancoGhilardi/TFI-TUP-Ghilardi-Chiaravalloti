@@ -41,7 +41,7 @@ const categoryRowsSchema = z.object({
   totalItems: z.number(),
 });
 
-export interface AdminCategoriesPage {
+interface AdminCategoriesPage {
   /** How many categories match, whatever the page size. */
   total: number;
   items: AdminCategoryRow[];

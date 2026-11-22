@@ -12,7 +12,7 @@ import { ImageStatus } from "../image-status.js";
 export const PRODUCT_IMAGE_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 export type ProductImageMimeType = (typeof PRODUCT_IMAGE_MIME_TYPES)[number];
 
-export interface ProductImageProps {
+interface ProductImageProps {
   id: string;
   productId: string;
   /** From 1, the first one being the main image. */
@@ -35,14 +35,14 @@ export interface ProductImageProps {
 }
 
 /** What processing leaves: the public version and its size in pixels. */
-export interface ProcessedImageInfo {
+interface ProcessedImageInfo {
   publicKey: string;
   width: number;
   height: number;
 }
 
 /** A new original for an existing image. */
-export interface ReplacementOriginal {
+interface ReplacementOriginal {
   originalKey: string;
   mimeType: ProductImageMimeType;
   sizeBytes: number;

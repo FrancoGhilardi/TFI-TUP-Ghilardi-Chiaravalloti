@@ -4,7 +4,7 @@ export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 export const MAX_IMAGES = 5;
 export const MAX_ALT_TEXT_LENGTH = 255;
 
-export type ImageCheck = { ok: true } | { ok: false; reason: "type" | "size" };
+type ImageCheck = { ok: true } | { ok: false; reason: "type" | "size" };
 
 /** Whether a picked file is one the API will take; the API itself looks at the real content. */
 export function checkImageFile({ type, size }: { type: string; size: number }): ImageCheck {

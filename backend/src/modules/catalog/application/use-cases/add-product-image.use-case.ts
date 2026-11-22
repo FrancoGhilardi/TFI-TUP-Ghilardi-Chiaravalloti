@@ -19,7 +19,7 @@ import { loadEditableProduct } from "../services/product-loading.js";
 import type { ProductImageUploader } from "../services/product-image-uploader.js";
 import type { ImageSettings } from "../settings/image-settings.js";
 
-export interface AddProductImageDependencies {
+interface AddProductImageDependencies {
   products: ProductRepository;
   images: ProductImageRepository;
   policy: ProductImagePolicy;

@@ -1,4 +1,4 @@
-export interface ProductCardImage {
+interface ProductCardImage {
   url: string;
   /** Text alternative, never empty: the product title when the image has none. */
   alt: string;

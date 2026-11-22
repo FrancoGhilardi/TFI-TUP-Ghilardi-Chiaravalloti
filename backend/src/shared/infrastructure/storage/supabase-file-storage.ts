@@ -3,10 +3,10 @@ import { FileStorage, StorageBucket } from "../../application/file-storage.js";
 import { STORAGE_BUCKETS } from "./storage-buckets.js";
 
 /** Longest wait for any Storage call, so a stalled provider never holds a request. */
-export const STORAGE_TIMEOUT_MS = 30_000;
+const STORAGE_TIMEOUT_MS = 30_000;
 
 /** A fetch that gives up after the Storage timeout, for the Storage client. */
-export const fetchWithTimeout: typeof fetch = (input, init) =>
+const fetchWithTimeout: typeof fetch = (input, init) =>
   fetch(input, { ...init, signal: AbortSignal.timeout(STORAGE_TIMEOUT_MS) });
 
 /** A Storage client of the project at `url` that acts with `key`, under the Storage timeout. */

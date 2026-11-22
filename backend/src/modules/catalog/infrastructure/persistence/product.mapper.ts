@@ -5,10 +5,10 @@ import { Product } from "../../domain/entities/product.js";
 import { CategoryAssignment } from "../../domain/value-objects/category-assignment.js";
 import { Sku } from "../../domain/value-objects/sku.js";
 
-export type ProductRow = typeof products.$inferSelect;
-export type NewProductRow = typeof products.$inferInsert;
+type ProductRow = typeof products.$inferSelect;
+type NewProductRow = typeof products.$inferInsert;
 
-export interface ProductCategoryRow {
+interface ProductCategoryRow {
   categoryId: string;
   isPrimary: boolean;
 }

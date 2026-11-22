@@ -30,7 +30,7 @@ const userRowsSchema = z.object({
   totalItems: z.number(),
 });
 
-export interface AdminUsersPage {
+interface AdminUsersPage {
   /** How many users match, whatever the page size. */
   total: number;
   items: AdminUserRow[];

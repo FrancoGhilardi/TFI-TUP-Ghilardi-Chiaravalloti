@@ -11,7 +11,7 @@ export interface LeftoverFile {
 /** Long enough to get past a short storage outage, short enough to keep a request waiting. */
 const RETRY_DELAY_MS = 1000;
 
-export interface OriginalImageFile {
+interface OriginalImageFile {
   bytes: Uint8Array;
   mimeType: ProductImageMimeType;
 }

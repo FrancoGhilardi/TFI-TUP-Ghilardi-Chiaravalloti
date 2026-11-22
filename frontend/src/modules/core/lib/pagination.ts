@@ -1,4 +1,4 @@
-export type PaginationItem = { type: "page"; page: number } | { type: "gap"; key: string };
+type PaginationItem = { type: "page"; page: number } | { type: "gap"; key: string };
 
 /** Pages shown on each side of the current one before collapsing the rest into a gap. */
 const NEIGHBORS = 1;

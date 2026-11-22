@@ -1,6 +1,6 @@
 import type { CategoryNode } from "./category";
 
-export interface CategoryPath {
+interface CategoryPath {
   /** From the first-level category down to the selected one, both included. */
   trail: CategoryNode[];
   selected: CategoryNode;

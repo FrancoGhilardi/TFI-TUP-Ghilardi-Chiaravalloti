@@ -1,8 +1,8 @@
 import type { sessions } from "../../../../shared/infrastructure/database/schema/index.js";
 import { Session } from "../../domain/entities/session.js";
 
-export type SessionRow = typeof sessions.$inferSelect;
-export type NewSessionRow = typeof sessions.$inferInsert;
+type SessionRow = typeof sessions.$inferSelect;
+type NewSessionRow = typeof sessions.$inferInsert;
 
 /** Translates between the `sessions` table and the `Session` entity. */
 export const SessionMapper = {

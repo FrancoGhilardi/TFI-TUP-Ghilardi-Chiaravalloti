@@ -20,13 +20,13 @@ export const USER_ROLE_FILTERS = [
   { value: "vendedor", label: "Vendedores", api: "SELLER" },
 ] as const;
 
-export type UserStateFilter = (typeof USER_STATES)[number]["value"];
-export type UserRoleFilter = (typeof USER_ROLE_FILTERS)[number]["value"];
+type UserStateFilter = (typeof USER_STATES)[number]["value"];
+type UserRoleFilter = (typeof USER_ROLE_FILTERS)[number]["value"];
 
 const DEFAULT_STATE: UserStateFilter = "vigentes";
 
 /** Names of the query parameters of the users list, in Spanish like every URL of the app. */
-export const USERS_PARAMS = {
+const USERS_PARAMS = {
   q: "q",
   role: "rol",
   state: "estado",

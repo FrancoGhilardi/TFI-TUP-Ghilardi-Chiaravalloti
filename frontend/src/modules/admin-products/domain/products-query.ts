@@ -18,10 +18,10 @@ export const PRODUCT_STATES = [
   { value: "todos", label: "Todos", api: "ALL" },
 ] as const;
 
-export type ProductStateFilter = (typeof PRODUCT_STATES)[number]["value"];
+type ProductStateFilter = (typeof PRODUCT_STATES)[number]["value"];
 
 /** Columns the table can be sorted by, in the URL and as the API names them. */
-export const PRODUCT_SORTS = [
+const PRODUCT_SORTS = [
   { value: "titulo", api: "TITLE" },
   { value: "sku", api: "SKU" },
   { value: "precio", api: "PRICE" },
@@ -30,17 +30,17 @@ export const PRODUCT_SORTS = [
 ] as const;
 
 export type ProductSort = (typeof PRODUCT_SORTS)[number]["value"];
-export type SortDirection = "asc" | "desc";
+type SortDirection = "asc" | "desc";
 
 const DEFAULT_STATE: ProductStateFilter = "vigentes";
 const DEFAULT_SORT: ProductSort = "modificado";
 
 /** A column starts in the order that makes sense for it: newest first, everything else A to Z. */
-export const defaultDirection = (sort: ProductSort): SortDirection =>
+const defaultDirection = (sort: ProductSort): SortDirection =>
   sort === "modificado" ? "desc" : "asc";
 
 /** Names of the query parameters of the products list, in Spanish like every URL of the app. */
-export const PRODUCTS_PARAMS = {
+const PRODUCTS_PARAMS = {
   q: "q",
   state: "estado",
   category: "categoria",

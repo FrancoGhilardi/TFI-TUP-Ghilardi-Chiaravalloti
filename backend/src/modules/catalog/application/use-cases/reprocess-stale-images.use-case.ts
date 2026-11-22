@@ -8,7 +8,7 @@ import type { ProcessProductImageUseCase } from "./process-product-image.use-cas
 const MINUTE_MS = 60_000;
 
 /** Asked before each image: a run told to stop finishes the one going and starts no other. */
-export type ShouldStop = () => boolean;
+type ShouldStop = () => boolean;
 
 /**
  * Processes again the images still pending after the time a processing should take, such as

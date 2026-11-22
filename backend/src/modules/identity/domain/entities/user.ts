@@ -26,7 +26,7 @@ export interface UserProps {
   deletedAt?: Date;
 }
 
-export interface NewUserProps {
+interface NewUserProps {
   id: string;
   email: Email;
   name: UserName;

@@ -24,7 +24,7 @@ const envSchema = z.object({
   }),
 });
 
-export interface PublicConfig {
+interface PublicConfig {
   /** Base for every API path, such as `https://api.example.com/api/v1`, without a trailing slash. */
   apiBaseUrl: string;
   /** Store WhatsApp number in international format, digits only, as `wa.me` expects it. */

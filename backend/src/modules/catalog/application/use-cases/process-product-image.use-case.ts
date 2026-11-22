@@ -12,12 +12,12 @@ import type { ImageSettings } from "../settings/image-settings.js";
 /** `skipped`: the image was not pending, or stopped being so while it was processed. */
 export type ImageProcessing = "processed" | "skipped";
 
-export interface ProcessProductImageOptions {
+interface ProcessProductImageOptions {
   /** Only an image waiting since then or earlier, as a run over the stalled ones picked it. */
   pendingBefore?: Date;
 }
 
-export interface ProcessProductImageDependencies {
+interface ProcessProductImageDependencies {
   images: ProductImageRepository;
   processor: ImageProcessor;
   keys: ImageKeyFactory;

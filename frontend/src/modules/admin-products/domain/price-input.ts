@@ -2,7 +2,7 @@
 const MAX_INTEGER_DIGITS = 12;
 const PRICE = /^(\d+)(?:[.,](\d{1,2}))?$/;
 
-export type PriceInput =
+type PriceInput =
   | { ok: true; value: string; cents: number }
   | { ok: false; reason: "empty" | "format" | "zero" | "range" };
 

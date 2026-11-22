@@ -2,8 +2,8 @@ import type { productImages } from "../../../../shared/infrastructure/database/s
 import { ProductImage, type ProductImageMimeType } from "../../domain/entities/product-image.js";
 import { ImageStatus } from "../../domain/image-status.js";
 
-export type ProductImageRow = typeof productImages.$inferSelect;
-export type NewProductImageRow = typeof productImages.$inferInsert;
+type ProductImageRow = typeof productImages.$inferSelect;
+type NewProductImageRow = typeof productImages.$inferInsert;
 
 /** Translates between the `product_images` table and `ProductImage`. */
 export const ProductImageMapper = {

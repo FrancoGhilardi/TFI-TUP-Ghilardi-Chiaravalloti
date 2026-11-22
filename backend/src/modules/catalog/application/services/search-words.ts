@@ -1,7 +1,7 @@
 import type { CatalogSettings } from "../settings/catalog-settings.js";
 
 /** What a store search looks for: its words, and them as one text. */
-export interface SearchWords {
+interface SearchWords {
   /** Each once, whatever its case and accents; empty when no word is long enough. */
   words: string[];
   /**

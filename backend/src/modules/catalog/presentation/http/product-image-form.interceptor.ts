@@ -13,7 +13,7 @@ import { IMAGE_ID } from "./image-id.pipe.js";
 import { formError, readMultipart } from "./multipart-form.js";
 import { PRODUCT_ID } from "./product-id.pipe.js";
 
-export const IMAGE_FIELD = "image";
+const IMAGE_FIELD = "image";
 const ALT_TEXT_FIELD = "altText";
 
 // Enough for the longest alt text, even if every character took four bytes.

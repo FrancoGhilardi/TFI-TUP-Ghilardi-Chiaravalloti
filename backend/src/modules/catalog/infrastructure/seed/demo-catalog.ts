@@ -9,7 +9,7 @@ export interface DemoCategory {
   children?: DemoCategory[];
 }
 
-export interface DemoProduct {
+interface DemoProduct {
   title: string;
   slug: string;
   /** Slug of the category the product belongs to, its primary one. */

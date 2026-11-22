@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-export interface SitemapPaths {
+interface SitemapPaths {
   home: string;
   /** Other fixed pages of the store. */
   pages: string[];

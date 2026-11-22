@@ -25,7 +25,7 @@ const ROOT_COLORS: Record<string, string> = {
   regaleria: "#b5838d",
 };
 
-export interface SeedDemoCatalogResult {
+interface SeedDemoCatalogResult {
   status: "created" | "already-exists";
   categories: number;
   products: number;
