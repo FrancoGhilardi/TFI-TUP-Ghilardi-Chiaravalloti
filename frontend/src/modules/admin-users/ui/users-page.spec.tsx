@@ -171,9 +171,9 @@ describe("UsersPage own account", () => {
     });
     const remove = screen.getByRole("button", { name: "Dar de baja a Marta Gómez" });
     expect(reset).toBeDisabled();
-    expect(reset).toHaveAttribute("title", "Para cambiar tu contraseña usá Mi cuenta.");
+    expect(reset).toHaveAccessibleDescription("Para cambiar tu contraseña usá Mi cuenta.");
     expect(remove).toBeDisabled();
-    expect(remove).toHaveAttribute("title", "No podés darte de baja a vos mismo.");
+    expect(remove).toHaveAccessibleDescription("No podés darte de baja a vos mismo.");
   });
 
   it("leaves another user's actions enabled", async () => {

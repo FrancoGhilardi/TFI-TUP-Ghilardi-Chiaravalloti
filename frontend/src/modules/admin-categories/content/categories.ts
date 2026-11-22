@@ -17,10 +17,15 @@ export const categoryFormErrors = {
   fallback: "No pudimos guardar la categoría. Probá de nuevo.",
 } as const;
 
-/** What tells how many things stop a category from being deleted. */
+/** What tells how many things stop a category from being deleted, named after what they are. */
 export const blockedByText = {
-  one: "Hay 1 elemento que la bloquea.",
-  many: (count: number) => `Hay ${count} elementos que la bloquean.`,
+  products: (count: number) =>
+    count === 1 ? "Hay 1 producto que la usa." : `Hay ${count} productos que la usan.`,
+  children: (count: number) =>
+    count === 1 ? "Tiene 1 subcategoría." : `Tiene ${count} subcategorías.`,
+  /** For a refusal whose blockers the panel does not know by name. */
+  other: (count: number) =>
+    count === 1 ? "Hay 1 elemento que la bloquea." : `Hay ${count} elementos que la bloquean.`,
 } as const;
 
 /** Messages that tell the outcome of an action on a category from the list. */

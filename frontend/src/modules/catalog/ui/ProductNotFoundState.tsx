@@ -7,12 +7,14 @@ import { Button } from "@/modules/core/ui/primitives/button";
 import { productDetailContent } from "../content/product-detail";
 import { CATALOG_PATH } from "../domain/product-routes";
 
-/** Shown for a product that does not exist or is not for sale. */
+/**
+ * Shown for a product that does not exist or is not for sale. Next adds `noindex` to every
+ * not-found render, also when it happens after streaming started, so no robots tag goes here.
+ */
 export const ProductNotFoundState = () => {
   const { notFound } = productDetailContent;
   return (
     <PageState
-      noIndex
       icon={PackageSearch}
       title={notFound.title}
       description={notFound.body}

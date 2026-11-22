@@ -61,8 +61,8 @@ describe("CatalogResults", () => {
     );
 
     const [add, soldOut] = [
-      screen.getByRole("button", { name: "Agregar" }),
-      screen.getByRole("button", { name: "Sin stock" }),
+      screen.getByRole("button", { name: "Agregar «Producto 1» al carrito" }),
+      screen.getByRole("button", { name: "Sin stock: «Producto 2»" }),
     ];
     await userEvent.click(add);
 

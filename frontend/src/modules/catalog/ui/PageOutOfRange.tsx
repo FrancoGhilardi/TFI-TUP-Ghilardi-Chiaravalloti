@@ -16,6 +16,7 @@ export const PageOutOfRange = ({ firstPageHref }: PageOutOfRangeProps) => {
   const { outOfRange } = catalogContent;
   return (
     <StatusMessage
+      role={null}
       icon={FileQuestion}
       title={outOfRange.title}
       actions={

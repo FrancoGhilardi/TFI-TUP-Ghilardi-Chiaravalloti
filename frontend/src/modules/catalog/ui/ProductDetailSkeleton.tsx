@@ -2,6 +2,7 @@ import { Container } from "@/modules/core/ui/Container";
 import { Skeleton } from "@/modules/core/ui/Skeleton";
 
 import { productDetailContent } from "../content/product-detail";
+import { GALLERY_WIDTH } from "./gallery-width";
 
 /** Grey blocks shaped like the product page, while the product is read. */
 export const ProductDetailSkeleton = () => {
@@ -11,9 +12,9 @@ export const ProductDetailSkeleton = () => {
       <div className="flex flex-col gap-5">
         <Skeleton className="h-4 w-56" />
         <div className="grid items-start gap-8 nav:grid-cols-2 nav:gap-12">
-          <Skeleton className="aspect-square" />
+          <Skeleton className={`aspect-4/5 ${GALLERY_WIDTH}`} />
           <div className="flex flex-col gap-4">
-            <Skeleton className="h-10 w-3/4" />
+            <Skeleton className="h-9 w-3/4" />
             <Skeleton className="h-8 w-32" />
             <Skeleton className="h-4" />
             <Skeleton className="h-4" />

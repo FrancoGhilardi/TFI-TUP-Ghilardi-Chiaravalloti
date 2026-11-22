@@ -18,7 +18,10 @@ interface CatalogResultsProps {
   tree: CategoryNode[];
 }
 
-/** The products for the query, or the state that replaces them. */
+/**
+ * The products for the query, or the state that replaces them. The states are not live regions:
+ * `ResultsAnnouncement` already reads out every outcome, and a second region would repeat it.
+ */
 export const CatalogResults = ({ view, query, tree }: CatalogResultsProps) => {
   switch (view.kind) {
     case "error":

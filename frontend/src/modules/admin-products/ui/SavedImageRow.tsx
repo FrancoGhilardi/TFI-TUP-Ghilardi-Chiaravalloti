@@ -106,6 +106,7 @@ export const SavedImageRow = ({
         {total === 1 && <p className="text-sm text-ink-soft">{savedImagesText.onlyOne}</p>}
       </div>
       <ImageRowButtons
+        index={index}
         name={name}
         isFirst={index === 0}
         isLast={index === total - 1}

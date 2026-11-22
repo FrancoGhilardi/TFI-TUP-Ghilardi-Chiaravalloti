@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { renderToString } from "react-dom/server";
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -92,20 +93,20 @@ describe("cart store", () => {
   it("syncs a product in the cart and keeps the notice out of the storage", () => {
     useCartStore.getState().add(product(), 4);
 
-    useCartStore.getState().sync(product({ stock: 2 }));
+    const notice = useCartStore.getState().sync(product({ stock: 2 }));
+    useCartStore.getState().showSyncNotice(notice);
 
     expect(useCartStore.getState().items[0].quantity).toBe(2);
-    expect(useCartStore.getState().syncNotice).toMatchObject({ kind: "adjusted", quantity: 2 });
+    expect(notice).toMatchObject({ kind: "adjusted", quantity: 2 });
+    expect(useCartStore.getState().syncNotice).toEqual(notice);
     expect(JSON.stringify(storedCart())).not.toContain("syncNotice");
   });
 
-  it("clears the notice when a later sync has nothing to say", () => {
+  it("has nothing to say when a later sync finds the copy up to date", () => {
     useCartStore.getState().add(product(), 4);
     useCartStore.getState().sync(product({ stock: 2 }));
 
-    useCartStore.getState().sync(product({ stock: 2 }));
-
-    expect(useCartStore.getState().syncNotice).toBeNull();
+    expect(useCartStore.getState().sync(product({ stock: 2 }))).toBeNull();
   });
 });
 
@@ -185,6 +186,24 @@ describe("useCartSync", () => {
     rerender({ stock: 2 });
 
     expect(useCartStore.getState().syncNotice).not.toBeNull();
+  });
+
+  it("keeps the notice when the effect runs twice, as in strict mode", () => {
+    useCartStore.getState().add(product(), 4);
+
+    renderHook(() => useCartSync(product({ stock: 2 })), { wrapper: StrictMode });
+
+    expect(useCartStore.getState().items[0].quantity).toBe(2);
+    expect(useCartStore.getState().syncNotice).toMatchObject({ kind: "adjusted", quantity: 2 });
+  });
+
+  it("keeps the notice of a product taken out when the effect runs twice", () => {
+    useCartStore.getState().add(product(), 4);
+
+    renderHook(() => useCartSync(product({ stock: 0 })), { wrapper: StrictMode });
+
+    expect(useCartStore.getState().items).toEqual([]);
+    expect(useCartStore.getState().syncNotice).toMatchObject({ kind: "removed" });
   });
 
   it("drops the notice when the page closes", () => {

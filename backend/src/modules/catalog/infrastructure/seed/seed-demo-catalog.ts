@@ -139,6 +139,7 @@ export async function seedDemoCatalog(
           id,
           title: product.title,
           slug: product.slug,
+          description: product.description,
           price: product.price,
           salePrice: product.salePrice ?? null,
           isOnSale: product.salePrice !== undefined,

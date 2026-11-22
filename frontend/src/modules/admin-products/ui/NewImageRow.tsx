@@ -46,6 +46,7 @@ export const NewImageRow = ({ index, total, id, file, onMove, onRemove }: NewIma
         />
       </div>
       <ImageRowButtons
+        index={index}
         name={file.name}
         isFirst={index === 0}
         isLast={index === total - 1}

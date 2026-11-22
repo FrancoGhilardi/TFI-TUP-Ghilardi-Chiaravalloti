@@ -1,5 +1,6 @@
 import { Archive, KeyRound, Pencil, RotateCcw } from "lucide-react";
 import Link from "next/link";
+import { useId } from "react";
 
 import { ConfirmDialog } from "@/modules/core/ui/ConfirmDialog";
 
@@ -32,6 +33,7 @@ export const UserRowActions = ({
   onResetPassword,
 }: UserRowActionsProps) => {
   const { actions, confirmRemove, confirmResetPassword } = usersContent;
+  const reasonId = useId();
 
   if (userState(user) === "deleted") {
     return (
@@ -61,24 +63,33 @@ export const UserRowActions = ({
       </Link>
       {own ? (
         <>
+          {/* The title only shows on hover; the description reaches screen readers too. */}
           <button
             type="button"
             aria-label={actions.resetPassword(user.name)}
+            aria-describedby={`${reasonId}-reset`}
             title={ownAccountReasons.resetPassword}
             disabled
             className={BUTTON}
           >
             <KeyRound className="size-[18px]" aria-hidden="true" />
           </button>
+          <span id={`${reasonId}-reset`} className="sr-only">
+            {ownAccountReasons.resetPassword}
+          </span>
           <button
             type="button"
             aria-label={actions.remove(user.name)}
+            aria-describedby={`${reasonId}-remove`}
             title={ownAccountReasons.remove}
             disabled
             className={BUTTON}
           >
             <Archive className="size-[18px]" aria-hidden="true" />
           </button>
+          <span id={`${reasonId}-remove`} className="sr-only">
+            {ownAccountReasons.remove}
+          </span>
         </>
       ) : (
         <>

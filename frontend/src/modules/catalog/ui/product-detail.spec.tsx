@@ -133,15 +133,49 @@ describe("ProductGallery", () => {
     expect(first).not.toHaveAttribute("aria-current");
   });
 
-  it("works from the keyboard", async () => {
+  it("works from the keyboard, the arrows first and then the thumbnails", async () => {
     const user = userEvent.setup();
     render(<ProductGallery images={[image("i1"), image("i2")]} />);
 
     await user.tab();
+    expect(screen.getByRole("button", { name: "Foto anterior" })).toHaveFocus();
     await user.tab();
+    await user.tab();
+    await user.tab();
+    expect(screen.getByRole("button", { name: "Ver foto 2 de 2" })).toHaveFocus();
     await user.keyboard("{Enter}");
 
     expect(screen.getByRole("img", { name: "Foto i2" })).toBeInTheDocument();
+  });
+
+  it("goes to the next and the previous photo with the arrows, round the ends", async () => {
+    const user = userEvent.setup();
+    render(<ProductGallery images={[image("i1"), image("i2"), image("i3")]} />);
+    const next = screen.getByRole("button", { name: "Foto siguiente" });
+    const previous = screen.getByRole("button", { name: "Foto anterior" });
+
+    await user.click(next);
+    expect(screen.getByRole("img", { name: "Foto i2" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ver foto 2 de 3" })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+
+    await user.click(next);
+    await user.click(next);
+    expect(screen.getByRole("img", { name: "Foto i1" })).toBeInTheDocument();
+
+    await user.click(previous);
+    expect(screen.getByRole("img", { name: "Foto i3" })).toBeInTheDocument();
+  });
+
+  it("tells screen readers which photo is shown after an arrow changes it", async () => {
+    const user = userEvent.setup();
+    render(<ProductGallery images={[image("i1"), image("i2"), image("i3")]} />);
+
+    await user.click(screen.getByRole("button", { name: "Foto siguiente" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent("Foto 2 de 3");
   });
 
   it("loads only the first photo with priority", async () => {
@@ -156,7 +190,7 @@ describe("ProductGallery", () => {
     expect(main()?.getAttribute("loading")).toBe("lazy");
   });
 
-  it("shows no thumbnails for a single photo", () => {
+  it("shows no thumbnails nor arrows for a single photo", () => {
     render(<ProductGallery images={[image("i1")]} />);
 
     expect(screen.queryByRole("button")).not.toBeInTheDocument();

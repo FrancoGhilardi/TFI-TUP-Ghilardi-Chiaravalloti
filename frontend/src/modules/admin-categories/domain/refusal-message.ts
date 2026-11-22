@@ -11,6 +11,11 @@ export function blockedCount(error: unknown): number | undefined {
   return typeof count === "number" ? count : undefined;
 }
 
+const BLOCKERS: Record<string, (count: number) => string> = {
+  CATEGORY_IN_USE: blockedByText.products,
+  CATEGORY_HAS_ACTIVE_CHILDREN: blockedByText.children,
+};
+
 /** What to tell when the API refuses an action: its reason and, if it has it, how many block it. */
 export function refusalMessage(error: unknown, fallback: string): string {
   if (!(error instanceof ApiError)) {
@@ -20,5 +25,6 @@ export function refusalMessage(error: unknown, fallback: string): string {
   if (count === undefined) {
     return error.message;
   }
-  return `${error.message} ${count === 1 ? blockedByText.one : blockedByText.many(count)}`;
+  const blockers = BLOCKERS[error.code] ?? blockedByText.other;
+  return `${error.message} ${blockers(count)}`;
 }

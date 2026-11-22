@@ -341,7 +341,7 @@ describe("CategoriesPage delete", () => {
 
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith(
-        "Es la única categoría de algunos productos. Hay 2 elementos que la bloquean.",
+        "Es la única categoría de algunos productos. Hay 2 productos que la usan.",
       ),
     );
     expect(screen.getByText("Librería")).toBeInTheDocument();

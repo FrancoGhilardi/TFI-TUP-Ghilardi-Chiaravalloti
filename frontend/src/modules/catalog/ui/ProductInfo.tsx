@@ -20,7 +20,7 @@ export const ProductInfo = ({ product }: ProductInfoProps) => {
     <div className="flex flex-col items-start gap-5">
       <div>
         {product.category && <Eyebrow>{product.category.name}</Eyebrow>}
-        <h1 className="mt-2 text-display font-semibold">{product.title}</h1>
+        <h1 className="mt-2 text-title font-semibold">{product.title}</h1>
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <ProductPrice size="detail" {...product} />
