@@ -1,10 +1,16 @@
 import { ADMIN_PATHS } from "@/modules/auth";
-import { parsePage, readParam, type SearchParamsReader } from "@/modules/core/lib/list-query";
+import {
+  listHref,
+  paramPairs,
+  parsePage,
+  readParam,
+  type SearchParamsReader,
+  SEARCH_MAX_LENGTH,
+} from "@/modules/core/lib/list-query";
 
 export const PRODUCTS_PATH = ADMIN_PATHS.products;
 export const PRODUCTS_PAGE_SIZE = 20;
 
-export const SEARCH_MAX_LENGTH = 100;
 /** Biggest stock the API accepts. */
 const MAX_STOCK = 2_147_483_647;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -145,9 +151,7 @@ function paramEntries(query: ProductsQuery): [string, string][] {
     ["direction", query.direction === defaultDirection(query.sort) ? undefined : query.direction],
     ["page", query.page === 1 ? undefined : String(query.page)],
   ];
-  return entries
-    .filter((entry): entry is [keyof typeof PRODUCTS_PARAMS, string] => entry[1] !== undefined)
-    .map(([param, value]) => [PRODUCTS_PARAMS[param], value]);
+  return paramPairs(PRODUCTS_PARAMS, entries);
 }
 
 /**
@@ -156,8 +160,7 @@ function paramEntries(query: ProductsQuery): [string, string][] {
  */
 export function productsHref(query: ProductsQuery, changes: Partial<ProductsQuery> = {}): string {
   const next: ProductsQuery = { ...query, ...changes, page: changes.page ?? 1 };
-  const search = new URLSearchParams(paramEntries(next)).toString();
-  return search ? `${PRODUCTS_PATH}?${search}` : PRODUCTS_PATH;
+  return listHref(PRODUCTS_PATH, paramEntries(next));
 }
 
 /** What to change to sort by `column`: flip the order if it already is the column, else start it. */

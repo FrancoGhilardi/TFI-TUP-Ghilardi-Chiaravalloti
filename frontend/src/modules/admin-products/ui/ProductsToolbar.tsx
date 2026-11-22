@@ -1,4 +1,5 @@
 import { useCategoryOptions } from "@/modules/admin-categories";
+import { SEARCH_MAX_LENGTH } from "@/modules/core/lib/list-query";
 import { Button } from "@/modules/core/ui/primitives/button";
 
 import { productsContent } from "../content/products";
@@ -7,7 +8,6 @@ import {
   isFiltered,
   PRODUCT_STATES,
   type ProductsQuery,
-  SEARCH_MAX_LENGTH,
 } from "../domain/products-query";
 import { FilterSelect, type FilterOption } from "@/modules/core/ui/FilterSelect";
 import { SearchField } from "@/modules/core/ui/SearchField";

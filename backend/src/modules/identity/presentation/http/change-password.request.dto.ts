@@ -1,6 +1,9 @@
 import { IsNotEmpty, IsString, MaxLength } from "class-validator";
 import type { ChangePasswordCommand } from "../../application/dto/change-password.command.js";
-import { PASSWORD_INPUT_MAX_LENGTH, TOO_LONG_MESSAGE } from "./request-limits.js";
+import {
+  PASSWORD_INPUT_MAX_LENGTH,
+  TOO_LONG_MESSAGE,
+} from "../../../../shared/presentation/http/request-limits.js";
 
 /**
  * Only shape and size are checked, and neither password is trimmed: the policy for the new

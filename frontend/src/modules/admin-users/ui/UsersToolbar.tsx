@@ -1,3 +1,4 @@
+import { SEARCH_MAX_LENGTH } from "@/modules/core/lib/list-query";
 import { Button } from "@/modules/core/ui/primitives/button";
 import { FilterSelect } from "@/modules/core/ui/FilterSelect";
 import { SearchField } from "@/modules/core/ui/SearchField";
@@ -6,7 +7,6 @@ import { usersContent } from "../content/users";
 import {
   clearedFilters,
   isFiltered,
-  SEARCH_MAX_LENGTH,
   USER_ROLE_FILTERS,
   USER_STATES,
   type UsersQuery,

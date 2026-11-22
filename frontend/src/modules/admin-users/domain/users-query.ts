@@ -1,9 +1,15 @@
 import { ADMIN_PATHS } from "@/modules/auth";
-import { parsePage, readParam, type SearchParamsReader } from "@/modules/core/lib/list-query";
+import {
+  listHref,
+  paramPairs,
+  parsePage,
+  readParam,
+  type SearchParamsReader,
+  parseSearch,
+} from "@/modules/core/lib/list-query";
 
 export const USERS_PATH = ADMIN_PATHS.users;
 export const USERS_PAGE_SIZE = 20;
-export const SEARCH_MAX_LENGTH = 100;
 
 /** States to list: the value in the URL, the label shown and the value the API expects. */
 export const USER_STATES = [
@@ -67,7 +73,7 @@ export function parseUsersQuery(params: SearchParamsReader): UsersQuery {
   const state = read("state");
 
   return {
-    q: q?.slice(0, SEARCH_MAX_LENGTH).trim() || undefined,
+    q: parseSearch(q),
     role: isRole(role) ? role : undefined,
     state: isState(state) ? state : DEFAULT_STATE,
     page: parsePage(read("page")),
@@ -82,9 +88,7 @@ function paramEntries(query: UsersQuery): [string, string][] {
     ["state", query.state === DEFAULT_STATE ? undefined : query.state],
     ["page", query.page === 1 ? undefined : String(query.page)],
   ];
-  return entries
-    .filter((entry): entry is [keyof typeof USERS_PARAMS, string] => entry[1] !== undefined)
-    .map(([param, value]) => [USERS_PARAMS[param], value]);
+  return paramPairs(USERS_PARAMS, entries);
 }
 
 /**
@@ -93,8 +97,7 @@ function paramEntries(query: UsersQuery): [string, string][] {
  */
 export function usersHref(query: UsersQuery, changes: Partial<UsersQuery> = {}): string {
   const next: UsersQuery = { ...query, ...changes, page: changes.page ?? 1 };
-  const search = new URLSearchParams(paramEntries(next)).toString();
-  return search ? `${USERS_PATH}?${search}` : USERS_PATH;
+  return listHref(USERS_PATH, paramEntries(next));
 }
 
 /** Whether anything narrows the list: a search, a role or another state than the default. */

@@ -6,8 +6,8 @@ import {
   EMAIL_INPUT_MAX_LENGTH,
   PASSWORD_INPUT_MAX_LENGTH,
   TOO_LONG_MESSAGE,
-} from "./request-limits.js";
-import { trimString } from "./request-transforms.js";
+} from "../../../../shared/presentation/http/request-limits.js";
+import { trimString } from "../../../../shared/presentation/http/request-transforms.js";
 
 /**
  * A new panel user. The name length and the password policy are checked by the domain, in

@@ -1,11 +1,9 @@
 import { Transform } from "class-transformer";
-import { IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from "class-validator";
-import { RecordStatusFilter, SortDirection } from "../../../../shared/application/pagination.js";
-import { PageRequestDto } from "../../../../shared/presentation/http/page-request.dto.js";
+import { IsEnum, IsInt, IsOptional, IsUUID, Max, Min } from "class-validator";
+import { SortDirection } from "../../../../shared/application/pagination.js";
+import { ListRequestDto } from "../../../../shared/presentation/http/list-request.dto.js";
 import { IsQueryBoolean } from "../../../../shared/presentation/http/query-boolean.js";
 import { queryInteger } from "../../../../shared/presentation/http/query-transforms.js";
-import { TOO_LONG_MESSAGE } from "../../../identity/presentation/http/request-limits.js";
-import { trimString } from "../../../identity/presentation/http/request-transforms.js";
 import {
   AdminProductSortField,
   type ListAdminProductsQuery,
@@ -16,25 +14,11 @@ import { lowerCaseIds } from "./product-request-rules.js";
 const STOCK_MESSAGE = `El stock máximo tiene que ser un número entero entre 0 y ${STOCK_MAX}.`;
 
 /** Query string of the products listing; whatever is left out takes the default. */
-export class ListAdminProductsRequestDto extends PageRequestDto implements ListAdminProductsQuery {
-  @IsOptional()
-  // Trimmed once here; a blank search searches nothing, as if it were not sent.
-  @Transform((params) => {
-    const value = trimString(params);
-    return value === "" ? undefined : value;
-  })
-  @IsString({ message: "La búsqueda tiene que ser un texto." })
-  @MaxLength(100, { message: TOO_LONG_MESSAGE })
-  q?: string;
-
+export class ListAdminProductsRequestDto extends ListRequestDto implements ListAdminProductsQuery {
   @IsOptional()
   @Transform(lowerCaseIds)
   @IsUUID("all", { message: "Elegí una categoría válida." })
   categoryId?: string;
-
-  @IsOptional()
-  @IsEnum(RecordStatusFilter, { message: "Elegí un estado válido." })
-  status?: RecordStatusFilter;
 
   @IsQueryBoolean()
   isFeatured?: boolean;

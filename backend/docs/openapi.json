@@ -1329,33 +1329,10 @@
           },
           {
             "in": "query",
-            "name": "q",
-            "required": false,
-            "schema": {
-              "maxLength": 100,
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
             "name": "parentId",
             "required": false,
             "schema": {
               "format": "uuid",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "status",
-            "required": false,
-            "schema": {
-              "enum": [
-                "ACTIVE",
-                "INACTIVE",
-                "DELETED",
-                "ALL"
-              ],
               "type": "string"
             }
           },
@@ -1369,6 +1346,29 @@
                 "SORT_ORDER",
                 "CREATED_AT",
                 "UPDATED_AT"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "ACTIVE",
+                "INACTIVE",
+                "DELETED",
+                "ALL"
               ],
               "type": "string"
             }
@@ -1982,33 +1982,10 @@
           },
           {
             "in": "query",
-            "name": "q",
-            "required": false,
-            "schema": {
-              "maxLength": 100,
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
             "name": "categoryId",
             "required": false,
             "schema": {
               "format": "uuid",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "status",
-            "required": false,
-            "schema": {
-              "enum": [
-                "ACTIVE",
-                "INACTIVE",
-                "DELETED",
-                "ALL"
-              ],
               "type": "string"
             }
           },
@@ -2070,6 +2047,29 @@
               "enum": [
                 "ASC",
                 "DESC"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "ACTIVE",
+                "INACTIVE",
+                "DELETED",
+                "ALL"
               ],
               "type": "string"
             }
@@ -3497,15 +3497,6 @@
           },
           {
             "in": "query",
-            "name": "q",
-            "required": false,
-            "schema": {
-              "maxLength": 100,
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
             "name": "role",
             "required": false,
             "schema": {
@@ -3513,6 +3504,15 @@
                 "ADMIN",
                 "SELLER"
               ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "maxLength": 100,
               "type": "string"
             }
           },

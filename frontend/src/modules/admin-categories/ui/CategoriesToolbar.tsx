@@ -1,4 +1,5 @@
 import { useCategoryOptions } from "../application/useCategoryOptions";
+import { SEARCH_MAX_LENGTH } from "@/modules/core/lib/list-query";
 import { Button } from "@/modules/core/ui/primitives/button";
 import { type FilterOption, FilterSelect } from "@/modules/core/ui/FilterSelect";
 import { SearchField } from "@/modules/core/ui/SearchField";
@@ -9,7 +10,6 @@ import {
   type CategoriesQuery,
   clearedFilters,
   isFiltered,
-  SEARCH_MAX_LENGTH,
 } from "../domain/categories-query";
 import { idsWithChildren } from "../domain/category-tree";
 

@@ -13,7 +13,7 @@ import {
   ValidateIf,
 } from "class-validator";
 import { RELATED_PRODUCTS_MAX } from "../../domain/catalog-limits.js";
-import { trimString } from "../../../identity/presentation/http/request-transforms.js";
+import { trimString } from "../../../../shared/presentation/http/request-transforms.js";
 import {
   DECIMAL,
   isPresent,

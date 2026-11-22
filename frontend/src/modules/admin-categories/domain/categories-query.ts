@@ -1,10 +1,16 @@
 import { ADMIN_PATHS } from "@/modules/auth";
-import { parsePage, readParam, type SearchParamsReader } from "@/modules/core/lib/list-query";
+import {
+  listHref,
+  paramPairs,
+  parsePage,
+  readParam,
+  type SearchParamsReader,
+  parseSearch,
+} from "@/modules/core/lib/list-query";
 
 export const CATEGORIES_PATH = ADMIN_PATHS.categories;
 export const CATEGORIES_PAGE_SIZE = 50;
 
-export const SEARCH_MAX_LENGTH = 100;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** States to list: the value in the URL, the label shown and the value the API expects. */
@@ -59,7 +65,7 @@ export function parseCategoriesQuery(params: SearchParamsReader): CategoriesQuer
   const parent = read("parent")?.toLowerCase();
 
   return {
-    q: q?.slice(0, SEARCH_MAX_LENGTH).trim() || undefined,
+    q: parseSearch(q),
     state: isState(state) ? state : DEFAULT_STATE,
     parent: parent && UUID.test(parent) ? parent : undefined,
     page: parsePage(read("page")),
@@ -74,9 +80,7 @@ function paramEntries(query: CategoriesQuery): [string, string][] {
     ["parent", query.parent],
     ["page", query.page === 1 ? undefined : String(query.page)],
   ];
-  return entries
-    .filter((entry): entry is [keyof typeof CATEGORIES_PARAMS, string] => entry[1] !== undefined)
-    .map(([param, value]) => [CATEGORIES_PARAMS[param], value]);
+  return paramPairs(CATEGORIES_PARAMS, entries);
 }
 
 /**
@@ -88,8 +92,7 @@ export function categoriesHref(
   changes: Partial<CategoriesQuery> = {},
 ): string {
   const next: CategoriesQuery = { ...query, ...changes, page: changes.page ?? 1 };
-  const search = new URLSearchParams(paramEntries(next)).toString();
-  return search ? `${CATEGORIES_PATH}?${search}` : CATEGORIES_PATH;
+  return listHref(CATEGORIES_PATH, paramEntries(next));
 }
 
 /** Whether anything narrows the list: a search, a location or another state than the default. */
