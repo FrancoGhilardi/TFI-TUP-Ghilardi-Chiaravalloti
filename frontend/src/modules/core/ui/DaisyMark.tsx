@@ -1,7 +1,6 @@
 import { cn } from "@/modules/core/lib/utils";
 
-const PETAL_COUNT = 11;
-const PETAL_ANGLES = Array.from({ length: PETAL_COUNT }, (_, index) => (index * 360) / PETAL_COUNT);
+import { DaisyBloom } from "./DaisyBloom";
 
 interface DaisyMarkProps {
   size?: number;
@@ -25,22 +24,7 @@ export const DaisyMark = ({ size = 40, className }: DaisyMarkProps) => {
         strokeWidth={6.5}
         strokeLinecap="round"
       />
-      <g transform="translate(0 -4)">
-        {PETAL_ANGLES.map((angle) => (
-          <ellipse
-            key={angle}
-            cx={50}
-            cy={27}
-            rx={6.6}
-            ry={13}
-            transform={`rotate(${angle} 50 50)`}
-            className="fill-white stroke-line"
-            strokeWidth={1}
-          />
-        ))}
-        <circle cx={50} cy={50} r={11} className="fill-gold" />
-        <circle cx={50} cy={50} r={6} className="fill-gold-deep" />
-      </g>
+      <DaisyBloom transform="translate(0 -4)" />
     </svg>
   );
 };

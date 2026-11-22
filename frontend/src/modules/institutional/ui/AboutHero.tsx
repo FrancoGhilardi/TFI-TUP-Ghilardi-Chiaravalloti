@@ -1,11 +1,11 @@
 import Link from "next/link";
 
-import { DaisyMark } from "@/modules/core/ui/DaisyMark";
 import { Eyebrow } from "@/modules/core/ui/Eyebrow";
 import { Button } from "@/modules/core/ui/primitives/button";
 import { ScriptWord } from "@/modules/core/ui/ScriptWord";
 
 import { aboutContent } from "../content/about";
+import { AboutIllustration } from "./AboutIllustration";
 import { InquiryButton } from "./InquiryButton";
 
 const HEADING_ID = "sobre-nosotros-historia";
@@ -37,7 +37,9 @@ export const AboutHero = () => {
           </Button>
         </div>
       </div>
-      <DaisyMark size={300} className="mx-auto hidden w-full max-w-75 min-[781px]:block" />
+      <div className="mx-auto hidden aspect-square w-full max-w-95 min-[781px]:block">
+        <AboutIllustration />
+      </div>
     </section>
   );
 };
