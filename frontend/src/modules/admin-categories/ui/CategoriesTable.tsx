@@ -1,3 +1,7 @@
+import { ActionsHeaderCell } from "@/modules/core/ui/ActionsHeaderCell";
+import { HeaderCell } from "@/modules/core/ui/HeaderCell";
+import { ListTable } from "@/modules/core/ui/ListTable";
+
 import { categoriesContent } from "../content/categories";
 import type { AdminCategoryRow } from "../domain/admin-category";
 import { CategoryRow } from "./CategoryRow";
@@ -14,7 +18,6 @@ interface CategoriesTableProps {
   onRestore: (id: string) => void;
 }
 
-/** A table from the medium width; below it every row is a card with the same information. */
 export const CategoriesTable = ({
   categories,
   indented,
@@ -25,50 +28,34 @@ export const CategoriesTable = ({
   onRestore,
 }: CategoriesTableProps) => {
   const { caption, columns } = categoriesContent.table;
-  const head = "px-3 py-3 font-semibold text-ink-soft";
 
   return (
-    <table className="w-full text-sm max-md:block">
-      <caption className="sr-only">{caption}</caption>
-      <thead className="max-md:sr-only">
-        <tr className="text-xs tracking-wide uppercase">
-          <th scope="col" className={`${head} text-left`}>
-            {columns.category}
-          </th>
-          <th scope="col" className={`${head} text-left`}>
-            {columns.location}
-          </th>
-          <th scope="col" className={`${head} text-right`}>
-            {columns.products}
-          </th>
-          <th scope="col" className={`${head} text-right`}>
-            {columns.order}
-          </th>
-          <th scope="col" className={`${head} text-left`}>
-            {columns.state}
-          </th>
-          <th scope="col" className={`${head} text-left`}>
-            {columns.modified}
-          </th>
-          <th scope="col" className="px-3 py-3">
-            <span className="sr-only">{columns.actions}</span>
-          </th>
-        </tr>
-      </thead>
-      <tbody className="max-md:block max-md:space-y-3 max-md:p-3">
-        {categories.map((category) => (
-          <CategoryRow
-            key={category.id}
-            category={category}
-            indented={indented}
-            hidden={hiddenIds.has(category.id)}
-            readAt={readAt}
-            pending={isPending(category.id)}
-            onRemove={() => onRemove(category.id)}
-            onRestore={() => onRestore(category.id)}
-          />
-        ))}
-      </tbody>
-    </table>
+    <ListTable
+      caption={caption}
+      head={
+        <>
+          <HeaderCell>{columns.category}</HeaderCell>
+          <HeaderCell>{columns.location}</HeaderCell>
+          <HeaderCell numeric>{columns.products}</HeaderCell>
+          <HeaderCell numeric>{columns.order}</HeaderCell>
+          <HeaderCell>{columns.state}</HeaderCell>
+          <HeaderCell>{columns.modified}</HeaderCell>
+          <ActionsHeaderCell label={columns.actions} />
+        </>
+      }
+    >
+      {categories.map((category) => (
+        <CategoryRow
+          key={category.id}
+          category={category}
+          indented={indented}
+          hidden={hiddenIds.has(category.id)}
+          readAt={readAt}
+          pending={isPending(category.id)}
+          onRemove={() => onRemove(category.id)}
+          onRestore={() => onRestore(category.id)}
+        />
+      ))}
+    </ListTable>
   );
 };

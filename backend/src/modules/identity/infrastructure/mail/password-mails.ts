@@ -24,7 +24,7 @@ interface PasswordMailInput {
   loginUrl: string;
 }
 
-export interface TemporaryPasswordMailInput extends PasswordMailInput {
+interface TemporaryPasswordMailInput extends PasswordMailInput {
   expiresAt: Date;
 }
 

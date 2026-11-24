@@ -3,7 +3,7 @@ export const siteConfig = {
   name: "Librería Mi Sueño",
   tagline: "Cerca tuyo, en cada sueño",
   description:
-    "Tu librería de barrio en Mendoza. Libros, útiles, artística, impresiones y Rapipago. Reservá por WhatsApp y pasá a buscarlo.",
+    "Tu librería de barrio. Libros, útiles, artística, impresiones y Rapipago. Reservá por WhatsApp y pasá a buscarlo.",
   instagramUrl: "https://www.instagram.com/libreria_misueno/",
   address: "San Martín 204, B6451XAC San Carlos, Mendoza",
   /** The store on Google Maps, as its listing shares it. */

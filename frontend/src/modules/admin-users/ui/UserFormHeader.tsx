@@ -1,5 +1,6 @@
 import { Archive, ArrowLeft, KeyRound } from "lucide-react";
 import Link from "next/link";
+import { useId } from "react";
 
 import { formatDate } from "@/modules/core/formatters/date-time";
 import { formatRelativeTime } from "@/modules/core/formatters/relative-time";
@@ -27,6 +28,7 @@ export const UserFormHeader = ({ user, own }: UserFormHeaderProps) => {
   const { confirmRemove, confirmResetPassword } = usersContent;
   const state = user ? userState(user) : undefined;
   const pending = user ? isPending(user.id) : false;
+  const reasonId = useId();
 
   return (
     <header className="flex flex-wrap items-start justify-between gap-4">
@@ -65,15 +67,24 @@ export const UserFormHeader = ({ user, own }: UserFormHeaderProps) => {
                 type="button"
                 variant="outline"
                 disabled
-                title={ownAccountReasons.resetPassword}
+                aria-describedby={`${reasonId}-reset`}
               >
                 <KeyRound aria-hidden="true" />
                 {userFormText.resetPassword}
               </Button>
-              <Button type="button" variant="outline" disabled title={ownAccountReasons.remove}>
+              <Button
+                type="button"
+                variant="outline"
+                disabled
+                aria-describedby={`${reasonId}-remove`}
+              >
                 <Archive aria-hidden="true" />
                 {userFormText.remove}
               </Button>
+              <p className="w-full text-sm text-ink-soft">
+                <span id={`${reasonId}-reset`}>{ownAccountReasons.resetPassword}</span>{" "}
+                <span id={`${reasonId}-remove`}>{ownAccountReasons.remove}</span>
+              </p>
             </>
           ) : (
             <>

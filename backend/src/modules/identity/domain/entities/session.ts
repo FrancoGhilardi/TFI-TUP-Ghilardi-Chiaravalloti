@@ -15,7 +15,7 @@ export interface SessionProps {
   createdAt: Date;
 }
 
-export interface NewSessionProps {
+interface NewSessionProps {
   id: string;
   userId: string;
   refreshTokenHash: string;

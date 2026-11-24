@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowUp, X } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 
 import { ConfirmDialog } from "@/modules/core/ui/ConfirmDialog";
 
@@ -10,6 +10,8 @@ const BUTTON =
 
 interface ImageRowButtonsProps {
   name: string;
+  /** Place of the image in the list, to follow it with the focus when it moves. */
+  index: number;
   isFirst: boolean;
   isLast: boolean;
   onUp: () => void;
@@ -27,6 +29,7 @@ interface ImageRowButtonsProps {
 /** The ways to move an image without dragging it, and to take it off. */
 export const ImageRowButtons = ({
   name,
+  index,
   isFirst,
   isLast,
   onUp,
@@ -38,9 +41,38 @@ export const ImageRowButtons = ({
   confirmRemove,
 }: ImageRowButtonsProps) => {
   const { moveUp, moveDown, remove } = productImagesText;
+  const up = useRef<HTMLButtonElement>(null);
+  const down = useRef<HTMLButtonElement>(null);
+  // The arrow pressed last, while the image it moved has not been given the focus back.
+  const pressed = useRef<"up" | "down" | null>(null);
+  const upDisabled = disabled || movesDisabled || isFirst;
+  const downDisabled = disabled || movesDisabled || isLast;
+
+  // Moving the row, or disabling its buttons while the new order is saved, takes the focus away:
+  // once the image is in its place and usable, it goes back to the same arrow, or to the other
+  // one when the image reached an end.
+  useEffect(() => {
+    const direction = pressed.current;
+    if (!direction || disabled) {
+      return;
+    }
+    pressed.current = null;
+    const [same, other] = direction === "up" ? [up, down] : [down, up];
+    const target = same.current?.disabled ? other.current : same.current;
+    if (target && !target.disabled) {
+      target.focus();
+    }
+  }, [index, upDisabled, downDisabled, disabled]);
+
+  const move = (direction: "up" | "down", onMove: () => void) => {
+    pressed.current = direction;
+    onMove();
+  };
+
   const removeButton: ReactNode = (
     <button
       type="button"
+      data-image-remove=""
       aria-label={remove(name)}
       title={remove(name)}
       disabled={disabled || removeDisabled}
@@ -53,21 +85,23 @@ export const ImageRowButtons = ({
   return (
     <div className="flex flex-col gap-1">
       <button
+        ref={up}
         type="button"
         aria-label={moveUp(name)}
         title={moveUp(name)}
-        disabled={disabled || movesDisabled || isFirst}
-        onClick={onUp}
+        disabled={upDisabled}
+        onClick={() => move("up", onUp)}
         className={BUTTON}
       >
         <ArrowUp className="size-4" aria-hidden="true" />
       </button>
       <button
+        ref={down}
         type="button"
         aria-label={moveDown(name)}
         title={moveDown(name)}
-        disabled={disabled || movesDisabled || isLast}
-        onClick={onDown}
+        disabled={downDisabled}
+        onClick={() => move("down", onDown)}
         className={BUTTON}
       >
         <ArrowDown className="size-4" aria-hidden="true" />

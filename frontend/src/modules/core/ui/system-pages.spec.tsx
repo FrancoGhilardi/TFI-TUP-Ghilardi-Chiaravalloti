@@ -91,7 +91,7 @@ describe("ErrorPage", () => {
 });
 
 describe("NotFoundPage", () => {
-  it("says the page does not exist and leads home, left out of search engines", () => {
+  it("says the page does not exist and leads home, leaving the robots tag to Next", () => {
     render(<NotFoundPage homeHref="/admin/inicio" homeLabel="Ir al inicio del panel" />);
 
     expect(
@@ -101,7 +101,7 @@ describe("NotFoundPage", () => {
       "href",
       "/admin/inicio",
     );
-    expect(robots()).toHaveAttribute("content", "noindex");
+    expect(robots()).toBeNull();
   });
 
   it("offers the extra ways out it is given", () => {

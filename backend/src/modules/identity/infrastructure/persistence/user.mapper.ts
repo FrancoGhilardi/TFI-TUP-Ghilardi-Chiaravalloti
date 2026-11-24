@@ -5,8 +5,8 @@ import { Email } from "../../domain/value-objects/email.js";
 import { TemporaryPassword } from "../../domain/value-objects/temporary-password.js";
 import { UserName } from "../../domain/value-objects/user-name.js";
 
-export type UserRow = typeof users.$inferSelect;
-export type NewUserRow = typeof users.$inferInsert;
+type UserRow = typeof users.$inferSelect;
+type NewUserRow = typeof users.$inferInsert;
 
 /** Translates between the `users` table and the `User` entity. */
 export const UserMapper = {

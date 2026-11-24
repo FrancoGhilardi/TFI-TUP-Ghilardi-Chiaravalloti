@@ -2,7 +2,10 @@ import Link from "next/link";
 
 import { formatDateTime } from "@/modules/core/formatters/date-time";
 import { formatRelativeTime } from "@/modules/core/formatters/relative-time";
-import { cn } from "@/modules/core/lib/utils";
+import { ListRow } from "@/modules/core/ui/ListRow";
+import { RowActionsCell } from "@/modules/core/ui/RowActionsCell";
+import { RowCell } from "@/modules/core/ui/RowCell";
+import { RowLeadCell } from "@/modules/core/ui/RowLeadCell";
 
 import { productsContent } from "../content/products";
 import type { AdminProductRow } from "../domain/admin-product";
@@ -11,12 +14,9 @@ import { PRODUCTS_PATH } from "../domain/products-query";
 import { MarkBadges } from "./MarkBadges";
 import { PriceCell } from "./PriceCell";
 import { ProductThumb } from "./ProductThumb";
-import { RowActions } from "./RowActions";
+import { ProductRowActions } from "./ProductRowActions";
 import { StateBadge } from "./StateBadge";
 import { StockCell } from "./StockCell";
-
-const CELL =
-  "px-3 py-3 align-middle max-md:flex max-md:items-center max-md:justify-between max-md:gap-4 max-md:px-0 max-md:py-1.5 max-md:before:text-xs max-md:before:font-semibold max-md:before:text-ink-soft max-md:before:content-[attr(data-label)]";
 
 interface ProductsTableRowProps {
   product: AdminProductRow;
@@ -38,13 +38,8 @@ export const ProductsTableRow = ({
   const state = productState(product);
 
   return (
-    <tr
-      className={cn(
-        "border-t border-line-soft max-md:block max-md:rounded-card max-md:border max-md:p-4",
-        state === "deleted" && "bg-wheat/40 text-ink-soft",
-      )}
-    >
-      <td className="px-3 py-3 align-middle max-md:block max-md:px-0 max-md:pt-0">
+    <ListRow deleted={state === "deleted"}>
+      <RowLeadCell>
         <div className="flex items-center gap-3">
           <ProductThumb url={product.thumbnailUrl} />
           <div className="min-w-0">
@@ -57,26 +52,26 @@ export const ProductsTableRow = ({
             <span className="block truncate text-xs text-ink-soft">/{product.slug}</span>
           </div>
         </div>
-      </td>
-      <td data-label={columns.sku} className={CELL}>
+      </RowLeadCell>
+      <RowCell label={columns.sku}>
         <span className="font-mono text-xs">{product.sku}</span>
-      </td>
-      <td data-label={columns.category} className={CELL}>
+      </RowCell>
+      <RowCell label={columns.category}>
         {product.primaryCategory?.name ?? <span className="text-ink-soft">{noCategory}</span>}
-      </td>
-      <td data-label={columns.price} className={cn(CELL, "md:text-right md:tabular-nums")}>
+      </RowCell>
+      <RowCell label={columns.price} numeric>
         <PriceCell product={product} />
-      </td>
-      <td data-label={columns.stock} className={cn(CELL, "md:text-right md:tabular-nums")}>
+      </RowCell>
+      <RowCell label={columns.stock} numeric>
         <StockCell stock={product.stock} />
-      </td>
-      <td data-label={columns.marks} className={CELL}>
+      </RowCell>
+      <RowCell label={columns.marks}>
         <MarkBadges product={product} />
-      </td>
-      <td data-label={columns.state} className={CELL}>
+      </RowCell>
+      <RowCell label={columns.state}>
         <StateBadge state={state} />
-      </td>
-      <td data-label={columns.modified} className={CELL}>
+      </RowCell>
+      <RowCell label={columns.modified}>
         <time
           dateTime={product.updatedAt.toISOString()}
           title={formatDateTime(product.updatedAt)}
@@ -84,10 +79,15 @@ export const ProductsTableRow = ({
         >
           {formatRelativeTime(product.updatedAt, readAt)}
         </time>
-      </td>
-      <td className="px-3 py-3 align-middle max-md:block max-md:px-0 max-md:pb-0">
-        <RowActions product={product} pending={pending} onRemove={onRemove} onRestore={onRestore} />
-      </td>
-    </tr>
+      </RowCell>
+      <RowActionsCell>
+        <ProductRowActions
+          product={product}
+          pending={pending}
+          onRemove={onRemove}
+          onRestore={onRestore}
+        />
+      </RowActionsCell>
+    </ListRow>
   );
 };

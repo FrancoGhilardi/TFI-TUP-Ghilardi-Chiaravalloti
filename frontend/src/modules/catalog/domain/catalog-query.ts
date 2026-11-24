@@ -1,6 +1,6 @@
 import { CATALOG_PATH } from "./product-routes";
 
-export const CATALOG_PAGE_SIZE = 20;
+const CATALOG_PAGE_SIZE = 20;
 
 /** The API refuses pages beyond this one. */
 const MAX_PAGE = 500;
@@ -19,7 +19,7 @@ export const CATALOG_SORTS = [
   { value: "a-z", label: "A-Z", api: "TITLE_ASC" },
 ] as const;
 
-export type CatalogSort = (typeof CATALOG_SORTS)[number]["value"];
+type CatalogSort = (typeof CATALOG_SORTS)[number]["value"];
 
 const DEFAULT_SORT: CatalogSort = "relevancia";
 

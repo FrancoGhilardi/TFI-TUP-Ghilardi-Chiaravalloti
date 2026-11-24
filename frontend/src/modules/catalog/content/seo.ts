@@ -8,4 +8,5 @@ export const catalogSeo = {
   productDescription: (title: string, categoryName: string | undefined) =>
     `${title}${categoryName ? ` en ${categoryName}` : ""}. Reservá por WhatsApp y retirá en el local.`,
   productNotFound: "Producto no encontrado",
+  productError: "No pudimos cargar el producto",
 } as const;

@@ -13,12 +13,14 @@ interface NotFoundPageProps {
   children?: ReactNode;
 }
 
-/** What an address that leads nowhere shows. */
+/**
+ * What an address that leads nowhere shows. It is only mounted by `not-found` files, and Next
+ * already adds `noindex` to every not-found render, so it adds no robots tag of its own.
+ */
 export const NotFoundPage = ({ homeHref, homeLabel, children }: NotFoundPageProps) => {
   const { notFound } = systemPagesContent;
   return (
     <PageState
-      noIndex
       icon={SearchX}
       title={notFound.title}
       description={notFound.body}

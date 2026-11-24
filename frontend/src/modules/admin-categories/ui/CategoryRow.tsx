@@ -2,7 +2,10 @@ import Link from "next/link";
 
 import { formatDateTime } from "@/modules/core/formatters/date-time";
 import { formatRelativeTime } from "@/modules/core/formatters/relative-time";
-import { cn } from "@/modules/core/lib/utils";
+import { ListRow } from "@/modules/core/ui/ListRow";
+import { RowActionsCell } from "@/modules/core/ui/RowActionsCell";
+import { RowCell } from "@/modules/core/ui/RowCell";
+import { RowLeadCell } from "@/modules/core/ui/RowLeadCell";
 
 import { categoriesContent } from "../content/categories";
 import type { AdminCategoryRow } from "../domain/admin-category";
@@ -10,9 +13,6 @@ import { CATEGORIES_PATH } from "../domain/categories-query";
 import { categoryState } from "../domain/category-state";
 import { CategoryRowActions } from "./CategoryRowActions";
 import { CategoryStateBadge } from "./CategoryStateBadge";
-
-const CELL =
-  "px-3 py-3 align-middle max-md:flex max-md:items-center max-md:justify-between max-md:gap-4 max-md:px-0 max-md:py-1.5 max-md:before:text-xs max-md:before:font-semibold max-md:before:text-ink-soft max-md:before:content-[attr(data-label)]";
 
 /** Width of one level of the tree. */
 const INDENT_PX = 22;
@@ -44,13 +44,8 @@ export const CategoryRow = ({
   const level = indented ? category.depth : 0;
 
   return (
-    <tr
-      className={cn(
-        "border-t border-line-soft max-md:block max-md:rounded-card max-md:border max-md:p-4",
-        state === "deleted" && "bg-wheat/40 text-ink-soft",
-      )}
-    >
-      <td className="px-3 py-3 align-middle max-md:block max-md:px-0 max-md:pt-0">
+    <ListRow deleted={state === "deleted"}>
+      <RowLeadCell>
         <div className="flex items-center gap-1.5" style={{ paddingLeft: level * INDENT_PX }}>
           {level > 0 && (
             <span aria-hidden="true" className="text-ink-soft">
@@ -71,8 +66,8 @@ export const CategoryRow = ({
             <span className="block truncate font-mono text-xs text-ink-soft">/{category.slug}</span>
           </div>
         </div>
-      </td>
-      <td data-label={columns.location} className={CELL}>
+      </RowLeadCell>
+      <RowCell label={columns.location}>
         {category.parent ? (
           <span className="text-ink-soft">{category.parent.name}</span>
         ) : (
@@ -80,14 +75,14 @@ export const CategoryRow = ({
             {root}
           </span>
         )}
-      </td>
-      <td data-label={columns.products} className={cn(CELL, "md:text-right md:tabular-nums")}>
+      </RowCell>
+      <RowCell label={columns.products} numeric>
         {category.productCount}
-      </td>
-      <td data-label={columns.order} className={cn(CELL, "md:text-right md:tabular-nums")}>
+      </RowCell>
+      <RowCell label={columns.order} numeric>
         {category.sortOrder}
-      </td>
-      <td data-label={columns.state} className={CELL}>
+      </RowCell>
+      <RowCell label={columns.state}>
         <span className="flex flex-wrap items-center gap-1.5">
           <CategoryStateBadge state={state} />
           {hidden && state === "active" && (
@@ -99,8 +94,8 @@ export const CategoryRow = ({
             </span>
           )}
         </span>
-      </td>
-      <td data-label={columns.modified} className={CELL}>
+      </RowCell>
+      <RowCell label={columns.modified}>
         <time
           dateTime={category.updatedAt.toISOString()}
           title={formatDateTime(category.updatedAt)}
@@ -108,15 +103,15 @@ export const CategoryRow = ({
         >
           {formatRelativeTime(category.updatedAt, readAt)}
         </time>
-      </td>
-      <td className="px-3 py-3 align-middle max-md:block max-md:px-0 max-md:pb-0">
+      </RowCell>
+      <RowActionsCell>
         <CategoryRowActions
           category={category}
           pending={pending}
           onRemove={onRemove}
           onRestore={onRestore}
         />
-      </td>
-    </tr>
+      </RowActionsCell>
+    </ListRow>
   );
 };

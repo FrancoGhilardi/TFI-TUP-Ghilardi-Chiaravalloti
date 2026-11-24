@@ -47,7 +47,7 @@ interface PendingImage {
   bytes: Uint8Array;
 }
 
-export interface CreateProductDependencies {
+interface CreateProductDependencies {
   products: ProductRepository;
   categories: CategoryRepository;
   images: ProductImageRepository;

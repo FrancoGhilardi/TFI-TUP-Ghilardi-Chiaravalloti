@@ -3,14 +3,14 @@ import { useState } from "react";
 import type { CartProduct } from "../domain/cart";
 import { useCartStore } from "./cart-store";
 
-export interface AddOutcome {
+interface AddOutcome {
   /** Grows with every try, so the same outcome twice still reads as new. */
   attempt: number;
   added: number;
   requested: number;
 }
 
-export interface AddToCartControl {
+interface AddToCartControl {
   quantity: number;
   canAdd: boolean;
   canIncrease: boolean;

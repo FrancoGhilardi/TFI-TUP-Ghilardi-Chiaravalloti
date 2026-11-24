@@ -1,8 +1,11 @@
 import { Transform } from "class-transformer";
 import { IsNotEmpty, IsString, MaxLength } from "class-validator";
 import type { RequestPasswordResetCommand } from "../../application/dto/request-password-reset.command.js";
-import { EMAIL_INPUT_MAX_LENGTH, TOO_LONG_MESSAGE } from "./request-limits.js";
-import { trimString } from "./request-transforms.js";
+import {
+  EMAIL_INPUT_MAX_LENGTH,
+  TOO_LONG_MESSAGE,
+} from "../../../../shared/presentation/http/request-limits.js";
+import { trimString } from "../../../../shared/presentation/http/request-transforms.js";
 
 /**
  * The format is not checked: a malformed email gets the same answer as an unknown one, so the

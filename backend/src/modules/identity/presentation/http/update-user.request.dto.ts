@@ -2,8 +2,11 @@ import { Transform } from "class-transformer";
 import { IsBoolean, IsEnum, IsNotEmpty, IsString, MaxLength, ValidateIf } from "class-validator";
 import type { UpdateUserCommand } from "../../application/dto/update-user.command.js";
 import { UserRole } from "../../domain/user-role.js";
-import { EMAIL_INPUT_MAX_LENGTH, TOO_LONG_MESSAGE } from "./request-limits.js";
-import { trimString } from "./request-transforms.js";
+import {
+  EMAIL_INPUT_MAX_LENGTH,
+  TOO_LONG_MESSAGE,
+} from "../../../../shared/presentation/http/request-limits.js";
+import { trimString } from "../../../../shared/presentation/http/request-transforms.js";
 
 // Only a missing field is left alone; a null one is invalid, not a way to skip it.
 const isPresent = (_dto: object, value: unknown) => value !== undefined;

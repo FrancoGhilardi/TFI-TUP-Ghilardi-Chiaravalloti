@@ -1,6 +1,6 @@
 import { Transform } from "class-transformer";
 import { IsBoolean, IsInt, IsNotEmpty, IsString, IsUUID, ValidateIf } from "class-validator";
-import { trimString } from "../../../identity/presentation/http/request-transforms.js";
+import { trimString } from "../../../../shared/presentation/http/request-transforms.js";
 import type { UpdateCategoryCommand } from "../../application/dto/update-category.command.js";
 import { CATEGORY_MESSAGES, isPresent } from "./category-request-rules.js";
 

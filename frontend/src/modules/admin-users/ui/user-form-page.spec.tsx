@@ -327,10 +327,10 @@ describe("EditUserPage own account", () => {
     );
     const reset = screen.getByRole("button", { name: "Enviar contraseña temporal" });
     expect(reset).toBeDisabled();
-    expect(reset).toHaveAttribute("title", "Para cambiar tu contraseña usá Mi cuenta.");
+    expect(reset).toHaveAccessibleDescription("Para cambiar tu contraseña usá Mi cuenta.");
     const remove = screen.getByRole("button", { name: "Dar de baja" });
     expect(remove).toBeDisabled();
-    expect(remove).toHaveAttribute("title", "No podés darte de baja a vos mismo.");
+    expect(remove).toHaveAccessibleDescription("No podés darte de baja a vos mismo.");
   });
 
   it("keeps name and email editable, sends them and updates the session's user", async () => {

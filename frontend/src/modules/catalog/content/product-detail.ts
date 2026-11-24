@@ -5,6 +5,10 @@ export const productDetailContent = {
   breadcrumb: { label: "Migas de pan", home: "Inicio", products: "Productos" },
   gallery: {
     photo: (position: number, total: number) => `Ver foto ${position} de ${total}`,
+    previous: "Foto anterior",
+    next: "Foto siguiente",
+    /** Read out when the photo changes, since nothing else says it to a screen reader. */
+    shown: (position: number, total: number) => `Foto ${position} de ${total}`,
   },
   price: { previous: "Precio anterior: ", sale: "Oferta" },
   stock: (status: StockStatus) => {
@@ -19,7 +23,7 @@ export const productDetailContent = {
   },
   inquiry: "Consultar",
   notes: [
-    "Reservás online y retirás en el local de Mendoza.",
+    "Reservás online y retirás en el local.",
     "¿Necesitás impresiones o anillado? Sumalo a tu consulta por WhatsApp.",
   ],
   related: { eyebrow: "También te puede gustar", title: "Productos similares" },

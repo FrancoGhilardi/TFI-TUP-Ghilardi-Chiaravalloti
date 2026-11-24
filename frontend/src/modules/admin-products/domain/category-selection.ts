@@ -1,4 +1,4 @@
-export interface CategorySelection {
+interface CategorySelection {
   categoryIds: string[];
   /** Empty while no category is chosen. */
   primaryCategoryId: string;

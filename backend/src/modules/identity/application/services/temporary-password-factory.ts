@@ -3,7 +3,7 @@ import type { PasswordHasher } from "../ports/password-hasher.js";
 import type { TemporaryPasswordGenerator } from "../ports/temporary-password-generator.js";
 
 /** A generated temporary password: the text to mail and the hash to store. */
-export interface GeneratedTemporaryPassword {
+interface GeneratedTemporaryPassword {
   plain: string;
   hash: string;
 }

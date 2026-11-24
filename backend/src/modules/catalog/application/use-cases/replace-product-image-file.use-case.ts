@@ -17,7 +17,7 @@ import { loadEditableProduct } from "../services/product-loading.js";
 import type { ProductImageUploader } from "../services/product-image-uploader.js";
 import type { ImageSettings } from "../settings/image-settings.js";
 
-export interface ReplaceProductImageFileDependencies {
+interface ReplaceProductImageFileDependencies {
   products: ProductRepository;
   images: ProductImageRepository;
   uploader: ProductImageUploader;

@@ -1,3 +1,7 @@
+import { ActionsHeaderCell } from "@/modules/core/ui/ActionsHeaderCell";
+import { HeaderCell } from "@/modules/core/ui/HeaderCell";
+import { ListTable } from "@/modules/core/ui/ListTable";
+
 import { productsContent } from "../content/products";
 import type { AdminProductRow } from "../domain/admin-product";
 import type { ProductsQuery } from "../domain/products-query";
@@ -14,7 +18,6 @@ interface ProductsTableProps {
   onRestore: (id: string) => void;
 }
 
-/** A table from the medium width; below it every row is a card with the same information. */
 export const ProductsTable = ({
   products,
   query,
@@ -25,44 +28,34 @@ export const ProductsTable = ({
   onRestore,
 }: ProductsTableProps) => {
   const { caption, columns } = productsContent.table;
-  const plain = "px-3 py-3 text-left font-semibold text-ink-soft";
 
   return (
-    <table className="w-full text-sm max-md:block">
-      <caption className="sr-only">{caption}</caption>
-      <thead className="max-md:sr-only">
-        <tr className="text-xs tracking-wide uppercase">
+    <ListTable
+      caption={caption}
+      head={
+        <>
           <SortHeader column="titulo" label={columns.product} query={query} go={go} />
           <SortHeader column="sku" label={columns.sku} query={query} go={go} />
-          <th scope="col" className={plain}>
-            {columns.category}
-          </th>
+          <HeaderCell>{columns.category}</HeaderCell>
           <SortHeader column="precio" label={columns.price} query={query} go={go} numeric />
           <SortHeader column="stock" label={columns.stock} query={query} go={go} numeric />
-          <th scope="col" className={plain}>
-            {columns.marks}
-          </th>
-          <th scope="col" className={plain}>
-            {columns.state}
-          </th>
+          <HeaderCell>{columns.marks}</HeaderCell>
+          <HeaderCell>{columns.state}</HeaderCell>
           <SortHeader column="modificado" label={columns.modified} query={query} go={go} />
-          <th scope="col" className="px-3 py-3">
-            <span className="sr-only">{columns.actions}</span>
-          </th>
-        </tr>
-      </thead>
-      <tbody className="max-md:block max-md:space-y-3 max-md:p-3">
-        {products.map((product) => (
-          <ProductsTableRow
-            key={product.id}
-            product={product}
-            readAt={readAt}
-            pending={isPending(product.id)}
-            onRemove={() => onRemove(product.id)}
-            onRestore={() => onRestore(product.id)}
-          />
-        ))}
-      </tbody>
-    </table>
+          <ActionsHeaderCell label={columns.actions} />
+        </>
+      }
+    >
+      {products.map((product) => (
+        <ProductsTableRow
+          key={product.id}
+          product={product}
+          readAt={readAt}
+          pending={isPending(product.id)}
+          onRemove={() => onRemove(product.id)}
+          onRestore={() => onRestore(product.id)}
+        />
+      ))}
+    </ListTable>
   );
 };

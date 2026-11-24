@@ -2,8 +2,8 @@ import { Slug } from "../../../../shared/domain/value-objects/slug.js";
 import type { categories } from "../../../../shared/infrastructure/database/schema/index.js";
 import { Category } from "../../domain/entities/category.js";
 
-export type CategoryRow = typeof categories.$inferSelect;
-export type NewCategoryRow = typeof categories.$inferInsert;
+type CategoryRow = typeof categories.$inferSelect;
+type NewCategoryRow = typeof categories.$inferInsert;
 
 /** Translates between the `categories` table and the `Category` entity. */
 export const CategoryMapper = {

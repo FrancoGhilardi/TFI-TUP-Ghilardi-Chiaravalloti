@@ -14,7 +14,7 @@ export interface CartItem extends CartProduct {
   quantity: number;
 }
 
-export interface AddToCartResult {
+interface AddToCartResult {
   items: CartItem[];
   /** Units that went in: fewer than asked when the stock is the limit, none when it is reached. */
   added: number;
@@ -49,7 +49,7 @@ export type SyncNotice =
   | { kind: "adjusted"; productId: string; title: string; quantity: number }
   | { kind: "removed"; productId: string; title: string };
 
-export interface SyncResult {
+interface SyncResult {
   items: CartItem[];
   /** What the customer must be told, or `null` when the copy only got fresher. */
   notice: SyncNotice | null;

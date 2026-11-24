@@ -67,7 +67,7 @@ const productDetailSchema = z.object({
 /** Uploading up to five images of 10 MB takes longer than the usual deadline of a call. */
 const UPLOAD_TIMEOUT_MS = 120_000;
 
-export interface AdminProductsPage {
+interface AdminProductsPage {
   /** How many products match, whatever the page size. */
   total: number;
   items: AdminProductRow[];

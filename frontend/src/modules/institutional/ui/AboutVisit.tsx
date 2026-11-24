@@ -1,12 +1,12 @@
 import { Clock, MapPin } from "lucide-react";
 
 import { siteConfig } from "@/modules/core/config/site";
-import { DaisyMark } from "@/modules/core/ui/DaisyMark";
 import { ExternalLink } from "@/modules/core/ui/ExternalLink";
 import { Button } from "@/modules/core/ui/primitives/button";
 
 import { aboutContent } from "../content/about";
 import { InquiryButton } from "./InquiryButton";
+import { StorefrontIllustration } from "./StorefrontIllustration";
 import { VisitDetail } from "./VisitDetail";
 
 const HEADING_ID = "sobre-nosotros-visita";
@@ -47,7 +47,9 @@ export const AboutVisit = () => {
           </Button>
         </div>
       </div>
-      <DaisyMark size={220} className="mx-auto hidden min-[781px]:block" />
+      <div className="mx-auto hidden aspect-square w-full max-w-70 min-[781px]:block">
+        <StorefrontIllustration />
+      </div>
     </section>
   );
 };

@@ -20,6 +20,7 @@ export const CatalogEmptyState = ({ search }: CatalogEmptyStateProps) => {
   const { empty } = catalogContent;
   return (
     <StatusMessage
+      role={null}
       icon={SearchX}
       title={search ? empty.forSearch(search) : empty.title}
       description={empty.body}

@@ -4,7 +4,7 @@ import { productHref } from "../domain/product-routes";
 import { getCategoryTree } from "../infrastructure/categories-api";
 import { getAllProductSlugs } from "../infrastructure/products-api";
 
-export interface CatalogSitemapPaths {
+interface CatalogSitemapPaths {
   categoryPaths: string[];
   productPaths: string[];
 }

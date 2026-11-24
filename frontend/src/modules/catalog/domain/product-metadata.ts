@@ -25,3 +25,9 @@ export const PRODUCT_NOT_FOUND_METADATA: Metadata = {
   title: catalogSeo.productNotFound,
   robots: { index: false },
 };
+
+/** What a product page that could not be read gets, so its error page still has a title. */
+export const PRODUCT_ERROR_METADATA: Metadata = {
+  title: catalogSeo.productError,
+  robots: { index: false },
+};

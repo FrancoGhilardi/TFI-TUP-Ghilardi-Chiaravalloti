@@ -7,8 +7,11 @@ interface StatusMessageProps {
   description?: string;
   /** Ways out, such as links or buttons. */
   actions?: ReactNode;
-  /** `alert` for failures, so assistive technology announces them. */
-  role?: "status" | "alert";
+  /**
+   * `alert` for failures, so assistive technology announces them; `null` when the page already
+   * announces the change in a live region of its own, so it is not read twice.
+   */
+  role?: "status" | "alert" | null;
   /** `h1` when the message is the whole page; inside a page it is a section's heading. */
   headingLevel?: "h1" | "h2";
 }
@@ -24,7 +27,7 @@ export const StatusMessage = ({
 }: StatusMessageProps) => {
   return (
     <div
-      role={role}
+      role={role ?? undefined}
       className="flex flex-col items-center gap-3 rounded-card border border-line-soft bg-surface px-6 py-12 text-center"
     >
       <Icon className="size-10 text-teal" aria-hidden="true" />

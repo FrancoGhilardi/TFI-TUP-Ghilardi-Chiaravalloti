@@ -1,7 +1,7 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
 import { Transform, Type } from "class-transformer";
 import { IsInt, Max, Min } from "class-validator";
-import { trimString } from "../../../identity/presentation/http/request-transforms.js";
+import { trimString } from "../../../../shared/presentation/http/request-transforms.js";
 import type { GlobalSearchQuery } from "../../application/dto/global-search.query.js";
 import { CatalogSettings } from "../../application/settings/catalog-settings.js";
 import { IsSearchText } from "./search-text.js";

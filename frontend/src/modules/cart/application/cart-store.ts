@@ -23,7 +23,9 @@ interface CartState {
   setQuantity: (productId: string, quantity: number) => void;
   remove: (productId: string) => void;
   clear: () => void;
-  sync: (product: CartProduct) => void;
+  /** Refreshes the copy of the product and returns what the customer must be told, if anything. */
+  sync: (product: CartProduct) => SyncNotice | null;
+  showSyncNotice: (notice: SyncNotice | null) => void;
   clearSyncNotice: () => void;
 }
 
@@ -49,8 +51,10 @@ export const useCartStore = create<CartState>()(
       clear: () => set({ items: [] }),
       sync: (product) => {
         const { items, notice } = syncProduct(get().items, product);
-        set({ items, syncNotice: notice });
+        set({ items });
+        return notice;
       },
+      showSyncNotice: (notice) => set({ syncNotice: notice }),
       clearSyncNotice: () => set({ syncNotice: null }),
     }),
     {

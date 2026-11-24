@@ -6,7 +6,7 @@ import { ProductErrorState } from "./ProductErrorState";
 import { ProductNotFoundState } from "./ProductNotFoundState";
 
 describe("ProductNotFoundState", () => {
-  it("is a page of its own with the way back to the catalog, left out of search engines", () => {
+  it("is a page of its own with the way back to the catalog, leaving the robots tag to Next", () => {
     render(<ProductNotFoundState />);
 
     expect(
@@ -16,10 +16,7 @@ describe("ProductNotFoundState", () => {
       "href",
       "/productos",
     );
-    expect(document.head.querySelector('meta[name="robots"]')).toHaveAttribute(
-      "content",
-      "noindex",
-    );
+    expect(document.head.querySelector('meta[name="robots"]')).toBeNull();
   });
 });
 

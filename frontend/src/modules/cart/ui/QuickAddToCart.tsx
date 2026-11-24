@@ -16,7 +16,16 @@ export const QuickAddToCart = ({ product }: QuickAddToCartProps) => {
 
   return (
     <div className="flex flex-col gap-1.5">
-      <Button type="button" variant="accent" size="sm" disabled={!canAdd} onClick={add}>
+      <Button
+        type="button"
+        variant="accent"
+        size="sm"
+        disabled={!canAdd}
+        onClick={add}
+        aria-label={
+          canAdd ? cartContent.quickAddOf(product.title) : cartContent.outOfStockOf(product.title)
+        }
+      >
         {canAdd ? cartContent.quickAdd : cartContent.outOfStock}
       </Button>
       {/* Stays mounted, as a live region must; a new node for each try announces a repeat too. */}

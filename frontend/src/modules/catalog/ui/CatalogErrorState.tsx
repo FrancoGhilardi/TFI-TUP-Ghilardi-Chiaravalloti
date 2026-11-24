@@ -15,7 +15,7 @@ export const CatalogErrorState = ({ retryHref }: CatalogErrorStateProps) => {
   const { error } = catalogContent;
   return (
     <StatusMessage
-      role="alert"
+      role={null}
       icon={CloudOff}
       title={error.title}
       description={error.body}

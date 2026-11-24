@@ -46,6 +46,9 @@
   --text-display--line-height: 1.05;
   --text-section: clamp(1.7rem, 3.4vw, 2.4rem);
   --text-section--line-height: 1.2;
+  /* A product's name on its page: smaller than the display so long titles fit a phone. */
+  --text-title: clamp(1.9rem, 3.8vw, 2.9rem);
+  --text-title--line-height: 1.1;
 
   --radius-card: 18px;
   --container-site: 1180px;

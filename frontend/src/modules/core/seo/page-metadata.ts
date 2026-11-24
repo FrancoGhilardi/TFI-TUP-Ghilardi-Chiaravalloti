@@ -4,7 +4,7 @@ import { siteConfig } from "../config/site";
 
 export const OPEN_GRAPH_LOCALE = "es_AR";
 
-export interface PageMetadataInput {
+interface PageMetadataInput {
   /** Title of the page alone: the site name is added by the template of the root layout. */
   title: string;
   description: string;

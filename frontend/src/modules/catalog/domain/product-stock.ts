@@ -1,5 +1,5 @@
 /** From this many units down, the page says the product is about to run out. */
-export const LOW_STOCK_THRESHOLD = 6;
+const LOW_STOCK_THRESHOLD = 6;
 
 export type StockStatus =
   { kind: "out" } | { kind: "low"; units: number } | { kind: "in"; units: number };

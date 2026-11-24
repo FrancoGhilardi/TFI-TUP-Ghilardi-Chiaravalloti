@@ -358,3 +358,67 @@ describe("saved images", () => {
     expect(images.reorder).not.toHaveBeenCalled();
   });
 });
+
+describe("focus while ordering and taking off saved images", () => {
+  it("keeps the focus on the arrow that moved an image, at its new place", async () => {
+    given([image("i1", 1), image("i2", 2), image("i3", 3)]);
+    vi.mocked(images.reorder).mockImplementation(async () => {
+      vi.mocked(images.list).mockResolvedValue([image("i1", 1), image("i3", 2), image("i2", 3)]);
+    });
+    const { person } = renderPage();
+
+    await person.click(await screen.findByRole("button", { name: "Subir imagen 3" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Subir imagen 2" })).toHaveFocus(),
+    );
+  });
+
+  it("moves the focus to the other arrow when the image reaches an end", async () => {
+    given([image("i1", 1), image("i2", 2)]);
+    vi.mocked(images.reorder).mockImplementation(async () => {
+      vi.mocked(images.list).mockResolvedValue([image("i2", 1), image("i1", 2)]);
+    });
+    const { person } = renderPage();
+
+    await person.click(await screen.findByRole("button", { name: "Subir imagen 2" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Bajar imagen 1" })).toHaveFocus(),
+    );
+  });
+
+  it("puts the focus on the image that takes the place of the one taken off", async () => {
+    given([image("i1", 1), image("i2", 2), image("i3", 3)]);
+    vi.mocked(images.remove).mockImplementation(async () => {
+      vi.mocked(images.list).mockResolvedValue([image("i1", 1), image("i3", 2)]);
+    });
+    const { person } = renderPage();
+
+    await person.click(await screen.findByRole("button", { name: "Quitar imagen 2" }));
+    await person.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Quitar imagen" }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Quitar imagen 2" })).toHaveFocus(),
+    );
+  });
+
+  it("puts the focus on adding when the image left cannot be taken off", async () => {
+    given([image("i1", 1), image("i2", 2)]);
+    vi.mocked(images.remove).mockImplementation(async () => {
+      vi.mocked(images.list).mockResolvedValue([image("i1", 1)]);
+    });
+    const { person } = renderPage();
+
+    await person.click(await screen.findByRole("button", { name: "Quitar imagen 2" }));
+    await person.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Quitar imagen" }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Agregar imágenes" })).toHaveFocus(),
+    );
+  });
+});

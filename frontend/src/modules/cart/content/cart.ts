@@ -11,6 +11,9 @@ export const cartContent = {
   },
   add: "Agregar al carrito",
   quickAdd: "Agregar",
+  /** Card buttons repeat across the grid: their names start with what they show and add the product. */
+  quickAddOf: (title: string) => `Agregar «${title}» al carrito`,
+  outOfStockOf: (title: string) => `Sin stock: «${title}»`,
   drawer: {
     title: "Tu reserva",
     empty: {

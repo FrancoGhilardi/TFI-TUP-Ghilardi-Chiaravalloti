@@ -1,22 +1,21 @@
-import { ListFooter } from "@/modules/core/ui/ListFooter";
-import { LoadErrorState } from "@/modules/core/ui/LoadErrorState";
-import { OutOfRangeState } from "@/modules/core/ui/OutOfRangeState";
-import { TableSkeleton } from "@/modules/core/ui/TableSkeleton";
+import { ListEmptyState } from "@/modules/core/ui/ListEmptyState";
+import { ListResults } from "@/modules/core/ui/ListResults";
+import { Tag } from "lucide-react";
 
 import { useAdminCategories } from "../application/useAdminCategories";
 import { useCategoryActions } from "../application/useCategoryActions";
-import { useCategoryOptions } from "../application/useCategoryOptions";
 import { categoriesContent } from "../content/categories";
 import {
-  CATEGORIES_PAGE_SIZE,
-  type CategoriesQuery,
-  categoriesHref,
   clearedFilters,
   isFiltered,
   isTreeMode,
+  CATEGORIES_PAGE_SIZE,
+  CATEGORIES_PATH,
+  type CategoriesQuery,
+  categoriesHref,
 } from "../domain/categories-query";
 import { hiddenIds } from "../domain/category-tree";
-import { CategoriesEmptyState } from "./CategoriesEmptyState";
+import { useCategoryOptions } from "../application/useCategoryOptions";
 import { CategoriesTable } from "./CategoriesTable";
 
 interface CategoriesResultsProps {
@@ -27,59 +26,39 @@ interface CategoriesResultsProps {
 /** What the query finds, or why it shows nothing: still loading, failed, past the end, or empty. */
 export const CategoriesResults = ({ query, go }: CategoriesResultsProps) => {
   const list = useAdminCategories(query);
-  const options = useCategoryOptions();
   const { remove, restore, isPending } = useCategoryActions();
-
-  if (list.isPending) {
-    return <TableSkeleton label={categoriesContent.loading} />;
-  }
-  // A refresh that fails keeps showing the last page; only having nothing to show is an error.
-  if (!list.data) {
-    return (
-      <LoadErrorState {...categoriesContent.error} onRetry={() => void list.refetch()} framed />
-    );
-  }
-
-  const { items, total } = list.data;
-  if (items.length === 0) {
-    return query.page > 1 ? (
-      <OutOfRangeState
-        {...categoriesContent.outOfRange}
-        firstPageHref={categoriesHref(query, { page: 1 })}
-      />
-    ) : (
-      <CategoriesEmptyState filtered={isFiltered(query)} onClear={() => go(clearedFilters())} />
-    );
-  }
+  const options = useCategoryOptions();
+  const { empty, clear, newCategory, table } = categoriesContent;
 
   return (
-    // While the next page loads, the last one stays as a reference but cannot be acted on: it is not
-    // what the filters and the page on screen now describe.
-    <div
-      aria-busy={list.isFetching}
-      inert={list.isPlaceholderData}
-      className={list.isPlaceholderData ? "opacity-60 transition-opacity" : undefined}
+    <ListResults
+      list={list}
+      page={query.page}
+      pageSize={CATEGORIES_PAGE_SIZE}
+      firstPageHref={categoriesHref(query, { page: 1 })}
+      hrefFor={(page) => categoriesHref(query, { page })}
+      text={{ ...categoriesContent, summary: table.summary }}
+      empty={
+        <ListEmptyState
+          icon={Tag}
+          filtered={isFiltered(query)}
+          onClear={() => go(clearedFilters())}
+          text={{ ...empty, clear }}
+          create={{ label: newCategory, href: `${CATEGORIES_PATH}/nueva` }}
+        />
+      }
     >
-      <div className="overflow-x-auto md:overflow-visible">
+      {(items, readAt) => (
         <CategoriesTable
           categories={items}
           indented={isTreeMode(query)}
           hiddenIds={options.data ? hiddenIds(options.data) : new Set()}
-          readAt={new Date(list.dataUpdatedAt)}
+          readAt={readAt}
           isPending={isPending}
           onRemove={(id) => void remove(id)}
           onRestore={(id) => void restore(id)}
         />
-      </div>
-      <ListFooter
-        page={query.page}
-        pageSize={CATEGORIES_PAGE_SIZE}
-        shown={items.length}
-        total={total}
-        summary={categoriesContent.table.summary}
-        hrefFor={(page) => categoriesHref(query, { page })}
-        stale={list.isPlaceholderData}
-      />
-    </div>
+      )}
+    </ListResults>
   );
 };

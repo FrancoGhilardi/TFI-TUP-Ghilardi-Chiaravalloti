@@ -3,6 +3,7 @@ import { type ChangeEvent, useRef, useState } from "react";
 
 import { Button } from "@/modules/core/ui/primitives/button";
 
+import { useFocusAfterRemoval } from "../application/useFocusAfterRemoval";
 import { useImageActions } from "../application/useImageActions";
 import { useProductImages } from "../application/useProductImages";
 import { productImagesText, savedImagesText } from "../content/product-form";
@@ -19,8 +20,11 @@ export const SavedImagesManager = ({ productId }: SavedImagesManagerProps) => {
   const images = useProductImages(productId);
   const actions = useImageActions(productId);
   const input = useRef<HTMLInputElement>(null);
+  const addButton = useRef<HTMLButtonElement>(null);
+  const listBox = useRef<HTMLDivElement>(null);
   const [problem, setProblem] = useState<string>();
   const { add, list, problems } = productImagesText;
+  const focusAfterRemoval = useFocusAfterRemoval(listBox, addButton, images.data?.length ?? 0);
 
   if (images.isPending) {
     return <p className="text-sm text-ink-soft">{savedImagesText.loading}</p>;
@@ -66,6 +70,7 @@ export const SavedImagesManager = ({ productId }: SavedImagesManagerProps) => {
           onChange={pick}
         />
         <Button
+          ref={addButton}
           type="button"
           variant="outline"
           disabled={saved.length >= MAX_IMAGES || setBusy}
@@ -80,28 +85,33 @@ export const SavedImagesManager = ({ productId }: SavedImagesManagerProps) => {
           {problem}
         </p>
       )}
-      <SortableImageList
-        ids={ids}
-        label={list}
-        nameOf={(id) => savedImagesText.name(ids.indexOf(id) + 1)}
-        onMove={(from, to) => void actions.reorder(moveItem(ids, from, to))}
-      >
-        {saved.map((image, index) => (
-          <SavedImageRow
-            key={image.id}
-            image={image}
-            index={index}
-            total={saved.length}
-            busy={setBusy || actions.isPending(image.id)}
-            locked={actions.isBusy}
-            onMove={(from, to) => void actions.reorder(moveItem(ids, from, to))}
-            onRemove={(id) => void actions.remove(id)}
-            onRetry={(id) => void actions.retry(id)}
-            onReplace={(id, file) => void actions.replace(id, file)}
-            onAltText={(id, text) => void actions.changeAltText(id, text)}
-          />
-        ))}
-      </SortableImageList>
+      <div ref={listBox}>
+        <SortableImageList
+          ids={ids}
+          label={list}
+          nameOf={(id) => savedImagesText.name(ids.indexOf(id) + 1)}
+          onMove={(from, to) => void actions.reorder(moveItem(ids, from, to))}
+        >
+          {saved.map((image, index) => (
+            <SavedImageRow
+              key={image.id}
+              image={image}
+              index={index}
+              total={saved.length}
+              busy={setBusy || actions.isPending(image.id)}
+              locked={actions.isBusy}
+              onMove={(from, to) => void actions.reorder(moveItem(ids, from, to))}
+              onRemove={(id) => {
+                focusAfterRemoval(index);
+                void actions.remove(id);
+              }}
+              onRetry={(id) => void actions.retry(id)}
+              onReplace={(id, file) => void actions.replace(id, file)}
+              onAltText={(id, text) => void actions.changeAltText(id, text)}
+            />
+          ))}
+        </SortableImageList>
+      </div>
     </div>
   );
 };

@@ -64,8 +64,8 @@ export const seedAdminInputSchema = z.object({
   }),
 });
 
-export type SeedAdminInput = z.infer<typeof seedAdminInputSchema>;
-export type SeedAdminResult = "created" | "already-exists";
+type SeedAdminInput = z.infer<typeof seedAdminInputSchema>;
+type SeedAdminResult = "created" | "already-exists";
 
 /** Creates the first admin, who must change the password on first login. Does nothing if an active admin exists. */
 export async function seedAdmin(

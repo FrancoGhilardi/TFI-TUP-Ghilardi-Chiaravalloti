@@ -12,9 +12,9 @@ export const ERROR_FIELD_ORDER = [
   "temporaryPassword",
 ] as const satisfies readonly UserFormField[];
 
-export type ErrorField = (typeof ERROR_FIELD_ORDER)[number];
+type ErrorField = (typeof ERROR_FIELD_ORDER)[number];
 
-export type ServerErrors = ServerFieldErrors<ErrorField>;
+type ServerErrors = ServerFieldErrors<ErrorField>;
 
 /** Fields the API names in `VALIDATION_FAILED`, by their name in the request. */
 const FIELD_OF_NAME: Record<string, ErrorField> = {

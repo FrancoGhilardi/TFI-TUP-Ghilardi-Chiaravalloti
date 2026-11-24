@@ -125,6 +125,28 @@ describe("images when creating a product", () => {
     expect(rows()[0]).toHaveTextContent("Portada");
   });
 
+  it("keeps the focus on the arrow that moved an image, or on the other at an end", async () => {
+    const { person, upload } = renderPage();
+    await upload(png("a.png"), png("b.png"), png("c.png"));
+
+    await person.click(screen.getByRole("button", { name: "Subir c.png" }));
+    expect(screen.getByRole("button", { name: "Subir c.png" })).toHaveFocus();
+
+    await person.click(screen.getByRole("button", { name: "Subir c.png" }));
+    expect(screen.getByRole("button", { name: "Bajar c.png" })).toHaveFocus();
+  });
+
+  it("puts the focus on the next image after taking one off, and on adding after the last", async () => {
+    const { person, upload } = renderPage();
+    await upload(png("a.png"), png("b.png"));
+
+    await person.click(screen.getByRole("button", { name: "Quitar a.png" }));
+    expect(screen.getByRole("button", { name: "Quitar b.png" })).toHaveFocus();
+
+    await person.click(screen.getByRole("button", { name: "Quitar b.png" }));
+    expect(screen.getByRole("button", { name: "Agregar imágenes" })).toHaveFocus();
+  });
+
   it("gives each image a handle to drag it, named after the image", async () => {
     const { upload } = renderPage();
 

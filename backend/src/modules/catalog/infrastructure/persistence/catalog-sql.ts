@@ -3,6 +3,7 @@ import {
   containsPattern,
   prefixPattern,
 } from "../../../../shared/infrastructure/database/like-pattern.js";
+import { wordForms } from "../../application/services/search-words.js";
 
 /**
  * The categories the store shows: reached from a root through active, current categories
@@ -41,7 +42,7 @@ export const effectivePriceAt = (now: Date): SQL =>
   sql`(CASE WHEN ${saleRunsAt(now)} THEN p.sale_price ELSE p.price END)`;
 
 /** The marks a listing filters by; one left out filters nothing. */
-export interface MarkFilter {
+interface MarkFilter {
   isFeatured?: boolean;
   isOnSale?: boolean;
   isNew?: boolean;
@@ -73,15 +74,20 @@ export const unaccentedLike = (column: SQL, pattern: string): SQL =>
 export const sortableName = (column: SQL): SQL =>
   sql`lower(libreria.immutable_unaccent(${column}))`;
 
-/** Every word appears somewhere in the column, in any order; no words matches everything. */
+/**
+ * Every word appears somewhere in the column, in any order and in any of its forms (`wordForms`:
+ * singular or plural); no words matches everything.
+ */
 export function matchesEveryWord(column: SQL, words: readonly string[]): SQL {
   if (words.length === 0) {
     return sql`true`;
   }
-  return sql`(${sql.join(
-    words.map((word) => unaccentedLike(column, containsPattern(word))),
-    sql` AND `,
-  )})`;
+  const anyForm = (word: string) =>
+    sql`(${sql.join(
+      wordForms(word).map((form) => unaccentedLike(column, containsPattern(form))),
+      sql` OR `,
+    )})`;
+  return sql`(${sql.join(words.map(anyForm), sql` AND `)})`;
 }
 
 /**

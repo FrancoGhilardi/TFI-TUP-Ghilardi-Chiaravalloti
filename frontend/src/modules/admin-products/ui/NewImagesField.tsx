@@ -4,6 +4,7 @@ import { useFieldArray, useFormContext } from "react-hook-form";
 
 import { Button } from "@/modules/core/ui/primitives/button";
 
+import { useFocusAfterRemoval } from "../application/useFocusAfterRemoval";
 import { productImagesText } from "../content/product-form";
 import { checkImageFile, IMAGE_TYPES, MAX_IMAGES } from "../domain/image-rules";
 import type { ProductFormValues } from "../domain/product-form";
@@ -23,6 +24,9 @@ export const NewImagesField = () => {
   });
   const [problems, setProblems] = useState<string[]>([]);
   const input = useRef<HTMLInputElement>(null);
+  const addButton = useRef<HTMLButtonElement>(null);
+  const listBox = useRef<HTMLDivElement>(null);
+  const focusAfterRemoval = useFocusAfterRemoval(listBox, addButton, fields.length);
   const inputId = useId();
   const { add, list, none, problems: messages } = productImagesText;
 
@@ -71,6 +75,7 @@ export const NewImagesField = () => {
           aria-describedby={message ? ERROR_ID : undefined}
         />
         <Button
+          ref={addButton}
           type="button"
           variant="outline"
           disabled={fields.length >= MAX_IMAGES}
@@ -87,28 +92,33 @@ export const NewImagesField = () => {
           ))}
         </ul>
       )}
-      {fields.length === 0 ? (
-        <p className="text-sm text-ink-soft">{none}</p>
-      ) : (
-        <SortableImageList
-          ids={fields.map(({ id }) => id)}
-          label={list}
-          nameOf={(id) => names.get(id) ?? id}
-          onMove={move}
-        >
-          {fields.map((field, index) => (
-            <NewImageRow
-              key={field.id}
-              id={field.id}
-              index={index}
-              total={fields.length}
-              file={field.file}
-              onMove={move}
-              onRemove={remove}
-            />
-          ))}
-        </SortableImageList>
-      )}
+      <div ref={listBox}>
+        {fields.length === 0 ? (
+          <p className="text-sm text-ink-soft">{none}</p>
+        ) : (
+          <SortableImageList
+            ids={fields.map(({ id }) => id)}
+            label={list}
+            nameOf={(id) => names.get(id) ?? id}
+            onMove={move}
+          >
+            {fields.map((field, index) => (
+              <NewImageRow
+                key={field.id}
+                id={field.id}
+                index={index}
+                total={fields.length}
+                file={field.file}
+                onMove={move}
+                onRemove={(index) => {
+                  focusAfterRemoval(index);
+                  remove(index);
+                }}
+              />
+            ))}
+          </SortableImageList>
+        )}
+      </div>
       <FieldError id={ERROR_ID} message={message} />
     </div>
   );

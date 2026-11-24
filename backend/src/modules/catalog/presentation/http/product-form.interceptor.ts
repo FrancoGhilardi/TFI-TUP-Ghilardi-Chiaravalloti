@@ -12,8 +12,8 @@ import { InvalidImageCountError } from "../../domain/errors/invalid-image-count-
 import { InvalidImageError } from "../../domain/errors/invalid-image-error.js";
 import { formError, readMultipart } from "./multipart-form.js";
 
-export const IMAGES_FIELD = "images";
-export const DATA_FIELD = "data";
+const IMAGES_FIELD = "images";
+const DATA_FIELD = "data";
 
 // Far above any real product, and enough to keep a huge text field out of memory.
 const DATA_MAX_BYTES = 100 * 1024;

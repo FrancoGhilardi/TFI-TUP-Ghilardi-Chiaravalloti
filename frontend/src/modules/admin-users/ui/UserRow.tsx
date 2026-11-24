@@ -2,7 +2,10 @@ import Link from "next/link";
 
 import { formatDateTime } from "@/modules/core/formatters/date-time";
 import { formatRelativeTime } from "@/modules/core/formatters/relative-time";
-import { cn } from "@/modules/core/lib/utils";
+import { ListRow } from "@/modules/core/ui/ListRow";
+import { RowActionsCell } from "@/modules/core/ui/RowActionsCell";
+import { RowCell } from "@/modules/core/ui/RowCell";
+import { RowLeadCell } from "@/modules/core/ui/RowLeadCell";
 
 import { roleLabels, usersContent } from "../content/users";
 import type { AdminUserRow } from "../domain/admin-user";
@@ -10,9 +13,6 @@ import { userState } from "../domain/user-state";
 import { USERS_PATH } from "../domain/users-query";
 import { UserRowActions } from "./UserRowActions";
 import { UserStateBadge } from "./UserStateBadge";
-
-const CELL =
-  "px-3 py-3 align-middle max-md:flex max-md:items-center max-md:justify-between max-md:gap-4 max-md:px-0 max-md:py-1.5 max-md:before:text-xs max-md:before:font-semibold max-md:before:text-ink-soft max-md:before:content-[attr(data-label)]";
 
 interface UserRowProps {
   user: AdminUserRow;
@@ -39,13 +39,8 @@ export const UserRow = ({
   const state = userState(user);
 
   return (
-    <tr
-      className={cn(
-        "border-t border-line-soft max-md:block max-md:rounded-card max-md:border max-md:p-4",
-        state === "deleted" && "bg-wheat/40 text-ink-soft",
-      )}
-    >
-      <td className="px-3 py-3 align-middle max-md:block max-md:px-0 max-md:pt-0">
+    <ListRow deleted={state === "deleted"}>
+      <RowLeadCell>
         <div className="flex items-center gap-2">
           <div className="min-w-0">
             {state === "deleted" ? (
@@ -66,11 +61,9 @@ export const UserRow = ({
             </span>
           )}
         </div>
-      </td>
-      <td data-label={columns.role} className={CELL}>
-        {roleLabels[user.role]}
-      </td>
-      <td data-label={columns.state} className={CELL}>
+      </RowLeadCell>
+      <RowCell label={columns.role}>{roleLabels[user.role]}</RowCell>
+      <RowCell label={columns.state}>
         <span className="flex flex-wrap items-center gap-1.5">
           <UserStateBadge state={state} />
           {user.mustChangePassword && state !== "deleted" && (
@@ -79,8 +72,8 @@ export const UserRow = ({
             </span>
           )}
         </span>
-      </td>
-      <td data-label={columns.lastAccess} className={CELL}>
+      </RowCell>
+      <RowCell label={columns.lastAccess}>
         {user.lastLoginAt ? (
           <time
             dateTime={user.lastLoginAt.toISOString()}
@@ -92,8 +85,8 @@ export const UserRow = ({
         ) : (
           <span className="text-xs text-ink-soft">{never}</span>
         )}
-      </td>
-      <td className="px-3 py-3 align-middle max-md:block max-md:px-0 max-md:pb-0">
+      </RowCell>
+      <RowActionsCell>
         <UserRowActions
           user={user}
           own={own}
@@ -102,7 +95,7 @@ export const UserRow = ({
           onRestore={onRestore}
           onResetPassword={onResetPassword}
         />
-      </td>
-    </tr>
+      </RowActionsCell>
+    </ListRow>
   );
 };

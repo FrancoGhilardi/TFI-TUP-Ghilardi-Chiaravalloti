@@ -64,7 +64,7 @@ describe("useCategoryActions", () => {
     await act(() => result.current.remove("c1"));
 
     expect(toast.error).toHaveBeenCalledWith(
-      "La categoría tiene subcategorías. Hay 3 elementos que la bloquean.",
+      "La categoría tiene subcategorías. Tiene 3 subcategorías.",
     );
     expect(toast.success).not.toHaveBeenCalled();
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["admin-categories"] });

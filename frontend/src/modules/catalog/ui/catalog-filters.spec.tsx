@@ -197,18 +197,17 @@ describe("catalog states", () => {
   it("says what was searched when nothing matches and offers the whole catalog and WhatsApp", () => {
     render(<CatalogEmptyState search="lapiz" />);
 
-    const status = screen.getByRole("status");
-    expect(within(status).getByRole("heading")).toHaveTextContent(
-      "No encontramos productos para «lapiz»",
-    );
-    expect(within(status).getByRole("link", { name: "Ver todos los productos" })).toHaveAttribute(
+    expect(screen.getByRole("heading")).toHaveTextContent("No encontramos productos para «lapiz»");
+    expect(screen.getByRole("link", { name: "Ver todos los productos" })).toHaveAttribute(
       "href",
       "/productos",
     );
-    expect(within(status).getByRole("link", { name: "Consultanos por WhatsApp" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Consultanos por WhatsApp" })).toHaveAttribute(
       "target",
       "_blank",
     );
+    // The catalog announces it once, from ResultsAnnouncement.
+    expect(screen.queryByRole("status")).toBeNull();
   });
 
   it("links an out-of-range page to the first one", () => {
@@ -218,16 +217,17 @@ describe("catalog states", () => {
       "href",
       "/productos?q=lapiz",
     );
+    expect(screen.queryByRole("status")).toBeNull();
   });
 
-  it("announces a failure and offers to retry the same URL", () => {
+  it("shows a failure and offers to retry the same URL", () => {
     render(<CatalogErrorState retryHref="/productos?pagina=2" />);
 
-    const alert = screen.getByRole("alert");
-    expect(within(alert).getByRole("heading")).toHaveTextContent("No pudimos cargar los productos");
-    expect(within(alert).getByRole("link", { name: "Reintentar" })).toHaveAttribute(
+    expect(screen.getByRole("heading")).toHaveTextContent("No pudimos cargar los productos");
+    expect(screen.getByRole("link", { name: "Reintentar" })).toHaveAttribute(
       "href",
       "/productos?pagina=2",
     );
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });
